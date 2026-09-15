@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>روائز التربية البدنية والرياضية</title>
+    <meta name="description" content="تطبيق متكامل لمدرسي مادة التربية البدنية والرياضية لإدارة روائز اللياقة البدنية واختبار السرعة القصوى الهوائية Luc Léger VMA والقياسات البيومترية." />
+    <meta property="og:title" content="روائز التربية البدنية والرياضية" />
+    <meta property="og:description" content="تطبيق متكامل لمدرسي مادة التربية البدنية والرياضية لإدارة روائز اللياقة البدنية واختبار السرعة القصوى الهوائية Luc Léger VMA والقياسات البيومترية." />
+    <meta name="theme-color" content="#4f46e5" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="روائز EPS" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="alternate icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+      /* Simple style to prevent screen sleep on mobile devices */
+      body, html {
+        height: 100%;
+      }
+      #root {
+        height: 100%;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

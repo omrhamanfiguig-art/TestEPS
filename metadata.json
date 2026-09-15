@@ -1,0 +1,8 @@
+{
+  "name": "Remix اختبارات بدنية وقياسات بيوميترية",
+  "description": "Une application web pour gérer le test progressif de Luc Léger (test navette 20 m) et enregistrer automatiquement la VMA des élèves. L\u0027application inclut un chronomètre, des signaux sonores synchronisés et permet d\u0027enregistrer les résultats d\u0027un simple clic.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
