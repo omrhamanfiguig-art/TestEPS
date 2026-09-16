@@ -631,8 +631,16 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                         <div>VMA</div>
                                         <div className="text-[10px] font-normal text-amber-600 dark:text-amber-400">كم/س</div>
                                     </th>
-                                    <th className="p-2.5 font-bold min-w-[95px]">
-                                        <div>30 م سرعة</div>
+                                    <th className="p-2.5 font-bold min-w-[105px] bg-orange-50/50 dark:bg-orange-950/20">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsSprintModalOpen(true)}
+                                            className="inline-flex items-center gap-1 hover:text-orange-600 transition cursor-pointer group"
+                                            title="اضغط هنا لتشغيل اختبار وسباق 30 م سرعة بالعداد التلقائي"
+                                        >
+                                            <span>30 م سرعة</span>
+                                            <span className="text-[10px] px-1 py-0.5 rounded bg-orange-500 text-white font-mono group-hover:bg-orange-600">⏱️</span>
+                                        </button>
                                         <div className="text-[10px] font-normal text-gray-400">ثانية</div>
                                     </th>
                                     <th className="p-2.5 font-bold min-w-[95px]">
@@ -1324,8 +1332,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                 <Sprint30mTestModal
                     isOpen={isSprintModalOpen}
                     onClose={() => setIsSprintModalOpen(false)}
-                    initialClass={selectedClass}
-                    classList={classList}
+                    initialClass={selectedClass || (classList.length > 0 ? classList[0].className : '')}
+                    classList={classList.map(c => c.className)}
                     onDataSaved={() => loadClassData(selectedClass)}
                 />
             )}
