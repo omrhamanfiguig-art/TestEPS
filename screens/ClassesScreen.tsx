@@ -14,9 +14,11 @@ import {
   ArrowUpTrayIcon,
   PencilSquareIcon,
   ExcelIcon,
-  ArrowDownTrayIcon
+  ArrowDownTrayIcon,
+  UserPlusIcon
 } from '../components/Icons';
 import { StudentDataModal } from '../components/StudentDataModal';
+import { AddEditStudentModal } from '../components/AddEditStudentModal';
 import { useLanguage } from '../utils/i18n';
 import { 
   getAllClasses, 
@@ -25,7 +27,11 @@ import {
   getStudentList, 
   getPhysicalTests, 
   getVmaResults,
-  saveStudentList
+  saveStudentList,
+  deleteStudentFromClass,
+  searchStudentsGlobal,
+  GlobalStudentSearchResult,
+  normalizeArabicText
 } from '../utils/db';
 import {
   exportClassPhysicalTestsToExcel,
@@ -68,6 +74,20 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterStudents, setRosterStudents] = useState<StudentStatusRow[]>([]);
   const [rosterSearch, setRosterSearch] = useState('');
+
+  // Search Mode & Global Student Search
+  const [searchMode, setSearchMode] = useState<'classes' | 'students'>('classes');
+  const [globalStudents, setGlobalStudents] = useState<GlobalStudentSearchResult[]>([]);
+  const [isSearchingStudents, setIsSearchingStudents] = useState(false);
+
+  // Add / Edit Student Modal
+  const [isAddEditModalOpen, setIsAddEditModalOpen] = useState(false);
+  const [studentToEdit, setStudentToEdit] = useState<StudentIdentity | null>(null);
+  const [addEditClass, setAddEditClass] = useState<string>('');
+
+  // Delete Student Confirmation
+  const [studentToDelete, setStudentToDelete] = useState<{ student: StudentIdentity; className: string } | null>(null);
+  const [isDeletingStudent, setIsDeletingStudent] = useState(false);
 
   // Delete Confirmation Modal
   const [classToDelete, setClassToDelete] = useState<string | null>(null);
@@ -273,6 +293,74 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
     }
   };
 
+  // Open Add Student Modal
+  const handleOpenAddStudent = (targetClass?: string) => {
+    const cls = targetClass || rosterClass || selectedClass || (classes[0]?.className) || '';
+    if (!cls) {
+      showToast(language === 'ar' ? 'يرجى إنشاء أو استيراد قسم أولاً.' : 'Veuillez d’abord créer ou importer une classe.');
+      return;
+    }
+    setAddEditClass(cls);
+    setStudentToEdit(null);
+    setIsAddEditModalOpen(true);
+  };
+
+  // Open Edit Student Modal
+  const handleOpenEditStudent = (student: StudentIdentity, targetClass: string) => {
+    setAddEditClass(targetClass);
+    setStudentToEdit(student);
+    setIsAddEditModalOpen(true);
+  };
+
+  // Confirm delete student
+  const handleConfirmDeleteStudent = async () => {
+    if (!studentToDelete) return;
+    setIsDeletingStudent(true);
+    try {
+      const res = await deleteStudentFromClass(studentToDelete.className, studentToDelete.student.numeroEleve);
+      if (res.success) {
+        showToast(
+          language === 'ar' 
+            ? `تم حذف التلميذ «${studentToDelete.student.nomEleve}» بنجاح` 
+            : `Élève ${studentToDelete.student.nomEleve} supprimé`
+        );
+        if (rosterClass === studentToDelete.className) {
+          handleOpenRoster(rosterClass);
+        }
+        await fetchClassesData();
+      } else {
+        showToast(res.error || (language === 'ar' ? 'حدث خطأ أثناء الحذف' : 'Erreur de suppression'));
+      }
+    } catch (err: any) {
+      console.error('Failed to delete student:', err);
+      showToast(err.message || (language === 'ar' ? 'حدث خطأ غير متوقع' : 'Erreur'));
+    } finally {
+      setIsDeletingStudent(false);
+      setStudentToDelete(null);
+    }
+  };
+
+  // Global student search effect
+  useEffect(() => {
+    if (searchMode !== 'students') return;
+
+    const timer = setTimeout(async () => {
+      setIsSearchingStudents(true);
+      try {
+        const query = searchQuery.trim();
+        // If empty query, show all students (up to 100) or matching query
+        const results = await searchStudentsGlobal(query || ' ');
+        setGlobalStudents(results);
+      } catch (err) {
+        console.error('Error during global student search:', err);
+      } finally {
+        setIsSearchingStudents(false);
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchMode]);
+
   // Delete class action
   const handleConfirmDelete = async () => {
     if (!classToDelete) return;
@@ -330,14 +418,15 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
     });
   }, [classes, searchQuery, filterStatus]);
 
-  // Filtered roster students in modal
+  // Filtered roster students in modal (supports Arabic normalized search)
   const filteredRoster = useMemo(() => {
     if (!rosterSearch.trim()) return rosterStudents;
-    const q = rosterSearch.toLowerCase();
-    return rosterStudents.filter(r => 
-      r.student.nomEleve.toLowerCase().includes(q) || 
-      r.student.numeroEleve.toLowerCase().includes(q)
-    );
+    const q = normalizeArabicText(rosterSearch);
+    return rosterStudents.filter(r => {
+      const normName = normalizeArabicText(r.student.nomEleve);
+      const normNum = String(r.student.numeroEleve || '').toLowerCase();
+      return normName.includes(q) || normNum.includes(q);
+    });
   }, [rosterStudents, rosterSearch]);
 
   return (
@@ -376,6 +465,17 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
             multiple
             className="hidden"
           />
+
+          {/* Quick Add Student button */}
+          <button
+            onClick={() => handleOpenAddStudent(selectedClass || classes[0]?.className)}
+            disabled={classes.length === 0}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs sm:text-sm font-bold shadow-md shadow-emerald-600/20 transition"
+            title={language === 'ar' ? 'إضافة تلميذ جديد إلى لائحة القسم' : 'Ajouter un élève'}
+          >
+            <UserPlusIcon className="w-4 h-4" />
+            <span>{language === 'ar' ? 'إضافة تلميذ' : 'Ajouter élève'}</span>
+          </button>
 
           {/* Import Classes (استيراد الأقسام) button */}
           <button
@@ -496,58 +596,311 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white dark:bg-gray-800 p-3.5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
-        {/* Search Input */}
-        <div className="relative w-full sm:w-80">
-          <div className="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none text-gray-400">
-            <MagnifyingGlassIcon className="w-4 h-4" />
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white dark:bg-gray-800 p-3.5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+        {/* Search Mode Selector & Input */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1">
+          {/* Toggle between Classes and Students search */}
+          <div className="flex items-center bg-gray-100 dark:bg-gray-900 p-1 rounded-xl shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setSearchMode('classes');
+                setSearchQuery('');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                searchMode === 'classes'
+                  ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+              }`}
+            >
+              <AcademicCapIcon className="w-3.5 h-3.5" />
+              <span>{language === 'ar' ? 'الأقسام' : 'Classes'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSearchMode('students');
+                setSearchQuery('');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                searchMode === 'students'
+                  ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+              }`}
+            >
+              <UsersIcon />
+              <span>{language === 'ar' ? 'بحث باسم التلميذ' : 'Recherche élèves'}</span>
+            </button>
           </div>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={language === 'ar' ? 'بحث عن قسم بالاسم...' : 'Rechercher une classe...'}
-            className="w-full ps-9 pe-3 py-2 text-xs sm:text-sm rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
+
+          {/* Search Input */}
+          <div className="relative flex-1">
+            <div className="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none text-gray-400">
+              <MagnifyingGlassIcon className="w-4 h-4" />
+            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={
+                searchMode === 'students'
+                  ? (language === 'ar' ? 'ابحث بالاسم الكامل للتلميذ أو رقم مسار في كل الأقسام...' : 'Recherche élève par nom ou Massar...')
+                  : (language === 'ar' ? 'بحث عن قسم بالاسم...' : 'Rechercher une classe...')
+              }
+              className="w-full ps-9 pe-8 py-2 text-xs sm:text-sm rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute inset-y-0 end-0 pe-2.5 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto">
-          <button
-            onClick={() => setFilterStatus('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-              filterStatus === 'all'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-            }`}
-          >
-            {language === 'ar' ? 'الكل' : 'Toutes'} ({classes.length})
-          </button>
-          <button
-            onClick={() => setFilterStatus('tested')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-              filterStatus === 'tested'
-                ? 'bg-emerald-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-            }`}
-          >
-            {language === 'ar' ? 'تم بدء الاختبارات' : 'En cours / Testées'}
-          </button>
-          <button
-            onClick={() => setFilterStatus('untested')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-              filterStatus === 'untested'
-                ? 'bg-rose-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-            }`}
-          >
-            {language === 'ar' ? 'لم تُختبر بعد' : 'Non testées'}
-          </button>
-        </div>
+        {/* Filter Pills (when in classes mode) or Student count & Add button */}
+        {searchMode === 'classes' ? (
+          <div className="flex items-center gap-1.5 w-full md:w-auto overflow-x-auto shrink-0">
+            <button
+              onClick={() => setFilterStatus('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                filterStatus === 'all'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              {language === 'ar' ? 'الكل' : 'Toutes'} ({classes.length})
+            </button>
+            <button
+              onClick={() => setFilterStatus('tested')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                filterStatus === 'tested'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              {language === 'ar' ? 'تم بدء الاختبارات' : 'En cours / Testées'}
+            </button>
+            <button
+              onClick={() => setFilterStatus('untested')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                filterStatus === 'untested'
+                  ? 'bg-rose-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              {language === 'ar' ? 'لم تُختبر بعد' : 'Non testées'}
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between sm:justify-end gap-2 w-full md:w-auto shrink-0">
+            <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
+              {language === 'ar' ? `المعروض: ${globalStudents.length} تلميذ` : `${globalStudents.length} élèves`}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleOpenAddStudent(selectedClass || classes[0]?.className)}
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-emerald-600/20"
+            >
+              <UserPlusIcon className="w-3.5 h-3.5" />
+              <span>{language === 'ar' ? 'إضافة تلميذ' : 'Ajouter élève'}</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Classes Grid */}
-      {loading ? (
+      {/* Render Student Search Results OR Classes Grid */}
+      {searchMode === 'students' ? (
+        <div className="space-y-4">
+          {isSearchingStudents ? (
+            <div className="py-20 text-center space-y-3 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
+              <div className="animate-spin inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full" />
+              <p className="text-sm font-bold text-gray-500 dark:text-gray-400">
+                {language === 'ar' ? 'جاري البحث في لوائح التلاميذ...' : 'Recherche des élèves...'}
+              </p>
+            </div>
+          ) : globalStudents.length === 0 ? (
+            <div className="py-16 px-6 text-center bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 space-y-4">
+              <div className="inline-flex p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950 text-indigo-500">
+                <UsersIcon />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base sm:text-lg font-bold text-gray-800 dark:text-gray-200">
+                  {searchQuery.trim()
+                    ? (language === 'ar' ? `لم يتم العثور على أي تلميذ يطابق «${searchQuery}»` : `Aucun élève correspondant à «${searchQuery}»`)
+                    : (language === 'ar' ? 'لا يوجد تلاميذ مسجلون حالياً' : 'Aucun élève enregistré')}
+                </h3>
+                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                  {searchQuery.trim()
+                    ? (language === 'ar' ? 'تأكد من كتابة الاسم أو رقم مسار بشكل صحيح، أو أضف تلميذاً جديداً.' : 'Vérifiez l’orthographe ou ajoutez un élève.')
+                    : (language === 'ar' ? 'قم باستيراد لائحة أو أضف تلميذاً يدوياً للبدء.' : 'Importez une liste ou ajoutez un élève manuellement.')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleOpenAddStudent(selectedClass || classes[0]?.className)}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-md shadow-emerald-600/20 transition"
+              >
+                <UserPlusIcon className="w-4 h-4" />
+                <span>{language === 'ar' ? 'إضافة تلميذ جديد الآن' : 'Ajouter un élève maintenant'}</span>
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50/60 dark:bg-gray-850">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black text-gray-900 dark:text-white">
+                    {language === 'ar' ? 'نتائج البحث عن التلاميذ' : 'Résultats de recherche'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-black bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                    {globalStudents.length} {language === 'ar' ? 'تلميذ' : 'élèves'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleOpenAddStudent(selectedClass || classes[0]?.className)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs"
+                >
+                  <UserPlusIcon className="w-3.5 h-3.5" />
+                  <span>{language === 'ar' ? 'إضافة تلميذ' : 'Ajouter'}</span>
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-start">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-400 uppercase text-[10px] font-black bg-gray-50/40 dark:bg-gray-800/40">
+                      <th className="py-3 px-3 text-start">#</th>
+                      <th className="py-3 px-3 text-start">{t.studentName}</th>
+                      <th className="py-3 px-3 text-start">{language === 'ar' ? 'القسم' : 'Classe'}</th>
+                      <th className="py-3 px-3 text-center">{t.gender}</th>
+                      <th className="py-3 px-3 text-center">{t.navPhysicalTests}</th>
+                      <th className="py-3 px-3 text-center">{t.vmaTitle}</th>
+                      <th className="py-3 px-3 text-center">{t.navMeasurements}</th>
+                      <th className="py-3 px-3 text-center">{language === 'ar' ? 'الإجراءات' : 'Actions'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {globalStudents.map((item, idx) => (
+                      <tr key={`${item.className}-${item.student.numeroEleve}-${idx}`} className="hover:bg-gray-50/70 dark:hover:bg-gray-750 transition">
+                        <td className="py-2.5 px-3 text-gray-400 font-mono">{idx + 1}</td>
+                        <td className="py-2.5 px-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedClass(item.className);
+                              setModalStudentNumber(item.student.numeroEleve);
+                            }}
+                            className="font-bold text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition flex items-center gap-1.5 group/name text-start"
+                            title={language === 'ar' ? 'فتح بطاقة التلميذ' : 'Voir fiche élève'}
+                          >
+                            <span className="group-hover/name:underline">{item.student.nomEleve}</span>
+                            <span className="text-[10px] font-mono text-gray-400 bg-gray-100 dark:bg-gray-700 px-1 rounded">
+                              {item.student.numeroEleve}
+                            </span>
+                          </button>
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenRoster(item.className)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/70 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-black text-xs border border-indigo-200/80 dark:border-indigo-800 transition"
+                            title={language === 'ar' ? 'فتح لائحة هذا القسم' : 'Ouvrir cette classe'}
+                          >
+                            <AcademicCapIcon className="w-3.5 h-3.5" />
+                            <span>{item.className}</span>
+                          </button>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-black ${
+                            item.student.sexe === 'M'
+                              ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                              : 'bg-pink-50 text-pink-700 dark:bg-pink-950 dark:text-pink-300'
+                          }`}>
+                            {item.student.sexe === 'M' ? (language === 'ar' ? 'ذكر' : 'G') : (language === 'ar' ? 'أنثى' : 'F')}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          {item.isPhysicalDone ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 text-[10px] font-bold">
+                              <CheckIcon />
+                              <span>{language === 'ar' ? 'منجز' : 'Fait'}</span>
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-[10px]">-</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          {item.isVmaDone && item.vmaVal ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 text-[10px] font-bold font-mono">
+                              <span>{item.vmaVal}</span>
+                              <span className="text-[9px]">km/h</span>
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-[10px]">-</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          {item.imcVal ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 text-[10px] font-bold font-mono">
+                              <span>{item.imcVal}</span>
+                            </span>
+                          ) : item.isMeasurementsDone ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 text-[10px] font-bold">
+                              <CheckIcon />
+                              <span>{language === 'ar' ? 'مسجل' : 'Saisi'}</span>
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-[10px]">-</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {/* Edit Student */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditStudent(item.student, item.className)}
+                              className="p-1.5 rounded-lg text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition"
+                              title={language === 'ar' ? 'تعديل بيانات التلميذ' : 'Modifier'}
+                            >
+                              <PencilSquareIcon className="w-3.5 h-3.5" />
+                            </button>
+                            {/* Complete Data Modal */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedClass(item.className);
+                                setModalStudentNumber(item.student.numeroEleve);
+                              }}
+                              className="p-1.5 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition"
+                              title={language === 'ar' ? 'بطاقة التلميذ والاختبارات' : 'Fiche complète'}
+                            >
+                              <EyeIcon className="w-3.5 h-3.5" />
+                            </button>
+                            {/* Delete Student */}
+                            <button
+                              type="button"
+                              onClick={() => setStudentToDelete({ student: item.student, className: item.className })}
+                              className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                              title={language === 'ar' ? 'حذف التلميذ' : 'Supprimer'}
+                            >
+                              <TrashIcon />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : loading ? (
         <div className="py-20 text-center space-y-3">
           <div className="animate-spin inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full" />
           <p className="text-sm font-bold text-gray-500 dark:text-gray-400">
@@ -773,6 +1126,16 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
 
               <div className="flex flex-wrap items-center gap-2">
                 <button
+                  type="button"
+                  onClick={() => handleOpenAddStudent(rosterClass)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition"
+                  title={language === 'ar' ? 'إضافة تلميذ جديد لهذا القسم' : 'Ajouter un élève'}
+                >
+                  <UserPlusIcon className="w-3.5 h-3.5" />
+                  <span>{language === 'ar' ? 'إضافة تلميذ' : 'Ajouter élève'}</span>
+                </button>
+
+                <button
                   onClick={() => handleExportPhysical(rosterClass)}
                   title={language === 'ar' ? 'تصدير نتائج الاختبارات البدنية لهذا القسم (Excel)' : 'Exporter tests physiques'}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 transition"
@@ -802,16 +1165,16 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                 </button>
                 <button
                   onClick={() => setRosterClass(null)}
-                  className="p-2 rounded-xl text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                  className="p-2 rounded-xl text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-750 transition"
                 >
                   <XMarkIcon />
                 </button>
               </div>
             </div>
 
-            {/* Modal Search */}
-            <div className="p-3 border-b border-gray-100 dark:border-gray-700/60 bg-white dark:bg-gray-800">
-              <div className="relative">
+            {/* Modal Search and Quick Add Bar */}
+            <div className="p-3 border-b border-gray-100 dark:border-gray-700/60 bg-white dark:bg-gray-800 flex items-center gap-2">
+              <div className="relative flex-1">
                 <div className="absolute inset-y-0 start-0 ps-3 flex items-center pointer-events-none text-gray-400">
                   <MagnifyingGlassIcon className="w-4 h-4" />
                 </div>
@@ -819,10 +1182,27 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                   type="text"
                   value={rosterSearch}
                   onChange={(e) => setRosterSearch(e.target.value)}
-                  placeholder={language === 'ar' ? 'بحث بالاسم...' : 'Rechercher un élève...'}
-                  className="w-full ps-9 pe-3 py-2 text-xs sm:text-sm rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder={language === 'ar' ? '🔍 ابحث باسم التلميذ أو رقم مسار في هذا القسم...' : 'Rechercher un élève...'}
+                  className="w-full ps-9 pe-8 py-2 text-xs sm:text-sm rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
+                {rosterSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setRosterSearch('')}
+                    className="absolute inset-y-0 end-0 pe-2.5 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                  >
+                    <XMarkIcon className="w-4 h-4" />
+                  </button>
+                )}
               </div>
+              <button
+                type="button"
+                onClick={() => handleOpenAddStudent(rosterClass)}
+                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 shadow-xs"
+              >
+                <UserPlusIcon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{language === 'ar' ? 'إضافة تلميذ' : 'Ajouter'}</span>
+              </button>
             </div>
 
             {/* Modal Table Body */}
@@ -833,8 +1213,16 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                   <p className="text-xs text-gray-500">{language === 'ar' ? 'جاري التحميل...' : 'Chargement...'}</p>
                 </div>
               ) : filteredRoster.length === 0 ? (
-                <div className="py-12 text-center text-gray-400 text-xs sm:text-sm">
-                  {language === 'ar' ? 'لا يوجد تلاميذ يطابقون البحث.' : 'Aucun élève trouvé.'}
+                <div className="py-12 text-center text-gray-400 text-xs sm:text-sm space-y-3">
+                  <p>{language === 'ar' ? 'لا يوجد تلاميذ يطابقون البحث.' : 'Aucun élève trouvé.'}</p>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAddStudent(rosterClass)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition"
+                  >
+                    <UserPlusIcon className="w-3.5 h-3.5" />
+                    <span>{language === 'ar' ? 'إضافة تلميذ جديد الآن' : 'Ajouter un élève'}</span>
+                  </button>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -847,6 +1235,7 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                         <th className="py-2.5 px-3 text-center">{t.navPhysicalTests}</th>
                         <th className="py-2.5 px-3 text-center">{t.vmaTitle}</th>
                         <th className="py-2.5 px-3 text-center">{t.navMeasurements}</th>
+                        <th className="py-2.5 px-3 text-center">{language === 'ar' ? 'الإجراءات' : 'Actions'}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -858,10 +1247,12 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                               type="button"
                               onClick={() => setModalStudentNumber(row.student.numeroEleve)}
                               className="text-start hover:text-indigo-600 dark:hover:text-indigo-400 transition flex items-center gap-1.5 group/rosterName"
-                              title="انقر لفتح نافذة بيانات التلميذ وتعديلها بسهولة"
+                              title={language === 'ar' ? 'انقر لفتح نافذة بيانات التلميذ وتعديلها بسهولة' : 'Voir données'}
                             >
                               <span className="group-hover/rosterName:underline">{row.student.nomEleve}</span>
-                              <PencilSquareIcon className="w-3.5 h-3.5 text-indigo-500 opacity-40 group-hover/rosterName:opacity-100 transition-opacity" />
+                              <span className="text-[10px] font-mono text-gray-400 bg-gray-100 dark:bg-gray-800 px-1 rounded">
+                                {row.student.numeroEleve}
+                              </span>
                             </button>
                           </td>
                           <td className="py-2 px-3 text-center">
@@ -903,6 +1294,37 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                               <span className="text-gray-400 text-[10px]">-</span>
                             )}
                           </td>
+                          <td className="py-2 px-3 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {/* Edit Student Identity */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditStudent(row.student, rosterClass)}
+                                className="p-1.5 rounded-lg text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition"
+                                title={language === 'ar' ? 'تعديل بيانات التلميذ (الاسم، الرقم، الجنس)' : 'Modifier'}
+                              >
+                                <PencilSquareIcon className="w-3.5 h-3.5" />
+                              </button>
+                              {/* Complete Data Modal */}
+                              <button
+                                type="button"
+                                onClick={() => setModalStudentNumber(row.student.numeroEleve)}
+                                className="p-1.5 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition"
+                                title={language === 'ar' ? 'بطاقة التلميذ والقياسات والاختبارات' : 'Fiche élève'}
+                              >
+                                <EyeIcon className="w-3.5 h-3.5" />
+                              </button>
+                              {/* Delete Student */}
+                              <button
+                                type="button"
+                                onClick={() => setStudentToDelete({ student: row.student, className: rosterClass })}
+                                className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                                title={language === 'ar' ? 'حذف التلميذ من اللائحة' : 'Supprimer'}
+                              >
+                                <TrashIcon />
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -921,6 +1343,44 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                 className="px-4 py-2 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-xs font-bold hover:bg-gray-300 dark:hover:bg-gray-600 transition"
               >
                 {t.cancel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Delete Student Confirmation */}
+      {studentToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl p-6 shadow-2xl border border-gray-200 dark:border-gray-700 space-y-4 animate-fadeIn">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950">
+                <TrashIcon />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                {language === 'ar' ? 'تأكيد حذف التلميذ' : 'Supprimer l’élève'}
+              </h3>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+              {language === 'ar'
+                ? `هل أنت متأكد من رغبتك في حذف التلميذ(ة) «${studentToDelete.student.nomEleve}» (رقم: ${studentToDelete.student.numeroEleve}) من القسم "${studentToDelete.className}"؟ سيتم حذف بياناته ونتائجه المرتبطة به نهائياً.`
+                : `Êtes-vous sûr de vouloir supprimer définitivement ${studentToDelete.student.nomEleve} de la classe "${studentToDelete.className}" ?`}
+            </p>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setStudentToDelete(null)}
+                disabled={isDeletingStudent}
+                className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+              >
+                {t.cancel}
+              </button>
+              <button
+                onClick={handleConfirmDeleteStudent}
+                disabled={isDeletingStudent}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition flex items-center gap-2"
+              >
+                {isDeletingStudent && <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                <span>{language === 'ar' ? 'نعم، حذف التلميذ' : 'Supprimer'}</span>
               </button>
             </div>
           </div>
@@ -963,6 +1423,32 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL: Add / Edit Student */}
+      {isAddEditModalOpen && (
+        <AddEditStudentModal
+          isOpen={isAddEditModalOpen}
+          onClose={() => {
+            setIsAddEditModalOpen(false);
+            setStudentToEdit(null);
+          }}
+          className={addEditClass}
+          studentToEdit={studentToEdit}
+          existingStudentsCount={rosterStudents.length}
+          onSuccess={(savedStudent) => {
+            showToast(
+              studentToEdit 
+                ? (language === 'ar' ? `تم تحديث بيانات التلميذ «${savedStudent.nomEleve}» بنجاح` : `Élève mis à jour`)
+                : (language === 'ar' ? `تمت إضافة التلميذ «${savedStudent.nomEleve}» بنجاح` : `Élève ajouté`)
+            );
+            fetchClassesData();
+            if (rosterClass) handleOpenRoster(rosterClass);
+            if (searchMode === 'students') {
+              searchStudentsGlobal(searchQuery.trim() || ' ').then(res => setGlobalStudents(res));
+            }
+          }}
+        />
       )}
 
       {modalStudentNumber && rosterClass && (

@@ -375,3 +375,274 @@ export const saveCompleteStudentData = async (
     // 4. Dispatch update event
     window.dispatchEvent(new CustomEvent('dbUpdated'));
 };
+
+/**
+ * Normalizes Arabic text for flexible search (ignoring hamza variants, taa marbuta, diacritics)
+ */
+export const normalizeArabicText = (text?: string): string => {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/ئ/g, 'ي')
+    .replace(/ؤ/g, 'و')
+    .replace(/[\u064B-\u065F\u0670]/g, '') // remove tashkeel/diacritics
+    .trim();
+};
+
+/**
+ * Adds a new student to a class list
+ */
+export const addStudentToClass = async (
+  className: string,
+  newStudent: StudentIdentity
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const students = await getStudentList(className);
+    const cleanNum = String(newStudent.numeroEleve || '').trim();
+    const cleanName = String(newStudent.nomEleve || '').trim();
+
+    if (!cleanName) {
+      return { success: false, error: 'اسم التلميذ مطلوب.' };
+    }
+    if (!cleanNum) {
+      return { success: false, error: 'رقم التلميذ مطلوب.' };
+    }
+
+    const exists = students.some(s => String(s.numeroEleve).toLowerCase() === cleanNum.toLowerCase());
+    if (exists) {
+      return { success: false, error: `الرقم ${cleanNum} مسجل مسبقاً لتلميذ آخر في هذا القسم.` };
+    }
+
+    const updated = [...students, { ...newStudent, numeroEleve: cleanNum, nomEleve: cleanName }];
+    await saveStudentList(className, updated);
+    window.dispatchEvent(new CustomEvent('dbUpdated'));
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error adding student:', err);
+    return { success: false, error: err.message || 'حدث خطأ أثناء إضافة التلميذ.' };
+  }
+};
+
+/**
+ * Updates an existing student in a class list and syncs tests/vma
+ */
+export const updateStudentInClass = async (
+  className: string,
+  oldNumeroEleve: string,
+  updatedStudent: StudentIdentity
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const students = await getStudentList(className);
+    const oldNumClean = String(oldNumeroEleve).trim();
+    const newNumClean = String(updatedStudent.numeroEleve || '').trim();
+    const newNameClean = String(updatedStudent.nomEleve || '').trim();
+
+    if (!newNameClean) {
+      return { success: false, error: 'اسم التلميذ مطلوب.' };
+    }
+    if (!newNumClean) {
+      return { success: false, error: 'رقم التلميذ مطلوب.' };
+    }
+
+    // Check if new number conflicts with another student
+    if (oldNumClean.toLowerCase() !== newNumClean.toLowerCase()) {
+      const conflict = students.some(
+        s => String(s.numeroEleve).toLowerCase() === newNumClean.toLowerCase()
+      );
+      if (conflict) {
+        return { success: false, error: `الرقم ${newNumClean} مسجل مسبقاً لتلميذ آخر في هذا القسم.` };
+      }
+    }
+
+    const index = students.findIndex(s => String(s.numeroEleve).toLowerCase() === oldNumClean.toLowerCase());
+    if (index === -1) {
+      return { success: false, error: 'لم يتم العثور على التلميذ في اللائحة.' };
+    }
+
+    students[index] = {
+      ...students[index],
+      ...updatedStudent,
+      numeroEleve: newNumClean,
+      nomEleve: newNameClean
+    };
+    await saveStudentList(className, students);
+
+    // Sync in physical tests store if exists
+    const physicalList = await getPhysicalTests(className);
+    let physModified = false;
+    const updatedPhysList = physicalList.map(p => {
+      if (String(p.numeroEleve).toLowerCase() === oldNumClean.toLowerCase()) {
+        physModified = true;
+        return {
+          ...p,
+          numeroEleve: newNumClean,
+          nomEleve: newNameClean,
+          sexe: updatedStudent.sexe
+        };
+      }
+      return p;
+    });
+    if (physModified) {
+      await savePhysicalTests(className, updatedPhysList);
+    }
+
+    // Sync in VMA store if exists
+    const vmaList = await getVmaResults(className);
+    let vmaModified = false;
+    const updatedVmaList = vmaList.map(v => {
+      if (String(v.numeroEleve).toLowerCase() === oldNumClean.toLowerCase()) {
+        vmaModified = true;
+        return {
+          ...v,
+          numeroEleve: newNumClean,
+          nomEleve: newNameClean,
+          sexe: updatedStudent.sexe
+        };
+      }
+      return v;
+    });
+    if (vmaModified) {
+      await saveVmaResults(className, updatedVmaList);
+    }
+
+    window.dispatchEvent(new CustomEvent('dbUpdated'));
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error updating student:', err);
+    return { success: false, error: err.message || 'حدث خطأ أثناء تعديل التلميذ.' };
+  }
+};
+
+/**
+ * Deletes a student from a class and clears their tests data
+ */
+export const deleteStudentFromClass = async (
+  className: string,
+  numeroEleve: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const students = await getStudentList(className);
+    const targetNum = String(numeroEleve).trim().toLowerCase();
+    const filtered = students.filter(s => String(s.numeroEleve).trim().toLowerCase() !== targetNum);
+
+    await saveStudentList(className, filtered);
+
+    // Clean physical tests
+    const physicalList = await getPhysicalTests(className);
+    const filteredPhys = physicalList.filter(p => String(p.numeroEleve).trim().toLowerCase() !== targetNum);
+    if (filteredPhys.length !== physicalList.length) {
+      await savePhysicalTests(className, filteredPhys);
+    }
+
+    // Clean VMA
+    const vmaList = await getVmaResults(className);
+    const filteredVma = vmaList.filter(v => String(v.numeroEleve).trim().toLowerCase() !== targetNum);
+    if (filteredVma.length !== vmaList.length) {
+      await saveVmaResults(className, filteredVma);
+    }
+
+    window.dispatchEvent(new CustomEvent('dbUpdated'));
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error deleting student:', err);
+    return { success: false, error: err.message || 'حدث خطأ أثناء حذف التلميذ.' };
+  }
+};
+
+export interface GlobalStudentSearchResult {
+  student: StudentIdentity;
+  className: string;
+  orderIndex: number;
+  isPhysicalDone: boolean;
+  isVmaDone: boolean;
+  isMeasurementsDone: boolean;
+  vmaVal?: number;
+  imcVal?: number;
+}
+
+/**
+ * Searches students by name or Massar number across all registered classes
+ */
+export const searchStudentsGlobal = async (query: string): Promise<GlobalStudentSearchResult[]> => {
+  const q = normalizeArabicText(query);
+  if (!q) return [];
+
+  const db = await initDB();
+  const tx = db.transaction([STUDENTS_STORE, PHYSICAL_TESTS_STORE, VMA_STORE], 'readonly');
+
+  const studentsReq = tx.objectStore(STUDENTS_STORE).getAll();
+  const physicalReq = tx.objectStore(PHYSICAL_TESTS_STORE).getAll();
+  const vmaReq = tx.objectStore(VMA_STORE).getAll();
+
+  return new Promise((resolve) => {
+    tx.oncomplete = () => {
+      const allClassStudents = (studentsReq.result || []) as { className: string; students: StudentIdentity[] }[];
+      const allPhysical = (physicalReq.result || []) as (PhysicalTests & { className: string })[];
+      const allVma = (vmaReq.result || []) as (StudentResult & { className: string })[];
+
+      const results: GlobalStudentSearchResult[] = [];
+
+      for (const classItem of allClassStudents) {
+        const cls = classItem.className;
+        const students = classItem.students || [];
+
+        students.forEach((s, idx) => {
+          const normName = normalizeArabicText(s.nomEleve);
+          const normNum = String(s.numeroEleve || '').toLowerCase();
+          const normOrder = String(idx + 1);
+
+          if (normName.includes(q) || normNum.includes(q) || normOrder === q) {
+            // Find corresponding physical & VMA
+            const p = allPhysical.find(item => item.className === cls && String(item.numeroEleve) === String(s.numeroEleve));
+            const v = allVma.find(item => item.className === cls && String(item.numeroEleve) === String(s.numeroEleve));
+
+            const isPhysicalDone = !!(
+              p && (
+                p.vitesse30m !== undefined ||
+                p.sautHorizontal !== undefined ||
+                p.sautVertical !== undefined ||
+                p.lancerMedball !== undefined ||
+                p.souplesseAssis !== undefined ||
+                p.souplesseDebout !== undefined ||
+                p.equilibreStatique !== undefined
+              )
+            );
+
+            const vmaVal = v?.vma || p?.vma;
+            const isVmaDone = !!(vmaVal && vmaVal > 0);
+
+            const isMeasurementsDone = !!(
+              p && (p.taille !== undefined || p.poids !== undefined || p.frequenceCardiaque !== undefined)
+            );
+
+            let imcVal: number | undefined = undefined;
+            if (p?.taille && p?.poids && p.taille > 50 && p.poids > 10) {
+              const hm = p.taille / 100;
+              imcVal = parseFloat((p.poids / (hm * hm)).toFixed(1));
+            }
+
+            results.push({
+              student: s,
+              className: cls,
+              orderIndex: idx + 1,
+              isPhysicalDone,
+              isVmaDone,
+              isMeasurementsDone,
+              vmaVal,
+              imcVal
+            });
+          }
+        });
+      }
+
+      resolve(results);
+    };
+
+    tx.onerror = () => {
+      resolve([]);
+    };
+  });
+};

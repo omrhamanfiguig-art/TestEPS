@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getStudentList, getPhysicalTests, savePhysicalTests, getAllClasses, ClassStats } from '../utils/db';
+import { getStudentList, getPhysicalTests, savePhysicalTests, getAllClasses, ClassStats, normalizeArabicText } from '../utils/db';
 import type { StudentIdentity, PhysicalTests } from '../types';
 import { 
     SaveIcon, 
@@ -11,9 +11,11 @@ import {
     InformationCircleIcon, 
     XMarkIcon,
     PencilSquareIcon,
-    ChevronDownIcon
+    ChevronDownIcon,
+    UserPlusIcon
 } from '../components/Icons';
 import { StudentDataModal } from '../components/StudentDataModal';
+import { AddEditStudentModal } from '../components/AddEditStudentModal';
 import { useLanguage } from '../utils/i18n';
 
 interface BiometricMeasurementsScreenProps {
@@ -52,6 +54,8 @@ export const BiometricMeasurementsScreen: React.FC<BiometricMeasurementsScreenPr
     const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [modalStudentNumber, setModalStudentNumber] = useState<string | null>(null);
+    const [isAddEditStudentOpen, setIsAddEditStudentOpen] = useState(false);
+    const [studentToEdit, setStudentToEdit] = useState<StudentIdentity | null>(null);
 
     // Form data for individual card mode
     const [formData, setFormData] = useState<{
@@ -224,10 +228,11 @@ export const BiometricMeasurementsScreen: React.FC<BiometricMeasurementsScreenPr
             orderIndex: idx + 1
         })).filter(s => {
             if (!filterQuery) return true;
-            const q = filterQuery.trim().toLowerCase();
-            const matchesOrder = String(s.orderIndex) === q || String(s.orderIndex).startsWith(q);
-            const matchesName = (s.nomEleve || '').toLowerCase().includes(q);
-            const matchesMassar = s.numeroEleve.toLowerCase().includes(q);
+            const q = normalizeArabicText(filterQuery);
+            const rawQ = filterQuery.trim().toLowerCase();
+            const matchesOrder = String(s.orderIndex) === rawQ || String(s.orderIndex).startsWith(rawQ);
+            const matchesName = normalizeArabicText(s.nomEleve || '').includes(q);
+            const matchesMassar = (s.numeroEleve || '').toLowerCase().includes(rawQ);
             return matchesOrder || matchesName || matchesMassar;
         });
     }, [studentList, filterQuery]);
@@ -388,14 +393,37 @@ export const BiometricMeasurementsScreen: React.FC<BiometricMeasurementsScreenPr
                             </span>
                         </h2>
 
-                        <div className="w-full sm:w-64">
-                            <input
-                                type="text"
-                                value={filterQuery}
-                                onChange={(e) => setFilterQuery(e.target.value)}
-                                placeholder={t.searchPlaceholder}
-                                className="w-full text-xs px-3 py-2 rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                            />
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <div className="relative w-full sm:w-64">
+                                <input
+                                    type="text"
+                                    value={filterQuery}
+                                    onChange={(e) => setFilterQuery(e.target.value)}
+                                    placeholder="🔍 بحث باسم التلميذ أو رقمه..."
+                                    className="w-full text-xs px-3 py-2 pe-7 rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                />
+                                {filterQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setFilterQuery('')}
+                                        className="absolute inset-y-0 end-0 pe-2 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                    >
+                                        <XMarkIcon className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setStudentToEdit(null);
+                                    setIsAddEditStudentOpen(true);
+                                }}
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition"
+                                title="إضافة تلميذ جديد لهذا القسم"
+                            >
+                                <UserPlusIcon className="w-3.5 h-3.5" />
+                                <span>إضافة تلميذ</span>
+                            </button>
                         </div>
                     </div>
 
@@ -411,6 +439,7 @@ export const BiometricMeasurementsScreen: React.FC<BiometricMeasurementsScreenPr
                                     <th className="py-3 px-3 font-semibold text-center min-w-[80px]">{t.bmi}</th>
                                     <th className="py-3 px-3 font-semibold text-center min-w-[100px]">{t.bmiCategory}</th>
                                     <th className="py-3 px-3 font-semibold text-center min-w-[90px]">{t.heartRate} ({t.heartRateUnit})</th>
+                                    <th className="py-3 px-3 font-semibold text-center w-20">{language === 'ar' ? 'الإجراءات' : 'Actions'}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
@@ -499,6 +528,31 @@ export const BiometricMeasurementsScreen: React.FC<BiometricMeasurementsScreenPr
                                                     onChange={(e) => handleTableValueChange(student.numeroEleve, 'frequenceCardiaque', e.target.value)}
                                                     className="w-20 text-center font-bold px-2 py-1 text-xs rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-1 focus:ring-rose-500 text-rose-600 dark:text-rose-400"
                                                 />
+                                            </td>
+
+                                            {/* Actions */}
+                                            <td className="py-2.5 px-3 text-center">
+                                                <div className="flex items-center justify-center gap-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setStudentToEdit(student);
+                                                            setIsAddEditStudentOpen(true);
+                                                        }}
+                                                        className="p-1.5 rounded-lg text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition"
+                                                        title="تعديل بيانات التلميذ"
+                                                    >
+                                                        <PencilSquareIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setModalStudentNumber(student.numeroEleve)}
+                                                        className="p-1.5 rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition"
+                                                        title="بطاقة القياسات الكاملة"
+                                                    >
+                                                        <RulerIcon />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     );

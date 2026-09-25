@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { getStudentList, getPhysicalTests, savePhysicalTests, saveStudentList, getVmaResults, saveVmaResults, getAllClasses, ClassStats } from '../utils/db';
+import { getStudentList, getPhysicalTests, savePhysicalTests, saveStudentList, getVmaResults, saveVmaResults, getAllClasses, ClassStats, normalizeArabicText } from '../utils/db';
 import type { StudentIdentity, PhysicalTests, StudentResult } from '../types';
 import { 
     SaveIcon, 
@@ -14,9 +14,11 @@ import {
     RunningManIcon,
     TableCellsIcon,
     Squares2X2Icon,
-    ChevronDownIcon
+    ChevronDownIcon,
+    UserPlusIcon
 } from '../components/Icons';
 import { StudentDataModal } from '../components/StudentDataModal';
+import { AddEditStudentModal } from '../components/AddEditStudentModal';
 import { Sprint30mTestModal } from '../components/Sprint30mTestModal';
 import { parsePhysicalTestsExcel, downloadPhysicalTestsTemplate, ParsedPhysicalTestsData } from '../utils/excelHelper';
 import { LUC_LEGER_DATA } from '../constants';
@@ -62,6 +64,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
     const [formData, setFormData] = useState<Partial<PhysicalTests>>({});
     const [filterQuery, setFilterQuery] = useState('');
     const [modalStudentNumber, setModalStudentNumber] = useState<string | null>(null);
+    const [isAddEditStudentOpen, setIsAddEditStudentOpen] = useState(false);
+    const [studentToEdit, setStudentToEdit] = useState<StudentIdentity | null>(null);
     const [isLucLegerModalOpen, setIsLucLegerModalOpen] = useState(false);
     const [isSprintModalOpen, setIsSprintModalOpen] = useState(false);
     
@@ -440,10 +444,11 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
             orderIndex: idx + 1 // الترقيم الترتيبي من 1 إلى آخر تلميذ
         })).filter(s => {
             if (!filterQuery) return true;
-            const q = filterQuery.trim().toLowerCase();
-            const matchesOrder = String(s.orderIndex) === q || String(s.orderIndex).startsWith(q);
-            const matchesName = (s.nomEleve || '').toLowerCase().includes(q);
-            const matchesMassar = s.numeroEleve.toLowerCase().includes(q);
+            const q = normalizeArabicText(filterQuery);
+            const rawQ = filterQuery.trim().toLowerCase();
+            const matchesOrder = String(s.orderIndex) === rawQ || String(s.orderIndex).startsWith(rawQ);
+            const matchesName = normalizeArabicText(s.nomEleve || '').includes(q);
+            const matchesMassar = (s.numeroEleve || '').toLowerCase().includes(rawQ);
             return matchesOrder || matchesName || matchesMassar;
         });
     }, [studentList, filterQuery]);
@@ -590,14 +595,37 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col flex-grow">
                     {/* Table Toolbar */}
                     <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50/50 dark:bg-gray-800/50">
-                        <div className="flex items-center gap-3 w-full sm:w-auto">
-                            <input
-                                type="text"
-                                value={filterQuery}
-                                onChange={(e) => setFilterQuery(e.target.value)}
-                                placeholder="بحث بالرقم الترتيبي أو الاسم..."
-                                className="w-full sm:w-72 text-xs px-3 py-2 rounded-xl border border-gray-300 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            />
+                        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                            <div className="relative w-full sm:w-72">
+                                <input
+                                    type="text"
+                                    value={filterQuery}
+                                    onChange={(e) => setFilterQuery(e.target.value)}
+                                    placeholder="🔍 بحث باسم التلميذ أو رقمه..."
+                                    className="w-full text-xs px-3.5 py-2 pe-7 rounded-xl border border-gray-300 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                                {filterQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setFilterQuery('')}
+                                        className="absolute inset-y-0 end-0 pe-2 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                    >
+                                        <XMarkIcon className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setStudentToEdit(null);
+                                    setIsAddEditStudentOpen(true);
+                                }}
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition"
+                                title="إضافة تلميذ جديد لهذا القسم"
+                            >
+                                <UserPlusIcon className="w-3.5 h-3.5" />
+                                <span>إضافة تلميذ</span>
+                            </button>
                             <span className="text-xs font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">
                                 عدد التلاميذ: {studentList.length}
                             </span>
@@ -687,15 +715,29 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                 </span>
                                             </td>
 
-                                            {/* Student Name */}
+                                            {/* Student Name & Quick Edit */}
                                             <td className="p-2 text-right font-semibold text-gray-800 dark:text-gray-200">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setModalStudentNumber(student.numeroEleve)}
-                                                    className="hover:text-indigo-600 dark:hover:text-indigo-400 transition hover:underline text-right truncate block max-w-[170px]"
-                                                >
-                                                    {student.nomEleve}
-                                                </button>
+                                                <div className="flex items-center justify-between gap-1 group/name">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setModalStudentNumber(student.numeroEleve)}
+                                                        className="hover:text-indigo-600 dark:hover:text-indigo-400 transition hover:underline text-right truncate block max-w-[150px]"
+                                                        title="انقر لفتح بطاقة التلميذ"
+                                                    >
+                                                        {student.nomEleve}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setStudentToEdit(student);
+                                                            setIsAddEditStudentOpen(true);
+                                                        }}
+                                                        className="p-1 rounded text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 opacity-40 group-hover/name:opacity-100 transition"
+                                                        title="تعديل بيانات التلميذ"
+                                                    >
+                                                        <PencilSquareIcon className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
                                             </td>
                                              <td className="p-2">
                                                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
@@ -1325,6 +1367,28 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                     onSelectStudent={(nextNum) => setModalStudentNumber(nextNum)}
                     onDataSaved={() => loadClassData(selectedClass)}
                     defaultTab="physical"
+                />
+            )}
+
+            {isAddEditStudentOpen && (
+                <AddEditStudentModal
+                    isOpen={isAddEditStudentOpen}
+                    onClose={() => {
+                        setIsAddEditStudentOpen(false);
+                        setStudentToEdit(null);
+                    }}
+                    className={selectedClass}
+                    studentToEdit={studentToEdit}
+                    existingStudentsCount={studentList.length}
+                    onSuccess={(student) => {
+                        setNotification({
+                            message: studentToEdit 
+                                ? `تم تحديث بيانات التلميذ «${student.nomEleve}» بنجاح.` 
+                                : `تمت إضافة التلميذ «${student.nomEleve}» بنجاح.`,
+                            type: 'success'
+                        });
+                        loadClassData(selectedClass);
+                    }}
                 />
             )}
 
