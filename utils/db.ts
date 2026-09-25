@@ -335,6 +335,7 @@ export const saveCompleteStudentData = async (
     const physicalList = await getPhysicalTests(className);
     const physIdx = physicalList.findIndex(p => p.numeroEleve === oldNumeroEleve);
     const mergedPhysical: PhysicalTests = {
+        date: (physIdx >= 0 && physicalList[physIdx].date) ? physicalList[physIdx].date : new Date().toISOString(),
         ...(physIdx >= 0 ? physicalList[physIdx] : {}),
         ...physicalUpdates,
         className,
@@ -357,7 +358,10 @@ export const saveCompleteStudentData = async (
         const vmaIdx = vmaList.findIndex(v => v.numeroEleve === oldNumeroEleve);
         const existingPalier = (vmaIdx >= 0 && vmaList[vmaIdx].palierAtteint) ? vmaList[vmaIdx].palierAtteint : Math.max(1, Math.round((vmaVal - 8) / 0.5) + 1);
         const updatedVma: StudentResult = {
-            ...(vmaIdx >= 0 ? vmaList[vmaIdx] : { palierAtteint: existingPalier }),
+            id: vmaIdx >= 0 ? vmaList[vmaIdx].id : Date.now(),
+            vitesseMoyenne: vmaIdx >= 0 ? vmaList[vmaIdx].vitesseMoyenne : vmaVal,
+            date: (vmaIdx >= 0 && vmaList[vmaIdx].date) ? vmaList[vmaIdx].date : new Date().toISOString(),
+            ...(vmaIdx >= 0 ? vmaList[vmaIdx] : {}),
             numeroEleve: studentIdentity.numeroEleve,
             nomEleve: studentIdentity.nomEleve,
             sexe: studentIdentity.sexe,
@@ -549,6 +553,37 @@ export const deleteStudentFromClass = async (
   } catch (err: any) {
     console.error('Error deleting student:', err);
     return { success: false, error: err.message || 'حدث خطأ أثناء حذف التلميذ.' };
+  }
+};
+
+/**
+ * Updates a student's photo in a class list
+ */
+export const updateStudentPhoto = async (
+  className: string,
+  numeroEleve: string,
+  photoUrl?: string
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const students = await getStudentList(className);
+    const targetNum = String(numeroEleve).trim().toLowerCase();
+    const index = students.findIndex(s => String(s.numeroEleve).trim().toLowerCase() === targetNum);
+
+    if (index === -1) {
+      return { success: false, error: 'لم يتم العثور على التلميذ في اللائحة.' };
+    }
+
+    students[index] = {
+      ...students[index],
+      photoUrl: photoUrl || undefined
+    };
+
+    await saveStudentList(className, students);
+    window.dispatchEvent(new CustomEvent('dbUpdated'));
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error updating student photo:', err);
+    return { success: false, error: err.message || 'حدث خطأ أثناء حفظ صورة التلميذ.' };
   }
 };
 

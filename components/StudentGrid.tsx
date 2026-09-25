@@ -7,6 +7,7 @@ interface StudentTileProps {
   index: number;
   name?: string;
   sexe?: 'M' | 'F';
+  photoUrl?: string;
   isFinished: boolean;
   onClick: (id: string) => void;
   onUndo: (id: string) => void;
@@ -22,6 +23,7 @@ const StudentTile: React.FC<StudentTileProps> = React.memo(({
   index, 
   name, 
   sexe, 
+  photoUrl,
   isFinished, 
   onClick, 
   onUndo, 
@@ -132,7 +134,16 @@ const StudentTile: React.FC<StudentTileProps> = React.memo(({
         >
             {!isFinished ? (
                 <>
-                    <span className="text-xl sm:text-2xl font-black">{index}</span>
+                    <div className="flex items-center justify-center gap-1">
+                        {photoUrl && (
+                            <img
+                                src={photoUrl}
+                                alt=""
+                                className="w-5 h-5 rounded-full object-cover ring-1 ring-gray-300 dark:ring-gray-600 shrink-0"
+                            />
+                        )}
+                        <span className="text-xl sm:text-2xl font-black">{index}</span>
+                    </div>
                     {name && (
                         <span 
                             className="text-[10px] sm:text-[11px] mt-0.5 opacity-90 truncate w-full text-center px-1 font-bold leading-tight"
@@ -210,6 +221,7 @@ export const StudentGrid: React.FC<StudentGridProps> = ({ studentList, finishedS
     id: String(s.numeroEleve),
     name: s.nomEleve,
     sexe: s.sexe,
+    photoUrl: s.photoUrl,
     originalIndex: idx + 1
   }));
 
@@ -296,6 +308,7 @@ export const StudentGrid: React.FC<StudentGridProps> = ({ studentList, finishedS
                   index={student.originalIndex}
                   name={student.name}
                   sexe={student.sexe}
+                  photoUrl={student.photoUrl}
                   isFinished={finishedStudents.has(student.id)}
                   onClick={onStudentClick}
                   onUndo={onStudentUndo}

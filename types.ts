@@ -14,6 +14,7 @@ export interface StudentIdentity {
   numeroEleve: string;
   nomEleve: string;
   sexe?: 'M' | 'F';
+  photoUrl?: string; // base64 or URL
 }
 
 export interface StudentResult {
@@ -39,21 +40,25 @@ export interface AffinityGroup {
 
 export interface PhysicalTests {
   id?: number;
+  className?: string;
   numeroEleve: string;
   nomEleve?: string;
   sexe?: 'M' | 'F';
+  photoUrl?: string;
   vma?: number;
   vitesse30m?: number;
   sautHorizontal?: number;
   sautVertical?: number;
   lancerMedball?: number;
+  lancerPoids?: number;
+  souplesse?: number;
   souplesseAssis?: number;
   souplesseDebout?: number;
   equilibreStatique?: number;
   poids?: number;
   taille?: number;
   frequenceCardiaque?: number;
-  date: string;
+  date?: string;
 }
 
 export interface EnduranceResult {

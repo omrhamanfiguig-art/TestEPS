@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { StudentIdentity, PhysicalTests } from '../types';
-import { getCompleteStudentData, saveCompleteStudentData } from '../utils/db';
+import { getCompleteStudentData, saveCompleteStudentData, updateStudentPhoto } from '../utils/db';
 import { useLanguage } from '../utils/i18n';
 import { 
   XMarkIcon, 
@@ -11,8 +11,11 @@ import {
   RulerIcon, 
   ScaleIcon, 
   HeartIcon, 
-  PencilSquareIcon 
+  PencilSquareIcon,
+  CameraIcon,
+  TrashIcon
 } from './Icons';
+import { StudentAvatar } from './StudentAvatar';
 
 interface StudentDataModalProps {
   isOpen: boolean;
@@ -46,6 +49,7 @@ export const StudentDataModal: React.FC<StudentDataModalProps> = ({
   const [nomEleve, setNomEleve] = useState<string>('');
   const [currentNumeroEleve, setCurrentNumeroEleve] = useState<string>('');
   const [sexe, setSexe] = useState<'M' | 'F'>('M');
+  const [photoUrl, setPhotoUrl] = useState<string | undefined>(undefined);
 
   // Physical and Biometric fields
   const [formData, setFormData] = useState<{
@@ -84,6 +88,7 @@ export const StudentDataModal: React.FC<StudentDataModalProps> = ({
           setNomEleve(data.student.nomEleve || '');
           setCurrentNumeroEleve(data.student.numeroEleve || studentNumber);
           setSexe(data.student.sexe || 'M');
+          setPhotoUrl(data.student.photoUrl || undefined);
         } else {
           // Fallback from allStudents
           const found = allStudents.find(s => s.numeroEleve === studentNumber);
@@ -91,6 +96,7 @@ export const StudentDataModal: React.FC<StudentDataModalProps> = ({
             setNomEleve(found.nomEleve);
             setCurrentNumeroEleve(found.numeroEleve);
             setSexe(found.sexe || 'M');
+            setPhotoUrl(found.photoUrl || undefined);
           }
         }
 
@@ -177,6 +183,7 @@ export const StudentDataModal: React.FC<StudentDataModalProps> = ({
         nomEleve: nomEleve.trim() || `تلميذ ${studentNumber}`,
         numeroEleve: currentNumeroEleve.trim() || studentNumber,
         sexe,
+        photoUrl: photoUrl || undefined,
       };
 
       const physicalUpdates: Partial<PhysicalTests> = {
@@ -215,6 +222,16 @@ export const StudentDataModal: React.FC<StudentDataModalProps> = ({
       }
     } catch (err) {
       console.error('Error saving student data', err);
+    }
+  };
+
+  const handleAvatarPhotoChange = async (newPhoto?: string) => {
+    setPhotoUrl(newPhoto);
+    try {
+      await updateStudentPhoto(className, studentNumber, newPhoto);
+      if (onDataSaved) onDataSaved();
+    } catch (err) {
+      console.error('Failed to update student photo directly:', err);
     }
   };
 
@@ -271,12 +288,15 @@ export const StudentDataModal: React.FC<StudentDataModalProps> = ({
           </div>
 
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm shadow-xs shrink-0 ${
-              sexe === 'F' 
-                ? 'bg-pink-100 text-pink-700 dark:bg-pink-950 dark:text-pink-300' 
-                : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
-            }`}>
-              {sexe === 'F' ? 'F' : 'M'}
+            <div className="relative shrink-0">
+              <StudentAvatar
+                photoUrl={photoUrl}
+                nomEleve={nomEleve}
+                sexe={sexe}
+                size="lg"
+                editable={true}
+                onPhotoChange={handleAvatarPhotoChange}
+              />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
@@ -401,6 +421,40 @@ export const StudentDataModal: React.FC<StudentDataModalProps> = ({
                   </button>
                 </div>
               </div>
+            </div>
+
+            {/* Photo Row in Identity Edit */}
+            <div className="mt-3 pt-3 border-t border-indigo-100 dark:border-indigo-900/40 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <StudentAvatar
+                  photoUrl={photoUrl}
+                  nomEleve={nomEleve}
+                  sexe={sexe}
+                  size="md"
+                  editable={true}
+                  onPhotoChange={handleAvatarPhotoChange}
+                />
+                <div>
+                  <span className="text-xs font-bold text-gray-800 dark:text-gray-200 block">
+                    {language === 'ar' ? 'صورة التلميذ' : 'Photo de l’élève'}
+                  </span>
+                  <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                    {photoUrl 
+                      ? (language === 'ar' ? 'انقر على الصورة لتغييرها' : 'Cliquez pour modifier') 
+                      : (language === 'ar' ? 'انقر لالتقاط صورة أو اختيارها' : 'Cliquez pour ajouter')}
+                  </span>
+                </div>
+              </div>
+              {photoUrl && (
+                <button
+                  type="button"
+                  onClick={() => handleAvatarPhotoChange(undefined)}
+                  className="px-2.5 py-1 rounded-lg text-rose-600 dark:text-rose-400 text-xs font-bold hover:bg-rose-50 dark:hover:bg-rose-950/40 transition flex items-center gap-1"
+                >
+                  <TrashIcon />
+                  <span>{language === 'ar' ? 'حذف الصورة' : 'Supprimer'}</span>
+                </button>
+              )}
             </div>
           </div>
         )}

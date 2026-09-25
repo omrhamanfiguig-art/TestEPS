@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { StudentIdentity } from '../types';
 import { addStudentToClass, updateStudentInClass, getStudentList } from '../utils/db';
 import { useLanguage } from '../utils/i18n';
-import { XMarkIcon, SaveIcon, CheckIcon } from './Icons';
+import { XMarkIcon, SaveIcon, CheckIcon, CameraIcon, TrashIcon } from './Icons';
+import { StudentAvatar } from './StudentAvatar';
+import { compressAndCropStudentPhoto } from '../utils/imageHelper';
 
 interface AddEditStudentModalProps {
   isOpen: boolean;
@@ -27,8 +29,11 @@ export const AddEditStudentModal: React.FC<AddEditStudentModalProps> = ({
   const [nomEleve, setNomEleve] = useState('');
   const [numeroEleve, setNumeroEleve] = useState('');
   const [sexe, setSexe] = useState<'M' | 'F'>('M');
+  const [photoUrl, setPhotoUrl] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [processingPhoto, setProcessingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -38,16 +43,38 @@ export const AddEditStudentModal: React.FC<AddEditStudentModalProps> = ({
       setNomEleve(studentToEdit.nomEleve || '');
       setNumeroEleve(studentToEdit.numeroEleve || '');
       setSexe(studentToEdit.sexe || 'M');
+      setPhotoUrl(studentToEdit.photoUrl || undefined);
     } else {
       setNomEleve('');
       // Auto-suggest next sequential number e.g. 1, 2, 3...
       const nextNum = existingStudentsCount > 0 ? String(existingStudentsCount + 1) : '1';
       setNumeroEleve(nextNum);
       setSexe('M');
+      setPhotoUrl(undefined);
     }
   }, [isOpen, studentToEdit, existingStudentsCount]);
 
   if (!isOpen) return null;
+
+  const handlePhotoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setProcessingPhoto(true);
+      setErrorMsg(null);
+      const compressedDataUrl = await compressAndCropStudentPhoto(file, 360, 0.84);
+      setPhotoUrl(compressedDataUrl);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || 'فشلت معالجة الصورة.');
+    } finally {
+      setProcessingPhoto(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,7 +98,8 @@ export const AddEditStudentModal: React.FC<AddEditStudentModalProps> = ({
       const studentData: StudentIdentity = {
         nomEleve: cleanName,
         numeroEleve: cleanNum,
-        sexe
+        sexe,
+        photoUrl: photoUrl || undefined
       };
 
       if (isEditMode && studentToEdit) {
@@ -137,6 +165,67 @@ export const AddEditStudentModal: React.FC<AddEditStudentModalProps> = ({
               ⚠️ {errorMsg}
             </div>
           )}
+
+          {/* Student Photo Picker */}
+          <div className="p-3 rounded-2xl bg-gray-50/80 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center gap-3.5">
+            <StudentAvatar
+              photoUrl={photoUrl}
+              nomEleve={nomEleve}
+              sexe={sexe}
+              size="xl"
+              editable={true}
+              onPhotoChange={(newPhoto) => setPhotoUrl(newPhoto)}
+            />
+            <div className="flex-1 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                  {language === 'ar' ? 'صورة التلميذ(ة)' : 'Photo de l’élève'}
+                </span>
+                {photoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setPhotoUrl(undefined)}
+                    className="text-[11px] font-bold text-rose-500 hover:text-rose-600 transition flex items-center gap-0.5"
+                  >
+                    <span>🗑️</span>
+                    <span>{language === 'ar' ? 'إزالة' : 'Supprimer'}</span>
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-tight">
+                {language === 'ar' 
+                  ? 'التقاط صورة بالكاميرا أو اختيار صورة شخصية' 
+                  : 'Prenez une photo ou choisissez un fichier'}
+              </p>
+              <div className="flex items-center gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={processingPhoto}
+                  className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/70 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-800 transition flex items-center gap-1.5"
+                >
+                  <CameraIcon className="w-3.5 h-3.5" />
+                  <span>
+                    {photoUrl 
+                      ? (language === 'ar' ? 'تغيير الصورة' : 'Modifier la photo') 
+                      : (language === 'ar' ? 'التقاط / اختيار صورة' : 'Ajouter une photo')}
+                  </span>
+                </button>
+                {processingPhoto && (
+                  <span className="text-[10px] text-indigo-500 animate-pulse font-medium">
+                    {language === 'ar' ? 'جاري المعالجة...' : 'Traitement...'}
+                  </span>
+                )}
+              </div>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handlePhotoFileChange}
+            />
+          </div>
 
           {/* Student Name */}
           <div className="space-y-1.5">

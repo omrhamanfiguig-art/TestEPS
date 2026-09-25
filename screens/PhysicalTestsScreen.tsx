@@ -19,6 +19,7 @@ import {
 } from '../components/Icons';
 import { StudentDataModal } from '../components/StudentDataModal';
 import { AddEditStudentModal } from '../components/AddEditStudentModal';
+import { StudentAvatar } from '../components/StudentAvatar';
 import { Sprint30mTestModal } from '../components/Sprint30mTestModal';
 import { parsePhysicalTestsExcel, downloadPhysicalTestsTemplate, ParsedPhysicalTestsData } from '../utils/excelHelper';
 import { LUC_LEGER_DATA } from '../constants';
@@ -721,10 +722,16 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                     <button
                                                         type="button"
                                                         onClick={() => setModalStudentNumber(student.numeroEleve)}
-                                                        className="hover:text-indigo-600 dark:hover:text-indigo-400 transition hover:underline text-right truncate block max-w-[150px]"
+                                                        className="hover:text-indigo-600 dark:hover:text-indigo-400 transition hover:underline text-right truncate flex items-center gap-2 max-w-[200px]"
                                                         title="انقر لفتح بطاقة التلميذ"
                                                     >
-                                                        {student.nomEleve}
+                                                        <StudentAvatar
+                                                            photoUrl={student.photoUrl}
+                                                            nomEleve={student.nomEleve}
+                                                            sexe={student.sexe}
+                                                            size="xs"
+                                                        />
+                                                        <span className="truncate">{student.nomEleve}</span>
                                                     </button>
                                                     <button
                                                         type="button"
@@ -732,7 +739,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                             setStudentToEdit(student);
                                                             setIsAddEditStudentOpen(true);
                                                         }}
-                                                        className="p-1 rounded text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 opacity-40 group-hover/name:opacity-100 transition"
+                                                        className="p-1 rounded text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 opacity-40 group-hover/name:opacity-100 transition shrink-0"
                                                         title="تعديل بيانات التلميذ"
                                                     >
                                                         <PencilSquareIcon className="w-3.5 h-3.5" />
@@ -945,6 +952,12 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                             <span className="flex-shrink-0 inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 rounded-lg bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 font-black text-xs border border-indigo-200 dark:border-indigo-800">
                                                 #{student.orderIndex}
                                             </span>
+                                            <StudentAvatar
+                                                photoUrl={student.photoUrl}
+                                                nomEleve={student.nomEleve}
+                                                sexe={student.sexe}
+                                                size="sm"
+                                            />
                                             <div className="truncate">
                                                 <div className="font-bold text-sm text-gray-800 dark:text-gray-100 truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 flex items-center gap-1.5">
                                                     <span>{student.nomEleve}</span>

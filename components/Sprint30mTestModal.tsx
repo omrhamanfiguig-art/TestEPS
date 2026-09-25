@@ -13,6 +13,7 @@ import {
   TrophyIcon,
   SparklesIcon
 } from './Icons';
+import { StudentAvatar } from './StudentAvatar';
 
 interface Sprint30mTestModalProps {
   isOpen: boolean;
@@ -591,8 +592,18 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                             )}
                           </div>
 
-                          <div className="text-sm font-black text-white truncate max-w-[130px] my-0.5">
-                            {student ? student.nomEleve : `المتسابق #${runner.laneIndex}`}
+                          <div className="flex items-center justify-center gap-1.5 my-1">
+                            {student && (
+                              <StudentAvatar
+                                photoUrl={student.photoUrl}
+                                nomEleve={student.nomEleve}
+                                sexe={student.sexe}
+                                size="xs"
+                              />
+                            )}
+                            <div className="text-sm font-black text-white truncate max-w-[120px]">
+                              {student ? student.nomEleve : `المتسابق #${runner.laneIndex}`}
+                            </div>
                           </div>
 
                           {/* Quick student picker dropdown for idle mode, pause, or when runner finished */}

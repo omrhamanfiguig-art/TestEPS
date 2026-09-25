@@ -16,6 +16,7 @@ import {
 } from '../components/Icons';
 import { StudentDataModal } from '../components/StudentDataModal';
 import { AddEditStudentModal } from '../components/AddEditStudentModal';
+import { StudentAvatar } from '../components/StudentAvatar';
 import { useLanguage } from '../utils/i18n';
 
 interface BiometricMeasurementsScreenProps {
@@ -459,11 +460,17 @@ export const BiometricMeasurementsScreen: React.FC<BiometricMeasurementsScreenPr
                                                 <button
                                                     type="button"
                                                     onClick={() => setModalStudentNumber(student.numeroEleve)}
-                                                    className="text-right hover:text-emerald-600 dark:hover:text-emerald-400 transition flex items-center gap-1.5 group/name"
+                                                    className="text-right hover:text-emerald-600 dark:hover:text-emerald-400 transition flex items-center gap-2 group/name"
                                                     title="انقر لفتح نافذة بيانات التلميذ وتعديلها بسهولة"
                                                 >
-                                                    <span className="group-hover/name:underline">{student.nomEleve}</span>
-                                                    <PencilSquareIcon className="w-3.5 h-3.5 text-emerald-600 opacity-40 group-hover/name:opacity-100 transition-opacity" />
+                                                    <StudentAvatar
+                                                        photoUrl={student.photoUrl}
+                                                        nomEleve={student.nomEleve}
+                                                        sexe={student.sexe}
+                                                        size="xs"
+                                                    />
+                                                    <span className="group-hover/name:underline truncate">{student.nomEleve}</span>
+                                                    <PencilSquareIcon className="w-3.5 h-3.5 text-emerald-600 opacity-40 group-hover/name:opacity-100 transition-opacity shrink-0" />
                                                 </button>
                                             </td>
                                             <td className="py-2.5 px-2 text-center">
@@ -607,7 +614,13 @@ export const BiometricMeasurementsScreen: React.FC<BiometricMeasurementsScreenPr
                                                 : 'bg-gray-50/70 border-gray-200 dark:bg-gray-700/50 dark:border-gray-600 hover:bg-gray-100'
                                         }`}
                                     >
-                                        <div className="truncate pr-1">
+                                        <div className="flex items-center gap-2 truncate pr-1">
+                                            <StudentAvatar
+                                                photoUrl={student.photoUrl}
+                                                nomEleve={student.nomEleve}
+                                                sexe={student.sexe}
+                                                size="sm"
+                                            />
                                             <div className="font-bold text-sm text-gray-800 dark:text-gray-100 truncate">
                                                 {student.nomEleve}
                                             </div>
@@ -629,22 +642,33 @@ export const BiometricMeasurementsScreen: React.FC<BiometricMeasurementsScreenPr
                         {selectedStudent ? (
                             <div className="space-y-6">
                                 <div className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-4">
-                                    <div>
-                                        <div 
-                                            className="flex items-center gap-2 cursor-pointer group/title"
+                                    <div className="flex items-center gap-3.5">
+                                        <StudentAvatar
+                                            photoUrl={selectedStudent.photoUrl}
+                                            nomEleve={selectedStudent.nomEleve}
+                                            sexe={selectedStudent.sexe}
+                                            size="xl"
                                             onClick={() => setModalStudentNumber(selectedStudent.numeroEleve)}
-                                            title="انقر لفتح نافذة بيانات التلميذ وتعديلها بسهولة"
-                                        >
-                                            <h2 className="text-2xl font-bold text-gray-900 dark:text-white group-hover/title:text-emerald-600 dark:group-hover/title:text-emerald-400 group-hover/title:underline">
-                                                {selectedStudent.nomEleve}
-                                            </h2>
-                                            <span className="p-1 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 group-hover/title:bg-emerald-100 dark:group-hover/title:bg-emerald-900 transition">
-                                                <PencilSquareIcon className="w-4 h-4" />
-                                            </span>
+                                        />
+                                        <div>
+                                            <div 
+                                                className="flex items-center gap-2 cursor-pointer group/title"
+                                                onClick={() => setModalStudentNumber(selectedStudent.numeroEleve)}
+                                                title="انقر لفتح نافذة بيانات التلميذ وتعديلها بسهولة"
+                                            >
+                                                <h2 className="text-2xl font-bold text-gray-900 dark:text-white group-hover/title:text-emerald-600 dark:group-hover/title:text-emerald-400 group-hover/title:underline">
+                                                    {selectedStudent.nomEleve}
+                                                </h2>
+                                                <span className="p-1 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 group-hover/title:bg-emerald-100 dark:group-hover/title:bg-emerald-900 transition">
+                                                    <PencilSquareIcon className="w-4 h-4" />
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                                                <span>{t.gender}: <strong>{selectedStudent.sexe === 'F' ? t.female : selectedStudent.sexe === 'M' ? t.male : t.unspecified}</strong></span>
+                                                <span>•</span>
+                                                <span className="font-mono text-gray-400">{selectedStudent.numeroEleve}</span>
+                                            </p>
                                         </div>
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            {t.gender}: <strong>{selectedStudent.sexe === 'F' ? t.female : selectedStudent.sexe === 'M' ? t.male : t.unspecified}</strong>
-                                        </p>
                                     </div>
 
                                     <button

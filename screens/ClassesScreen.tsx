@@ -19,6 +19,7 @@ import {
 } from '../components/Icons';
 import { StudentDataModal } from '../components/StudentDataModal';
 import { AddEditStudentModal } from '../components/AddEditStudentModal';
+import { StudentAvatar } from '../components/StudentAvatar';
 import { useLanguage } from '../utils/i18n';
 import { 
   getAllClasses, 
@@ -795,13 +796,21 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                               setSelectedClass(item.className);
                               setModalStudentNumber(item.student.numeroEleve);
                             }}
-                            className="font-bold text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition flex items-center gap-1.5 group/name text-start"
+                            className="font-bold text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition flex items-center gap-2.5 group/name text-start"
                             title={language === 'ar' ? 'فتح بطاقة التلميذ' : 'Voir fiche élève'}
                           >
-                            <span className="group-hover/name:underline">{item.student.nomEleve}</span>
-                            <span className="text-[10px] font-mono text-gray-400 bg-gray-100 dark:bg-gray-700 px-1 rounded">
-                              {item.student.numeroEleve}
-                            </span>
+                            <StudentAvatar
+                              photoUrl={item.student.photoUrl}
+                              nomEleve={item.student.nomEleve}
+                              sexe={item.student.sexe}
+                              size="sm"
+                            />
+                            <div className="flex flex-col min-w-0">
+                              <span className="group-hover/name:underline truncate">{item.student.nomEleve}</span>
+                              <span className="text-[10px] font-mono text-gray-400 leading-none">
+                                {item.student.numeroEleve}
+                              </span>
+                            </div>
                           </button>
                         </td>
                         <td className="py-2.5 px-3">
@@ -1246,13 +1255,21 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                             <button
                               type="button"
                               onClick={() => setModalStudentNumber(row.student.numeroEleve)}
-                              className="text-start hover:text-indigo-600 dark:hover:text-indigo-400 transition flex items-center gap-1.5 group/rosterName"
+                              className="text-start hover:text-indigo-600 dark:hover:text-indigo-400 transition flex items-center gap-2.5 group/rosterName"
                               title={language === 'ar' ? 'انقر لفتح نافذة بيانات التلميذ وتعديلها بسهولة' : 'Voir données'}
                             >
-                              <span className="group-hover/rosterName:underline">{row.student.nomEleve}</span>
-                              <span className="text-[10px] font-mono text-gray-400 bg-gray-100 dark:bg-gray-800 px-1 rounded">
-                                {row.student.numeroEleve}
-                              </span>
+                              <StudentAvatar
+                                photoUrl={row.student.photoUrl}
+                                nomEleve={row.student.nomEleve}
+                                sexe={row.student.sexe}
+                                size="sm"
+                              />
+                              <div className="flex flex-col min-w-0">
+                                <span className="group-hover/rosterName:underline truncate">{row.student.nomEleve}</span>
+                                <span className="text-[10px] font-mono text-gray-400 leading-none">
+                                  {row.student.numeroEleve}
+                                </span>
+                              </div>
                             </button>
                           </td>
                           <td className="py-2 px-3 text-center">
@@ -1353,17 +1370,25 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
       {studentToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl p-6 shadow-2xl border border-gray-200 dark:border-gray-700 space-y-4 animate-fadeIn">
-            <div className="flex items-center gap-3 text-rose-600">
-              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950">
-                <TrashIcon />
+            <div className="flex items-center gap-3">
+              <StudentAvatar
+                photoUrl={studentToDelete.student.photoUrl}
+                nomEleve={studentToDelete.student.nomEleve}
+                sexe={studentToDelete.student.sexe}
+                size="md"
+              />
+              <div>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                  {language === 'ar' ? 'تأكيد حذف التلميذ' : 'Supprimer l’élève'}
+                </h3>
+                <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
+                  {studentToDelete.student.nomEleve} ({studentToDelete.student.numeroEleve})
+                </p>
               </div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                {language === 'ar' ? 'تأكيد حذف التلميذ' : 'Supprimer l’élève'}
-              </h3>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+            <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
               {language === 'ar'
-                ? `هل أنت متأكد من رغبتك في حذف التلميذ(ة) «${studentToDelete.student.nomEleve}» (رقم: ${studentToDelete.student.numeroEleve}) من القسم "${studentToDelete.className}"؟ سيتم حذف بياناته ونتائجه المرتبطة به نهائياً.`
+                ? `هل أنت متأكد من رغبتك في حذف التلميذ(ة) «${studentToDelete.student.nomEleve}» من القسم "${studentToDelete.className}"؟ سيتم حذف بياناته ونتائجه المرتبطة به نهائياً.`
                 : `Êtes-vous sûr de vouloir supprimer définitivement ${studentToDelete.student.nomEleve} de la classe "${studentToDelete.className}" ?`}
             </p>
             <div className="flex items-center justify-end gap-3 pt-2">

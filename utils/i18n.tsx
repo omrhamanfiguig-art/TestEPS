@@ -87,8 +87,6 @@ export interface Translations {
   staticBalance: string;
   vmaTitle: string;
   vmaUnit: string;
-  tabPhysicalTestsList: string;
-  tabPhysicalLucLeger: string;
   startVmaFieldTest: string;
   viewPhysicalTestsList: string;
   secondsUnit: string;
