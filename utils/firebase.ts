@@ -747,8 +747,14 @@ export const getAuthErrorMessage = (error: any): string => {
       return 'تم إغلاق نافذة تسجيل الدخول قبل اكتمالها.';
     case 'auth/popup-blocked':
       return 'تم حظر النافذة المنبثقة من قِبل المتصفح، يرجى السماح بالنوافذ المنبثقة.';
+    case 'auth/unauthorized-domain':
+      return `النطاق الحالي (${typeof window !== 'undefined' ? window.location.hostname : ''}) غير مصرح به في إعدادات Firebase Authentication. يرجى إضافته إلى قائمة Authorized Domains في Firebase Console.`;
     case 'auth/network-request-failed':
       return 'فشل الاتصال، يرجى التحقق من اتصالك بالإنترنت.';
+    case 'auth/too-many-requests':
+      return 'تم حظر الطلبات مؤقتاً لكثرة المحاولات، يرجى المحاولة لاحقاً.';
+    case 'auth/account-exists-with-different-credential':
+      return 'يوجد حساب مسجل بالفعل ببيانات اعتماد مختلفة لهذا البريد.';
     default:
       return error?.message || 'حدث خطأ أثناء تسجيل الدخول.';
   }

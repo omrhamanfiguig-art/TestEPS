@@ -31,9 +31,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  const [copiedDomain, setCopiedDomain] = useState(false);
+
   if (!isOpen) return null;
 
   const isRealUser = currentUser && !currentUser.isAnonymous && currentUser.email;
+  const currentHostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isUnauthorizedDomain = errorMsg && (errorMsg.includes('unauthorized-domain') || errorMsg.includes('غير مصرح به'));
+
+  const handleCopyDomain = () => {
+    if (navigator?.clipboard && currentHostname) {
+      navigator.clipboard.writeText(currentHostname);
+      setCopiedDomain(true);
+      setTimeout(() => setCopiedDomain(false), 2500);
+    }
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,8 +164,52 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         <div className="p-5 space-y-4">
           {/* Notifications */}
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs font-bold text-rose-700 dark:text-rose-300">
-              {errorMsg}
+            <div className="space-y-2">
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs font-bold text-rose-700 dark:text-rose-300 leading-relaxed">
+                {errorMsg}
+              </div>
+
+              {isUnauthorizedDomain && (
+                <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-900 dark:text-amber-200 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-[11px] text-amber-800 dark:text-amber-300">
+                      {language === 'ar' ? '📌 النطاق الحالي المطلوب ترخيصه:' : '📌 Domaine à autoriser :'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCopyDomain}
+                      className="px-2.5 py-1 rounded-lg bg-amber-200/80 dark:bg-amber-900/60 hover:bg-amber-300 dark:hover:bg-amber-800 text-[11px] font-bold text-amber-950 dark:text-amber-100 transition flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedDomain ? (language === 'ar' ? '✓ تم النسخ' : '✓ Copié') : (language === 'ar' ? 'نسخ النطاق' : 'Copier')}
+                    </button>
+                  </div>
+
+                  <div className="p-2 rounded-lg bg-white/80 dark:bg-black/30 border border-amber-200/60 dark:border-amber-800/40 font-mono text-[11px] text-center select-all break-all text-gray-850 dark:text-gray-200">
+                    {currentHostname}
+                  </div>
+
+                  <div className="text-[11px] leading-relaxed space-y-1 text-amber-950 dark:text-amber-200">
+                    <p className="font-bold">
+                      {language === 'ar' ? 'طريقة الترخيص في Firebase Console في دقيقة:' : 'Comment autoriser ce domaine dans Firebase :'}
+                    </p>
+                    <ol className="list-decimal list-inside space-y-0.5 text-[10.5px]">
+                      <li>
+                        {language === 'ar' ? 'افتح لوحة تحكم ' : 'Ouvrez '}
+                        <a 
+                          href="https://console.firebase.google.com/project/clear-scheduler-bxctm/authentication/settings" 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="font-bold text-indigo-600 dark:text-indigo-400 underline hover:text-indigo-800"
+                        >
+                          Firebase Console &gt; Authentication &gt; Settings
+                        </a>
+                      </li>
+                      <li>{language === 'ar' ? 'انزل لقسم "Authorized domains" (النطاقات المصرح بها).' : 'Descendez à la section "Authorized domains".'}</li>
+                      <li>{language === 'ar' ? 'انقر على "Add domain" وألصق النطاق المنسوخ أعلاه ثم اضغط حفظ (Save).' : 'Cliquez sur "Add domain", collez le domaine copié et enregistrez.'}</li>
+                    </ol>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
