@@ -152,6 +152,15 @@ export const savePhysicalTestsToCloud = async (
     });
 
     await setDoc(docRef, payload, { merge: true });
+
+    // Also update class master document with physical tests & measurements
+    const classDocRef = doc(db, 'classes', docId);
+    await setDoc(classDocRef, {
+      className: className.trim(),
+      physicalTests: sanitizeForFirestore(results || []),
+      updatedAt: new Date().toISOString()
+    }, { merge: true }).catch(() => {});
+
     return { success: true };
   } catch (err: any) {
     if (err?.code === 'unavailable' || err?.message?.includes('offline') || err?.message?.includes('unavailable')) {
@@ -181,6 +190,15 @@ export const saveVmaResultsToCloud = async (
     });
 
     await setDoc(docRef, payload, { merge: true });
+
+    // Also update class master document with VMA results
+    const classDocRef = doc(db, 'classes', docId);
+    await setDoc(classDocRef, {
+      className: className.trim(),
+      vmaResults: sanitizeForFirestore(results || []),
+      updatedAt: new Date().toISOString()
+    }, { merge: true }).catch(() => {});
+
     return { success: true };
   } catch (err: any) {
     if (err?.code === 'unavailable' || err?.message?.includes('offline') || err?.message?.includes('unavailable')) {
@@ -370,10 +388,20 @@ export const listenToCloudClasses = (onClassUpdate?: () => void): Unsubscribe =>
       let hasChanges = false;
       for (const change of snapshot.docChanges()) {
         if (change.type === 'added' || change.type === 'modified') {
-          const data = change.doc.data() as CloudClassData;
-          if (data && data.className && Array.isArray(data.students)) {
-            await saveStudentList(data.className, data.students, { skipCloudSync: true });
-            hasChanges = true;
+          const data = change.doc.data() as any;
+          if (data && data.className) {
+            if (Array.isArray(data.students)) {
+              await saveStudentList(data.className, data.students, { skipCloudSync: true });
+              hasChanges = true;
+            }
+            if (Array.isArray(data.physicalTests)) {
+              await savePhysicalTests(data.className, data.physicalTests, { skipCloudSync: true });
+              hasChanges = true;
+            }
+            if (Array.isArray(data.vmaResults)) {
+              await saveVmaResults(data.className, data.vmaResults, { skipCloudSync: true });
+              hasChanges = true;
+            }
           }
         }
       }

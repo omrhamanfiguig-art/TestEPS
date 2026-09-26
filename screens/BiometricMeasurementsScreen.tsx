@@ -139,7 +139,7 @@ export const BiometricMeasurementsScreen: React.FC<BiometricMeasurementsScreenPr
             await savePhysicalTests(selectedClass, testsData);
             window.dispatchEvent(new CustomEvent('dbUpdated'));
             setNotification({
-                message: `${t.success} : تم حفظ قياسات القسم بنجاح.`,
+                message: `${t.success} : تم حفظ قياسات القسم بنجاح في قاعدة البيانات السحابية (Firebase).`,
                 type: 'success'
             });
         } catch (err: any) {
@@ -174,7 +174,7 @@ export const BiometricMeasurementsScreen: React.FC<BiometricMeasurementsScreenPr
         setTestsData(nextList);
         await savePhysicalTests(selectedClass, nextList);
         setNotification({
-            message: `${t.success}: تم حفظ قياسات ${selectedStudent.nomEleve}.`,
+            message: `${t.success}: تم حفظ قياسات ${selectedStudent.nomEleve} في قاعدة البيانات السحابية (Firebase) بنجاح.`,
             type: 'success'
         });
     };

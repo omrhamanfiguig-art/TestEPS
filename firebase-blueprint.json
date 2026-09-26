@@ -8,6 +8,8 @@
         "className": { "type": "string", "description": "The display name of the class" },
         "studentCount": { "type": "number", "description": "Total number of students in the class" },
         "students": { "type": "array", "description": "List of student objects with numeroEleve, nomEleve, sexe, photoUrl" },
+        "physicalTests": { "type": "array", "description": "Latest recorded physical test scores and biometric measurements" },
+        "vmaResults": { "type": "array", "description": "Latest recorded Luc Léger VMA test results" },
         "updatedAt": { "type": "string", "description": "ISO timestamp of the last modification" },
         "updatedBy": { "type": "string", "description": "Author or device that synced the class" }
       },

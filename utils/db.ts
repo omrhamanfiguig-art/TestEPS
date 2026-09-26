@@ -134,8 +134,8 @@ export const saveStudentList = async (
     });
 
     // Automatically sync to cloud database so all teachers have access
-    if (!options?.skipCloudSync && cleanStudents.length > 0) {
-      saveClassToCloud(className, cleanStudents).catch(err => {
+    if (!options?.skipCloudSync) {
+      await saveClassToCloud(className, cleanStudents).catch(err => {
         console.warn('Background cloud sync notice:', err);
       });
     }
@@ -164,16 +164,15 @@ export const getStudentList = async (className: string): Promise<StudentIdentity
 };
 
 // VMA Results functions
-export const saveVmaResults = (
+export const saveVmaResults = async (
   className: string, 
   results: StudentResult[], 
   options?: { skipCloudSync?: boolean }
 ) => {
-    const res = saveData(VMA_STORE, className, results);
+    await saveData(VMA_STORE, className, results);
     if (!options?.skipCloudSync) {
-      saveVmaResultsToCloud(className, results || []).catch(() => {});
+      await saveVmaResultsToCloud(className, results || []).catch(() => {});
     }
-    return res;
 };
 export const getVmaResults = async (className: string): Promise<StudentResult[]> => {
     const raw = await getData<StudentResult>(VMA_STORE, className);
@@ -181,7 +180,7 @@ export const getVmaResults = async (className: string): Promise<StudentResult[]>
 };
 export const clearVmaResults = async (className: string) => {
     await saveData(VMA_STORE, className, []);
-    saveVmaResultsToCloud(className, []).catch(() => {});
+    await saveVmaResultsToCloud(className, []).catch(() => {});
 };
 
 // Endurance Results functions
@@ -189,16 +188,15 @@ export const saveEnduranceResults = (className: string, results: EnduranceResult
 export const getEnduranceResults = (className: string): Promise<EnduranceResult[]> => getData(ENDURANCE_STORE, className);
 
 // Physical Tests functions
-export const savePhysicalTests = (
+export const savePhysicalTests = async (
   className: string, 
   results: PhysicalTests[], 
   options?: { skipCloudSync?: boolean }
 ) => {
-    const res = saveData(PHYSICAL_TESTS_STORE, className, results);
+    await saveData(PHYSICAL_TESTS_STORE, className, results);
     if (!options?.skipCloudSync) {
-      savePhysicalTestsToCloud(className, results || []).catch(() => {});
+      await savePhysicalTestsToCloud(className, results || []).catch(() => {});
     }
-    return res;
 };
 export const getPhysicalTests = async (className: string): Promise<PhysicalTests[]> => {
     const raw = await getData<PhysicalTests>(PHYSICAL_TESTS_STORE, className);
@@ -206,7 +204,7 @@ export const getPhysicalTests = async (className: string): Promise<PhysicalTests
 };
 export const clearPhysicalTests = async (className: string) => {
     await saveData(PHYSICAL_TESTS_STORE, className, []);
-    savePhysicalTestsToCloud(className, []).catch(() => {});
+    await savePhysicalTestsToCloud(className, []).catch(() => {});
 };
 
 /**

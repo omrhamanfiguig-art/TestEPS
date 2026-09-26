@@ -194,7 +194,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
         }
 
         setNotification({
-            message: `تم حفظ بيانات التلميذ ${selectedStudent.nomEleve} بنجاح.`,
+            message: `تم حفظ نتائج التلميذ(ة) ${selectedStudent.nomEleve} في قاعدة البيانات السحابية (Firebase) بنجاح.`,
             type: 'success'
         });
     };
