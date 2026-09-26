@@ -2,6 +2,12 @@
 
 import type { StudentIdentity, StudentResult, EnduranceResult, PhysicalTests } from '../types';
 import { isForbiddenStudentName } from './excelHelper';
+import { 
+  saveClassToCloud, 
+  savePhysicalTestsToCloud, 
+  saveVmaResultsToCloud, 
+  deleteClassFromCloud 
+} from './firebase';
 
 const DB_NAME = 'epsAppDB';
 const DB_VERSION = 2; // Incremented version for new store
@@ -111,17 +117,28 @@ const getData = async <T>(storeName: string, className: string): Promise<T[]> =>
 };
 
 // Student List functions
-export const saveStudentList = async (className: string, students: StudentIdentity[]) => {
+export const saveStudentList = async (
+  className: string, 
+  students: StudentIdentity[], 
+  options?: { skipCloudSync?: boolean }
+) => {
     const db = await initDB();
     const cleanStudents = (students || []).filter(s => s && s.nomEleve && !isForbiddenStudentName(s.nomEleve) && !isForbiddenStudentName(s.numeroEleve));
     const tx = db.transaction(STUDENTS_STORE, 'readwrite');
     const store = tx.objectStore(STUDENTS_STORE);
-    const request = store.put({ className, students: cleanStudents });
+    store.put({ className, students: cleanStudents });
 
-    return new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
+
+    // Automatically sync to cloud database so all teachers have access
+    if (!options?.skipCloudSync && cleanStudents.length > 0) {
+      saveClassToCloud(className, cleanStudents).catch(err => {
+        console.warn('Background cloud sync notice:', err);
+      });
+    }
 };
 
 export const getStudentList = async (className: string): Promise<StudentIdentity[]> => {
@@ -147,7 +164,17 @@ export const getStudentList = async (className: string): Promise<StudentIdentity
 };
 
 // VMA Results functions
-export const saveVmaResults = (className: string, results: StudentResult[]) => saveData(VMA_STORE, className, results);
+export const saveVmaResults = (
+  className: string, 
+  results: StudentResult[], 
+  options?: { skipCloudSync?: boolean }
+) => {
+    const res = saveData(VMA_STORE, className, results);
+    if (!options?.skipCloudSync && results.length > 0) {
+      saveVmaResultsToCloud(className, results).catch(() => {});
+    }
+    return res;
+};
 export const getVmaResults = async (className: string): Promise<StudentResult[]> => {
     const raw = await getData<StudentResult>(VMA_STORE, className);
     return (raw || []).filter(v => v && (!v.nomEleve || !isForbiddenStudentName(v.nomEleve)) && (!v.numeroEleve || !isForbiddenStudentName(v.numeroEleve)));
@@ -159,7 +186,17 @@ export const saveEnduranceResults = (className: string, results: EnduranceResult
 export const getEnduranceResults = (className: string): Promise<EnduranceResult[]> => getData(ENDURANCE_STORE, className);
 
 // Physical Tests functions
-export const savePhysicalTests = (className: string, results: PhysicalTests[]) => saveData(PHYSICAL_TESTS_STORE, className, results);
+export const savePhysicalTests = (
+  className: string, 
+  results: PhysicalTests[], 
+  options?: { skipCloudSync?: boolean }
+) => {
+    const res = saveData(PHYSICAL_TESTS_STORE, className, results);
+    if (!options?.skipCloudSync && results.length > 0) {
+      savePhysicalTestsToCloud(className, results).catch(() => {});
+    }
+    return res;
+};
 export const getPhysicalTests = async (className: string): Promise<PhysicalTests[]> => {
     const raw = await getData<PhysicalTests>(PHYSICAL_TESTS_STORE, className);
     return (raw || []).filter(p => p && (!p.nomEleve || !isForbiddenStudentName(p.nomEleve)) && (!p.numeroEleve || !isForbiddenStudentName(p.numeroEleve)));
@@ -259,7 +296,7 @@ export const getAllClasses = async (): Promise<ClassStats[]> => {
     });
 };
 
-export const deleteClass = async (className: string): Promise<void> => {
+export const deleteClass = async (className: string, options?: { skipCloudSync?: boolean }): Promise<void> => {
     const db = await initDB();
     const stores = [STUDENTS_STORE, PHYSICAL_TESTS_STORE, VMA_STORE, ENDURANCE_STORE];
     const tx = db.transaction(stores, 'readwrite');
@@ -285,10 +322,14 @@ export const deleteClass = async (className: string): Promise<void> => {
     deleteFromStoreWithIndex(VMA_STORE);
     deleteFromStoreWithIndex(ENDURANCE_STORE);
 
-    return new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
     });
+
+    if (!options?.skipCloudSync) {
+        deleteClassFromCloud(className).catch(() => {});
+    }
 };
 
 export interface CompleteStudentData {

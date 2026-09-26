@@ -1,0 +1,33 @@
+{
+  "entities": {
+    "classes": {
+      "title": "School Classes",
+      "description": "Classes and student rosters shared across all physical education teachers",
+      "fields": {
+        "className": { "type": "string", "description": "The display name of the class" },
+        "studentCount": { "type": "number", "description": "Total number of students in the class" },
+        "students": { "type": "array", "description": "List of student objects with numeroEleve, nomEleve, sexe, photoUrl" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of the last modification" },
+        "updatedBy": { "type": "string", "description": "Author or device that synced the class" }
+      }
+    },
+    "physical_tests": {
+      "title": "Physical Tests",
+      "description": "Physical tests and biometric evaluations shared for each class",
+      "fields": {
+        "className": { "type": "string", "description": "The name of the class" },
+        "results": { "type": "array", "description": "List of physical test records" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of the last modification" }
+      }
+    },
+    "vma_results": {
+      "title": "VMA Results",
+      "description": "Luc Léger VMA test results shared for each class",
+      "fields": {
+        "className": { "type": "string", "description": "The name of the class" },
+        "results": { "type": "array", "description": "List of VMA results records" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of the last modification" }
+      }
+    }
+  }
+}

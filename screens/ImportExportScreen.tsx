@@ -29,8 +29,18 @@ import {
     CheckIcon,
     ArrowsRightLeftIcon,
     ScaleIcon,
-    ClipboardDocumentCheckIcon
+    ClipboardDocumentCheckIcon,
+    CloudIcon,
+    CloudArrowUpIcon,
+    CloudArrowDownIcon,
+    ArrowPathIcon
 } from '../components/Icons';
+import { 
+    syncCloudToLocalDB, 
+    syncLocalToCloudDB, 
+    syncAllData, 
+    fetchAllClassesFromCloud 
+} from '../utils/firebase';
 import { useLanguage } from '../utils/i18n';
 import { calculateBMI, getBMICategory } from './BiometricMeasurementsScreen';
 
@@ -77,6 +87,80 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
     // Backup restore input
     const backupInputRef = useRef<HTMLInputElement>(null);
 
+    // Cloud database state
+    const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+    const [cloudStatus, setCloudStatus] = useState<{ classCount: number; studentCount: number } | null>(null);
+
+    const loadCloudStatus = async () => {
+        try {
+            const cloudClasses = await fetchAllClassesFromCloud();
+            const totalStudents = cloudClasses.reduce((acc, c) => acc + (c.studentCount || c.students?.length || 0), 0);
+            setCloudStatus({ classCount: cloudClasses.length, studentCount: totalStudents });
+        } catch (e) {
+            console.warn('Could not load cloud status', e);
+        }
+    };
+
+    useEffect(() => {
+        loadCloudStatus();
+    }, []);
+
+    const handleSyncCloudToLocal = async () => {
+        setIsSyncingCloud(true);
+        try {
+            const res = await syncCloudToLocalDB();
+            if (res.success) {
+                setMessage({
+                    text: `تم جلب وتحديث ${res.classCount} قسم (${res.studentCount} تلميذ) من قاعدة البيانات السحابية، وهي الآن متاحة في جهازك!`,
+                    type: 'success'
+                });
+                await loadCloudStatus();
+            } else {
+                setMessage({ text: res.error || "تعذر جلب الأقسام من السحابة.", type: 'error' });
+            }
+        } catch (err: any) {
+            setMessage({ text: err.message || "خطأ أثناء المزامنة مع السحابة.", type: 'error' });
+        } finally {
+            setIsSyncingCloud(false);
+        }
+    };
+
+    const handleSyncLocalToCloud = async () => {
+        setIsSyncingCloud(true);
+        try {
+            const res = await syncLocalToCloudDB();
+            if (res.success) {
+                setMessage({
+                    text: `تم رفع وحفظ ${res.classCount} قسم (${res.studentCount} تلميذ) بنجاح في قاعدة البيانات السحابية، وأصبحت متاحة لكافة الأساتذة!`,
+                    type: 'success'
+                });
+                await loadCloudStatus();
+            } else {
+                setMessage({ text: res.error || "تعذر رفع الأقسام إلى السحابة.", type: 'error' });
+            }
+        } catch (err: any) {
+            setMessage({ text: err.message || "خطأ أثناء رفع الأقسام إلى السحابة.", type: 'error' });
+        } finally {
+            setIsSyncingCloud(false);
+        }
+    };
+
+    const handleFullSync = async () => {
+        setIsSyncingCloud(true);
+        try {
+            const res = await syncAllData();
+            setMessage({
+                text: res.message,
+                type: res.success ? 'success' : 'error'
+            });
+            await loadCloudStatus();
+        } catch (err: any) {
+            setMessage({ text: err.message || "خطأ أثناء المزامنة الشاملة.", type: 'error' });
+        } finally {
+            setIsSyncingCloud(false);
+        }
+    };
+
     useEffect(() => {
         if (message) {
             const timer = setTimeout(() => setMessage(null), 6000);
@@ -104,7 +188,7 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
             } else {
                 setImportedGroups(allGroups);
                 const totalStudents = allGroups.reduce((acc, g) => acc + g.students.length, 0);
-                setMessage({ text: `تم اكتشاف ${allGroups.length} أقسام (${totalStudents} تلميذ). يرجى التأكيد للحفظ.`, type: 'success' });
+                setMessage({ text: `تم اكتشاف ${allGroups.length} أقسام (${totalStudents} تلميذ). يرجى التأكيد للحفظ في قاعدة البيانات.`, type: 'success' });
             }
         } catch (err: any) {
             setMessage({ text: err.message || "خطأ أثناء قراءة ملفات Excel.", type: 'error' });
@@ -124,12 +208,17 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
                 setSelectedClass(importedGroups[0].className);
             }
 
-            setMessage({ text: `تم استيراد وحفظ ${importedGroups.length} لوائح بنجاح.`, type: 'success' });
+            const total = importedGroups.reduce((acc, g) => acc + g.students.length, 0);
+            setMessage({ 
+                text: `تم استيراد وحفظ ${importedGroups.length} لوائح (${total} تلميذ) بنجاح في قاعدة البيانات السحابية (Firestore)، وهي متاحة الآن لجميع الأساتذة!`, 
+                type: 'success' 
+            });
             window.dispatchEvent(new CustomEvent('dbUpdated'));
             setImportedGroups([]);
             if (studentFileInputRef.current) studentFileInputRef.current.value = '';
+            loadCloudStatus();
         } catch (err) {
-            setMessage({ text: "خطأ أثناء حفظ لوائح التلاميذ.", type: 'error' });
+            setMessage({ text: "خطأ أثناء حفظ لوائح التلاميذ في قاعدة البيانات.", type: 'error' });
         }
     };
 
@@ -429,6 +518,81 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
                         className="px-3 py-1.5 text-sm font-bold border border-gray-300 dark:bg-gray-700 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500"
                         placeholder={t.classNamePlaceholder}
                     />
+                </div>
+            </div>
+
+            {/* Cloud Database Sync Card for Teachers */}
+            <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-indigo-950 rounded-2xl shadow-xl p-6 text-white border border-indigo-700/50">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                    <div className="space-y-2 max-w-2xl">
+                        <div className="flex items-center gap-2.5">
+                            <span className="p-2 rounded-xl bg-white/10 text-white backdrop-blur-xs">
+                                <CloudIcon className="w-6 h-6" />
+                            </span>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-lg font-black text-white">
+                                        قاعدة البيانات السحابية المشتركة (Firebase Firestore)
+                                    </h2>
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                        <span>مزامنة سحابية نشطة</span>
+                                    </span>
+                                </div>
+                                <p className="text-xs text-indigo-200 mt-1 leading-relaxed">
+                                    جميع لوائح التلاميذ التي يتم استيرادها تُحفظ تلقائياً في السحابة لتكون متاحة لجميع الأساتذة عبر كافة الأجهزة والهواتف. يمكنك أيضاً جلب أي لوائح تم استيرادها من قبل زملاء آخرين بضغطة واحدة.
+                                </p>
+                            </div>
+                        </div>
+
+                        {cloudStatus && (
+                            <div className="flex items-center gap-4 text-xs font-bold text-indigo-200 pt-1">
+                                <span>المخزون السحابي المتاح لجميع الأساتذة:</span>
+                                <span className="bg-white/10 px-2 py-0.5 rounded-md text-white font-mono">
+                                    {cloudStatus.classCount} أقسام
+                                </span>
+                                <span className="bg-white/10 px-2 py-0.5 rounded-md text-white font-mono">
+                                    {cloudStatus.studentCount} تلميذ
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 shrink-0">
+                        <button
+                            type="button"
+                            onClick={handleSyncCloudToLocal}
+                            disabled={isSyncingCloud}
+                            className="px-3.5 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold transition flex items-center gap-2 border border-white/20 disabled:opacity-50"
+                            title="تحميل لوائح التلاميذ المخزنة في السحابة التي استوردها الأساتذة"
+                        >
+                            <CloudArrowDownIcon className="w-4 h-4 text-emerald-300" />
+                            <span>جلب الأقسام من السحابة</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleSyncLocalToCloud}
+                            disabled={isSyncingCloud}
+                            className="px-3.5 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white text-xs font-bold shadow-md transition flex items-center gap-2 border border-indigo-400/30 disabled:opacity-50"
+                            title="رفع جميع لوائح التلاميذ الحالية إلى قاعدة البيانات السحابية"
+                        >
+                            <CloudArrowUpIcon className="w-4 h-4" />
+                            <span>حفظ لوائحي في السحابة</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleFullSync}
+                            disabled={isSyncingCloud}
+                            className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white transition border border-white/15 disabled:opacity-50"
+                            title="مزامنة شاملة فورية"
+                        >
+                            <div className={isSyncingCloud ? 'animate-spin' : ''}>
+                                <ArrowPathIcon />
+                            </div>
+                        </button>
+                    </div>
                 </div>
             </div>
 

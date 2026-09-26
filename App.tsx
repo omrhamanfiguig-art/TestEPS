@@ -7,6 +7,7 @@ import { ClassesScreen } from './screens/ClassesScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { LanguageProvider, useLanguage } from './utils/i18n';
 import { getAllClasses } from './utils/db';
+import { syncCloudToLocalDB, syncLocalToCloudDB, listenToCloudClasses } from './utils/firebase';
 import { OfflineIndicator } from './components/OfflineIndicator';
 
 const MainLayout: React.FC = () => {
@@ -21,15 +22,49 @@ const MainLayout: React.FC = () => {
   useEffect(() => {
     const initClass = async () => {
       try {
+        // 1. Initial local load
         const classes = await getAllClasses();
         if (classes.length > 0 && selectedClass === 'Classe 1') {
           setSelectedClass(classes[0].className);
         }
+
+        // 2. Background sync from cloud to get rosters imported by any teacher
+        syncCloudToLocalDB().then(async (res) => {
+          if (res.success && res.classCount > 0) {
+            const updatedClasses = await getAllClasses();
+            if (updatedClasses.length > 0 && selectedClass === 'Classe 1') {
+              setSelectedClass(updatedClasses[0].className);
+            }
+          } else if (classes.length > 0) {
+            // Push local to cloud if cloud was empty
+            syncLocalToCloudDB().catch(() => {});
+          }
+        }).catch((err) => {
+          console.warn('Initial cloud sync notice:', err);
+        });
       } catch (err) {
         console.error('Failed to init class', err);
       }
     };
     initClass();
+
+    // 3. Listen for real-time cloud updates from other teachers
+    const unsubscribe = listenToCloudClasses(async () => {
+      const classes = await getAllClasses();
+      if (classes.length > 0 && selectedClass === 'Classe 1') {
+        setSelectedClass(classes[0].className);
+      }
+    });
+
+    const handleOnline = () => {
+      syncCloudToLocalDB().catch(() => {});
+    };
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('online', handleOnline);
+    };
   }, []);
 
   return (

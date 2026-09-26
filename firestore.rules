@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // School classes and student rosters shared across all teachers
+    match /classes/{classId} {
+      allow read, write: if true;
+    }
+
+    // Physical tests and biometric measurements
+    match /physical_tests/{classId} {
+      allow read, write: if true;
+    }
+
+    // VMA Luc Léger results
+    match /vma_results/{classId} {
+      allow read, write: if true;
+    }
+  }
+}

@@ -15,8 +15,12 @@ import {
   PencilSquareIcon,
   ExcelIcon,
   ArrowDownTrayIcon,
-  UserPlusIcon
+  UserPlusIcon,
+  CloudIcon,
+  CloudArrowDownIcon,
+  CloudArrowUpIcon
 } from '../components/Icons';
+import { syncAllData, syncCloudToLocalDB } from '../utils/firebase';
 import { StudentDataModal } from '../components/StudentDataModal';
 import { AddEditStudentModal } from '../components/AddEditStudentModal';
 import { StudentAvatar } from '../components/StudentAvatar';
@@ -122,6 +126,21 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
   };
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+
+  const handleCloudSync = async () => {
+    setIsSyncingCloud(true);
+    try {
+      showToast(language === 'ar' ? 'جاري المزامنة مع قاعدة البيانات السحابية...' : 'Synchronisation cloud en cours...');
+      const res = await syncAllData();
+      await fetchClassesData();
+      showToast(res.message);
+    } catch (err: any) {
+      showToast(err.message || 'فشلت المزامنة مع السحابة.');
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
 
   // Direct Multi-Class and Multi-File Student Roster Import (Excel)
   const handleImportStudentExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -129,7 +148,7 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
     if (!files || files.length === 0) return;
 
     try {
-      showToast(language === 'ar' ? 'جاري قراءة واستيراد الأقسام...' : 'Lecture et importation des classes...');
+      showToast(language === 'ar' ? 'جاري قراءة واستيراد الأقسام وحفظها في قاعدة البيانات...' : 'Lecture et synchronisation des classes...');
       let importedTotal = 0;
       const classesImportedSet = new Set<string>();
 
@@ -171,8 +190,8 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
         await fetchClassesData();
         showToast(
           language === 'ar' 
-            ? `تم استيراد ${importedTotal} تلميذ بنجاح (${classesImported.length} قسم: ${classesImported.join('، ')})` 
-            : `${importedTotal} élèves importés avec succès (${classesImported.length} classe(s))`
+            ? `تم استيراد وحفظ ${importedTotal} تلميذ بنجاح في قاعدة البيانات السحابية ومشاركتهم مع كافة الأساتذة (${classesImported.length} قسم)!` 
+            : `${importedTotal} élèves importés et partagés sur la base cloud (${classesImported.length} classe(s))`
         );
       } else {
         showToast(language === 'ar' ? 'لم يتم العثور على بيانات صالحة في الملفات.' : 'Aucune donnée valide trouvée.');
@@ -496,6 +515,23 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
           >
             <ExcelIcon className="w-4 h-4 text-emerald-600" />
             <span className="hidden sm:inline">{language === 'ar' ? 'نموذج فارغ' : 'Modèle'}</span>
+          </button>
+
+          {/* Cloud Sync button */}
+          <button
+            onClick={handleCloudSync}
+            disabled={isSyncingCloud}
+            title={language === 'ar' ? 'مزامنة لوائح التلاميذ مع قاعدة البيانات السحابية لمشاركتها مع جميع الأساتذة' : 'Synchroniser avec la base cloud'}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs sm:text-sm font-bold transition"
+          >
+            <div className={isSyncingCloud ? 'animate-spin' : ''}>
+              <CloudIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <span className="hidden sm:inline">
+              {isSyncingCloud 
+                ? (language === 'ar' ? 'جاري المزامنة...' : 'Sync...') 
+                : (language === 'ar' ? 'مزامنة سحابية' : 'Sync Cloud')}
+            </span>
           </button>
 
           {/* Refresh Classes button */}
