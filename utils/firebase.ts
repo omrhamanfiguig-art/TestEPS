@@ -117,8 +117,8 @@ export const saveClassToCloud = async (
     const docRef = doc(db, 'classes', docId);
 
     const user = auth.currentUser;
-    const authorEmail = user?.email || undefined;
-    const authorUid = user?.uid || undefined;
+    const authorEmail = user?.email || null;
+    const authorUid = user?.uid || null;
     const authorName = user?.displayName || user?.email?.split('@')[0] || 'أستاذ التربية البدنية';
 
     const rawStudents = (students || []).map(s => {
@@ -170,7 +170,7 @@ export const savePhysicalTestsToCloud = async (
     const docRef = doc(db, 'physical_tests', docId);
 
     const user = auth.currentUser;
-    const authorEmail = user?.email || undefined;
+    const authorEmail = user?.email || null;
 
     const payload = sanitizeForFirestore({
       className: className.trim(),
@@ -213,7 +213,7 @@ export const saveVmaResultsToCloud = async (
     const docRef = doc(db, 'vma_results', docId);
 
     const user = auth.currentUser;
-    const authorEmail = user?.email || undefined;
+    const authorEmail = user?.email || null;
 
     const payload = sanitizeForFirestore({
       className: className.trim(),
