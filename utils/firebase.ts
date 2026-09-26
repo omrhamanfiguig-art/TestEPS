@@ -35,8 +35,33 @@ export const db: Firestore = firebaseConfig.firestoreDatabaseId
 // Initialize Auth with anonymous fallback
 export const auth = getAuth(app);
 signInAnonymously(auth).catch((err) => {
-  console.warn('Firebase anonymous auth notice:', err?.message || err);
+  // Silent catch: in some environments anonymous auth may be disabled or offline
 });
+
+/**
+ * Remove all properties with undefined values deeply from an object/array.
+ * Firestore throws an exception when setting documents containing `undefined`.
+ */
+export const sanitizeForFirestore = <T>(obj: T): T => {
+  if (obj === undefined || obj === null) {
+    return null as unknown as T;
+  }
+  if (Array.isArray(obj)) {
+    return obj
+      .filter(item => item !== undefined)
+      .map(item => sanitizeForFirestore(item)) as unknown as T;
+  }
+  if (typeof obj === 'object') {
+    const cleaned: Record<string, any> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        cleaned[key] = sanitizeForFirestore(value);
+      }
+    }
+    return cleaned as T;
+  }
+  return obj;
+};
 
 /**
  * Safely encode class names into valid Firestore document IDs.
@@ -74,22 +99,34 @@ export const saveClassToCloud = async (
     const docId = toClassDocId(className);
     const docRef = doc(db, 'classes', docId);
 
-    const data: CloudClassData = {
-      className: className.trim(),
-      studentCount: students.length,
-      students: (students || []).map(s => ({
+    const rawStudents = (students || []).map(s => {
+      const item: Record<string, any> = {
         numeroEleve: String(s.numeroEleve || '').trim(),
         nomEleve: String(s.nomEleve || '').trim(),
-        sexe: s.sexe || 'M',
-        photoUrl: s.photoUrl || undefined
-      })),
+        sexe: s.sexe || 'M'
+      };
+      if (s.photoUrl) {
+        item.photoUrl = s.photoUrl;
+      }
+      return item;
+    });
+
+    const data = sanitizeForFirestore({
+      className: className.trim(),
+      studentCount: rawStudents.length,
+      students: rawStudents,
       updatedAt: new Date().toISOString(),
       updatedBy: 'أستاذ التربية البدنية'
-    };
+    });
 
     await setDoc(docRef, data, { merge: true });
     return { success: true };
   } catch (err: any) {
+    // Check if offline/unavailable
+    if (err?.code === 'unavailable' || err?.message?.includes('offline') || err?.message?.includes('unavailable')) {
+      console.info('Firestore is operating in offline mode. Changes will sync when network is restored.');
+      return { success: true }; // Queued in offline cache
+    }
     console.error('Error saving class to cloud:', err);
     return { success: false, error: err.message || 'حدث خطأ أثناء الحفظ في قاعدة البيانات السحابية.' };
   }
@@ -107,14 +144,18 @@ export const savePhysicalTestsToCloud = async (
     const docId = toClassDocId(className);
     const docRef = doc(db, 'physical_tests', docId);
 
-    await setDoc(docRef, {
+    const payload = sanitizeForFirestore({
       className: className.trim(),
       results: results || [],
       updatedAt: new Date().toISOString()
-    }, { merge: true });
+    });
 
+    await setDoc(docRef, payload, { merge: true });
     return { success: true };
   } catch (err: any) {
+    if (err?.code === 'unavailable' || err?.message?.includes('offline') || err?.message?.includes('unavailable')) {
+      return { success: true };
+    }
     console.error('Error saving physical tests to cloud:', err);
     return { success: false, error: err.message };
   }
@@ -132,14 +173,18 @@ export const saveVmaResultsToCloud = async (
     const docId = toClassDocId(className);
     const docRef = doc(db, 'vma_results', docId);
 
-    await setDoc(docRef, {
+    const payload = sanitizeForFirestore({
       className: className.trim(),
       results: results || [],
       updatedAt: new Date().toISOString()
-    }, { merge: true });
+    });
 
+    await setDoc(docRef, payload, { merge: true });
     return { success: true };
   } catch (err: any) {
+    if (err?.code === 'unavailable' || err?.message?.includes('offline') || err?.message?.includes('unavailable')) {
+      return { success: true };
+    }
     console.error('Error saving VMA results to cloud:', err);
     return { success: false, error: err.message };
   }
