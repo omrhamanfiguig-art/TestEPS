@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
-import { Bars3Icon, GlobeAltIcon, InformationCircleIcon } from './Icons';
+import React, { useState, useEffect } from 'react';
+import type { User } from 'firebase/auth';
+import { Bars3Icon, GlobeAltIcon, InformationCircleIcon, UserCircleIcon } from './Icons';
 import { useLanguage } from '../utils/i18n';
 import type { ActiveScreen } from './Sidebar';
 import { AboutModal } from './AboutModal';
+import { AuthModal } from './AuthModal';
+import { subscribeToAuthChanges, auth } from '../utils/firebase';
 
 interface TopHeaderProps {
   activeScreen: ActiveScreen;
@@ -21,6 +24,17 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 }) => {
   const { language, setLanguage, t } = useLanguage();
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToAuthChanges((user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const isRealUser = currentUser && !currentUser.isAnonymous && currentUser.email;
 
   const getScreenTitle = () => {
     switch (activeScreen) {
@@ -55,16 +69,44 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           </h2>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          {/* Teacher Account / Login Button */}
+          <button
+            type="button"
+            onClick={() => setIsAuthOpen(true)}
+            className={`px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-bold rounded-xl border transition flex items-center gap-1.5 shadow-2xs ${
+              isRealUser
+                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100'
+                : 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100'
+            }`}
+            title={isRealUser ? `متصل بحساب: ${currentUser.email}` : 'تسجيل الدخول بالبريد الإلكتروني لحفظ ومزامنة البيانات'}
+          >
+            {isRealUser ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="max-w-[120px] sm:max-w-[160px] truncate font-mono text-[11px]">
+                  {currentUser.displayName || currentUser.email?.split('@')[0]}
+                </span>
+              </>
+            ) : (
+              <>
+                <UserCircleIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span className="hidden xs:inline">
+                  {language === 'ar' ? 'دخول بحساب' : 'Connexion'}
+                </span>
+              </>
+            )}
+          </button>
+
           {/* About App (حول التطبيق) Button */}
           <button
             type="button"
             onClick={() => setIsAboutOpen(true)}
-            className="px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-bold rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition flex items-center gap-1.5 shadow-xs"
+            className="px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-bold rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center gap-1.5 shadow-xs"
             title={language === 'ar' ? 'حول التطبيق' : 'À propos'}
           >
-            <InformationCircleIcon className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-            <span className="hidden xs:inline">{language === 'ar' ? 'حول التطبيق' : 'À propos'}</span>
+            <InformationCircleIcon className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
+            <span className="hidden sm:inline">{language === 'ar' ? 'حول التطبيق' : 'À propos'}</span>
           </button>
 
           {/* Header Language Switcher */}
@@ -81,6 +123,13 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
       {/* About Application Modal */}
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
+
+      {/* Teacher Authentication Modal */}
+      <AuthModal 
+        isOpen={isAuthOpen} 
+        onClose={() => setIsAuthOpen(false)} 
+        currentUser={currentUser}
+      />
     </>
   );
 };

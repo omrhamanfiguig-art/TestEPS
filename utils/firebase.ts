@@ -11,7 +11,18 @@ import {
   onSnapshot,
   Unsubscribe
 } from 'firebase/firestore';
-import { getAuth, signInAnonymously } from 'firebase/auth';
+import { 
+  getAuth, 
+  signInAnonymously,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  updateProfile,
+  GoogleAuthProvider,
+  signInWithPopup,
+  User
+} from 'firebase/auth';
 import type { StudentIdentity, PhysicalTests, StudentResult, ArchiveRecord } from '../types';
 import firebaseConfig from '../firebase-applet-config.json';
 import { 
@@ -81,8 +92,13 @@ export interface CloudClassData {
   className: string;
   studentCount: number;
   students: StudentIdentity[];
+  physicalTests?: PhysicalTests[];
+  vmaResults?: StudentResult[];
+  ownerEmail?: string;
+  ownerUid?: string;
   updatedAt: string;
   updatedBy?: string;
+  updatedByEmail?: string;
 }
 
 /**
@@ -100,6 +116,11 @@ export const saveClassToCloud = async (
     const docId = toClassDocId(className);
     const docRef = doc(db, 'classes', docId);
 
+    const user = auth.currentUser;
+    const authorEmail = user?.email || undefined;
+    const authorUid = user?.uid || undefined;
+    const authorName = user?.displayName || user?.email?.split('@')[0] || 'أستاذ التربية البدنية';
+
     const rawStudents = (students || []).map(s => {
       const item: Record<string, any> = {
         numeroEleve: String(s.numeroEleve || '').trim(),
@@ -116,8 +137,11 @@ export const saveClassToCloud = async (
       className: className.trim(),
       studentCount: rawStudents.length,
       students: rawStudents,
+      ownerEmail: authorEmail,
+      ownerUid: authorUid,
       updatedAt: new Date().toISOString(),
-      updatedBy: 'أستاذ التربية البدنية'
+      updatedBy: authorName,
+      updatedByEmail: authorEmail
     });
 
     await setDoc(docRef, data, { merge: true });
@@ -145,9 +169,13 @@ export const savePhysicalTestsToCloud = async (
     const docId = toClassDocId(className);
     const docRef = doc(db, 'physical_tests', docId);
 
+    const user = auth.currentUser;
+    const authorEmail = user?.email || undefined;
+
     const payload = sanitizeForFirestore({
       className: className.trim(),
       results: results || [],
+      ownerEmail: authorEmail,
       updatedAt: new Date().toISOString()
     });
 
@@ -158,6 +186,7 @@ export const savePhysicalTestsToCloud = async (
     await setDoc(classDocRef, {
       className: className.trim(),
       physicalTests: sanitizeForFirestore(results || []),
+      ownerEmail: authorEmail,
       updatedAt: new Date().toISOString()
     }, { merge: true }).catch(() => {});
 
@@ -183,9 +212,13 @@ export const saveVmaResultsToCloud = async (
     const docId = toClassDocId(className);
     const docRef = doc(db, 'vma_results', docId);
 
+    const user = auth.currentUser;
+    const authorEmail = user?.email || undefined;
+
     const payload = sanitizeForFirestore({
       className: className.trim(),
       results: results || [],
+      ownerEmail: authorEmail,
       updatedAt: new Date().toISOString()
     });
 
@@ -196,6 +229,7 @@ export const saveVmaResultsToCloud = async (
     await setDoc(classDocRef, {
       className: className.trim(),
       vmaResults: sanitizeForFirestore(results || []),
+      ownerEmail: authorEmail,
       updatedAt: new Date().toISOString()
     }, { merge: true }).catch(() => {});
 
@@ -686,4 +720,173 @@ export const exportArchiveAsFile = (archive: ArchiveRecord) => {
     console.error('Error exporting archive file:', err);
   }
 };
+
+/**
+ * Translate Firebase Auth error codes to user-friendly Arabic messages
+ */
+export const getAuthErrorMessage = (error: any): string => {
+  const code = error?.code || '';
+  switch (code) {
+    case 'auth/invalid-email':
+      return 'صيغة البريد الإلكتروني غير صحيحة.';
+    case 'auth/user-disabled':
+      return 'تم تعطيل هذا الحساب. يرجى التواصل مع الإدارة.';
+    case 'auth/user-not-found':
+      return 'لا يوجد حساب مسجل بهذا البريد الإلكتروني.';
+    case 'auth/wrong-password':
+      return 'كلمة المرور غير صحيحة.';
+    case 'auth/invalid-credential':
+      return 'بيانات الدخول غير صحيحة، يرجى التحقق من البريد وكلمة المرور.';
+    case 'auth/email-already-in-use':
+      return 'هذا البريد الإلكتروني مسجل بالفعل، يرجى تسجيل الدخول.';
+    case 'auth/operation-not-allowed':
+      return 'تسجيل الدخول بالبريد غير مفعل في هذا المشروع.';
+    case 'auth/weak-password':
+      return 'كلمة المرور ضعيفة جداً، يرجى استخدام 6 أحرف أو أرقام على الأقل.';
+    case 'auth/popup-closed-by-user':
+      return 'تم إغلاق نافذة تسجيل الدخول قبل اكتمالها.';
+    case 'auth/popup-blocked':
+      return 'تم حظر النافذة المنبثقة من قِبل المتصفح، يرجى السماح بالنوافذ المنبثقة.';
+    case 'auth/network-request-failed':
+      return 'فشل الاتصال، يرجى التحقق من اتصالك بالإنترنت.';
+    default:
+      return error?.message || 'حدث خطأ أثناء تسجيل الدخول.';
+  }
+};
+
+/**
+ * Register a new teacher account with email and password
+ */
+export const registerWithEmail = async (
+  email: string, 
+  password: string, 
+  displayName?: string
+): Promise<{ success: boolean; user?: User; error?: string }> => {
+  try {
+    const cleanEmail = email.trim();
+    if (!cleanEmail) return { success: false, error: 'يرجى إدخال البريد الإلكتروني.' };
+    if (!password || password.length < 6) return { success: false, error: 'كلمة المرور يجب ألا تقل عن 6 أحرف أو أرقام.' };
+
+    const credential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+    const user = credential.user;
+
+    if (displayName && displayName.trim()) {
+      await updateProfile(user, { displayName: displayName.trim() }).catch(() => {});
+    }
+
+    // Save/update user doc in Firestore
+    try {
+      await setDoc(doc(db, 'users', user.uid), sanitizeForFirestore({
+        uid: user.uid,
+        email: user.email,
+        displayName: displayName || user.displayName || user.email?.split('@')[0],
+        createdAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString()
+      }), { merge: true });
+    } catch (e) {
+      console.warn('Could not save user profile to firestore:', e);
+    }
+
+    // Automatically sync cloud database for this user
+    syncCloudToLocalDB().catch(() => {});
+
+    return { success: true, user };
+  } catch (err: any) {
+    console.error('Registration error:', err);
+    return { success: false, error: getAuthErrorMessage(err) };
+  }
+};
+
+/**
+ * Sign in existing teacher with email and password
+ */
+export const signInWithEmail = async (
+  email: string, 
+  password: string
+): Promise<{ success: boolean; user?: User; error?: string }> => {
+  try {
+    const cleanEmail = email.trim();
+    if (!cleanEmail) return { success: false, error: 'يرجى إدخال البريد الإلكتروني.' };
+    if (!password) return { success: false, error: 'يرجى إدخال كلمة المرور.' };
+
+    const credential = await signInWithEmailAndPassword(auth, cleanEmail, password);
+    const user = credential.user;
+
+    // Update lastLogin in Firestore
+    try {
+      await setDoc(doc(db, 'users', user.uid), sanitizeForFirestore({
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName || user.email?.split('@')[0],
+        lastLogin: new Date().toISOString()
+      }), { merge: true });
+    } catch (e) {
+      console.warn('Could not update user login in firestore:', e);
+    }
+
+    // Pull all cloud classes into local IndexedDB
+    await syncCloudToLocalDB();
+    window.dispatchEvent(new CustomEvent('dbUpdated'));
+
+    return { success: true, user };
+  } catch (err: any) {
+    console.error('Sign in error:', err);
+    return { success: false, error: getAuthErrorMessage(err) };
+  }
+};
+
+/**
+ * Sign in using Google Account popup
+ */
+export const signInWithGoogle = async (): Promise<{ success: boolean; user?: User; error?: string }> => {
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    const credential = await signInWithPopup(auth, provider);
+    const user = credential.user;
+
+    try {
+      await setDoc(doc(db, 'users', user.uid), sanitizeForFirestore({
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        lastLogin: new Date().toISOString()
+      }), { merge: true });
+    } catch (e) {
+      console.warn('Could not save google user in firestore:', e);
+    }
+
+    await syncCloudToLocalDB();
+    window.dispatchEvent(new CustomEvent('dbUpdated'));
+
+    return { success: true, user };
+  } catch (err: any) {
+    console.error('Google sign in error:', err);
+    return { success: false, error: getAuthErrorMessage(err) };
+  }
+};
+
+/**
+ * Sign out current teacher account
+ */
+export const signOutTeacher = async (): Promise<{ success: boolean; error?: string }> => {
+  try {
+    await signOut(auth);
+    // Continue with anonymous auth fallback
+    signInAnonymously(auth).catch(() => {});
+    return { success: true };
+  } catch (err: any) {
+    console.error('Sign out error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Listen to Auth state changes
+ */
+export const subscribeToAuthChanges = (callback: (user: User | null) => void): Unsubscribe => {
+  return onAuthStateChanged(auth, callback);
+};
+
 

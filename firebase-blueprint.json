@@ -10,8 +10,10 @@
         "students": { "type": "array", "description": "List of student objects with numeroEleve, nomEleve, sexe, photoUrl" },
         "physicalTests": { "type": "array", "description": "Latest recorded physical test scores and biometric measurements" },
         "vmaResults": { "type": "array", "description": "Latest recorded Luc Léger VMA test results" },
+        "ownerEmail": { "type": "string", "description": "Email address of the teacher who created or saved this class" },
+        "ownerUid": { "type": "string", "description": "Firebase Auth UID of the owner teacher" },
         "updatedAt": { "type": "string", "description": "ISO timestamp of the last modification" },
-        "updatedBy": { "type": "string", "description": "Author or device that synced the class" }
+        "updatedBy": { "type": "string", "description": "Author name or email that synced the class" }
       },
       "required": ["className", "studentCount", "students", "updatedAt"]
     },
@@ -22,6 +24,7 @@
       "properties": {
         "className": { "type": "string", "description": "The name of the class" },
         "results": { "type": "array", "description": "List of physical test records" },
+        "ownerEmail": { "type": "string", "description": "Email of the teacher" },
         "updatedAt": { "type": "string", "description": "ISO timestamp of the last modification" }
       },
       "required": ["className", "results", "updatedAt"]
@@ -33,6 +36,7 @@
       "properties": {
         "className": { "type": "string", "description": "The name of the class" },
         "results": { "type": "array", "description": "List of VMA results records" },
+        "ownerEmail": { "type": "string", "description": "Email of the teacher" },
         "updatedAt": { "type": "string", "description": "ISO timestamp of the last modification" }
       },
       "required": ["className", "results", "updatedAt"]
@@ -46,12 +50,26 @@
         "title": { "type": "string", "description": "Title of the archive, e.g. الموسم الدراسي 2024/2025" },
         "description": { "type": "string", "description": "Optional notes or remarks" },
         "createdAt": { "type": "string", "description": "Creation ISO date" },
-        "createdBy": { "type": "string", "description": "Teacher name or device" },
+        "createdBy": { "type": "string", "description": "Teacher name or email" },
+        "ownerEmail": { "type": "string", "description": "Email of the owner teacher" },
         "classCount": { "type": "number", "description": "Number of classes archived" },
         "studentCount": { "type": "number", "description": "Total students in archive" },
         "data": { "type": "object", "description": "Complete snapshot of classes, physical tests, and VMA results" }
       },
       "required": ["id", "title", "createdAt", "classCount", "studentCount"]
+    },
+    "users": {
+      "title": "Teacher Accounts",
+      "description": "Registered teacher profiles and email data sync settings",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "description": "Teacher email address" },
+        "displayName": { "type": "string", "description": "Teacher display name" },
+        "createdAt": { "type": "string", "description": "Registration ISO timestamp" },
+        "lastLogin": { "type": "string", "description": "Last sign in timestamp" }
+      },
+      "required": ["uid", "email"]
     }
   },
   "firestore": {
@@ -70,6 +88,10 @@
     "/archives/{archiveId}": {
       "schema": "archives",
       "description": "Archived historical seasons and student records"
+    },
+    "/users/{userId}": {
+      "schema": "users",
+      "description": "Teacher account profiles"
     }
   }
 }

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import type { User } from 'firebase/auth';
 import { 
     InformationCircleIcon, 
     Cog6ToothIcon, 
@@ -8,11 +9,16 @@ import {
     ShareIcon,
     WifiIcon,
     SparklesIcon,
-    CheckCircleIcon
+    CheckCircleIcon,
+    UserCircleIcon,
+    CloudIcon,
+    ArrowPathIcon
 } from '../components/Icons';
 import { useLanguage, Language } from '../utils/i18n';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { PWAInstallButton } from '../components/PWAInstallButton';
+import { auth, subscribeToAuthChanges, syncAllData } from '../utils/firebase';
+import { AuthModal } from '../components/AuthModal';
 
 interface SettingsScreenProps {
   selectedClass?: string;
@@ -26,10 +32,35 @@ interface SettingsScreenProps {
 export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
   const { language, setLanguage, t } = useLanguage();
   const { isStandalone, isIOS } = usePWAInstall();
+  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsub = subscribeToAuthChanges((u) => setCurrentUser(u));
+    return () => unsub();
+  }, []);
 
   const handleLanguageChange = (newLang: Language) => {
     setLanguage(newLang);
   };
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    setSyncStatus(null);
+    try {
+      const res = await syncAllData();
+      setSyncStatus(res.message);
+      setTimeout(() => setSyncStatus(null), 5000);
+    } catch (e: any) {
+      setSyncStatus(e.message || 'فشلت المزامنة');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const isRealUser = currentUser && !currentUser.isAnonymous && currentUser.email;
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-8">
@@ -112,6 +143,105 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
             )}
           </button>
         </div>
+      </section>
+
+      {/* Teacher Account & Email Sync Section */}
+      <section className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 space-y-4 border border-gray-100 dark:border-gray-700/60">
+        <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+              <UserCircleIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">
+                {language === 'ar' ? 'حساب الأستاذ وحفظ البيانات بالبريد الإلكتروني' : 'Compte enseignant & Sauvegarde par e-mail'}
+              </h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {language === 'ar' ? 'ربط لوائح الأقسام ونتائج الاختبارات بحسابك السحابي' : 'Liez vos classes et vos résultats à votre compte Cloud'}
+              </p>
+            </div>
+          </div>
+
+          <span className={`text-xs font-bold px-3 py-1 rounded-full border ${
+            isRealUser 
+              ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700' 
+              : 'bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+          }`}>
+            {isRealUser ? (language === 'ar' ? 'متصل بالبريد' : 'Connecté') : (language === 'ar' ? 'وضع الضيف / غير مسجل' : 'Mode Invité')}
+          </span>
+        </div>
+
+        {syncStatus && (
+          <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-xs font-bold text-indigo-700 dark:text-indigo-300">
+            {syncStatus}
+          </div>
+        )}
+
+        {isRealUser ? (
+          <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-850 border border-gray-200/80 dark:border-gray-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white font-black text-lg flex items-center justify-center shrink-0 shadow-sm">
+                {(currentUser.displayName?.[0] || currentUser.email?.[0] || 'U').toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-black text-gray-900 dark:text-white truncate">
+                  {currentUser.displayName || currentUser.email?.split('@')[0]}
+                </div>
+                <div className="text-xs font-mono text-gray-500 dark:text-gray-400 truncate">
+                  {currentUser.email}
+                </div>
+                <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold mt-0.5">
+                  ✓ {language === 'ar' ? 'يتم حفظ كافة البيانات تلقائياً تحت هذا الحساب السحابي' : 'Données synchronisées sous ce compte'}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleManualSync}
+                disabled={isSyncing}
+                className="px-3.5 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 hover:bg-gray-50 text-gray-700 dark:text-gray-200 text-xs font-bold transition flex items-center gap-1.5"
+                title="مزامنة وتحيين كافة البيانات مع السحابة"
+              >
+                <div className={isSyncing ? 'animate-spin' : ''}>
+                  <ArrowPathIcon />
+                </div>
+                <span>{language === 'ar' ? 'مزامنة الآن' : 'Synchroniser'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsAuthModalOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-xs"
+              >
+                {language === 'ar' ? 'إدارة الحساب' : 'Gérer le compte'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="text-xs font-black text-amber-900 dark:text-amber-200">
+                {language === 'ar' ? 'أنت تستخدم التطبيق في الوضع المحلي كضيف' : 'Vous utilisez l’application en mode invité'}
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed max-w-xl">
+                {language === 'ar'
+                  ? 'سجل الدخول ببريدك الإلكتروني (أو حساب Google) لحفظ لوائح الأقسام، القياسات، ونتائج VMA بشكل دائم، ومشاركتها عبر جميع هواتفك وحواسيبك.'
+                  : 'Connectez-vous avec votre e-mail pour sauvegarder vos données dans le Cloud et y accéder depuis tous vos appareils.'}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsAuthModalOpen(true)}
+              className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition flex items-center justify-center gap-2 shrink-0"
+            >
+              <UserCircleIcon className="w-4 h-4" />
+              <span>{language === 'ar' ? 'تسجيل الدخول بالبريد' : 'Se connecter'}</span>
+            </button>
+          </div>
+        )}
       </section>
 
       {/* PWA Phone Installation Section */}
@@ -264,6 +394,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
           </div>
         </div>
       </section>
+
+      {/* Teacher Authentication Modal */}
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)} 
+        currentUser={currentUser}
+      />
     </div>
   );
 };

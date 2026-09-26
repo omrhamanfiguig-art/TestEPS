@@ -20,5 +20,10 @@ service cloud.firestore {
     match /archives/{archiveId} {
       allow read, write: if true;
     }
+
+    // Teacher profile and settings
+    match /users/{userId} {
+      allow read, write: if true;
+    }
   }
 }

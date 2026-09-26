@@ -10,10 +10,14 @@ import {
     ChevronDoubleLeftIcon,
     ChevronDoubleRightIcon,
     GlobeAltIcon,
-    AcademicCapIcon
+    AcademicCapIcon,
+    UserCircleIcon
 } from './Icons';
 import { useLanguage } from '../utils/i18n';
 import { getAllClasses, ClassStats } from '../utils/db';
+import { subscribeToAuthChanges, auth } from '../utils/firebase';
+import type { User } from 'firebase/auth';
+import { AuthModal } from './AuthModal';
 
 export type ActiveScreen = 
   | 'physical-tests' 
@@ -44,6 +48,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { language, setLanguage, t, isRtl } = useLanguage();
   const [classList, setClassList] = useState<ClassStats[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchClasses = async () => {
@@ -54,7 +60,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     
     // Listen for storage changes or internal custom events if needed
     window.addEventListener('dbUpdated', fetchClasses);
-    return () => window.removeEventListener('dbUpdated', fetchClasses);
+    const unsubAuth = subscribeToAuthChanges((u) => setCurrentUser(u));
+
+    return () => {
+      window.removeEventListener('dbUpdated', fetchClasses);
+      unsubAuth();
+    };
   }, [selectedClass]);
 
   const navItems = [
@@ -206,15 +217,50 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </nav>
 
-        {/* Bottom Area: Credits */}
+        {/* Bottom Area: Account & Credits */}
         {!isCollapsed && (
-          <div className="p-3 border-t border-gray-200 dark:border-gray-800">
-            <div className="px-2 text-[11px] text-gray-400 dark:text-gray-500 text-center">
+          <div className="p-3 border-t border-gray-200 dark:border-gray-800 space-y-2">
+            {/* Account Card */}
+            <button
+              type="button"
+              onClick={() => setIsAuthModalOpen(true)}
+              className="w-full p-2 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-750 border border-gray-200 dark:border-gray-700/80 transition text-right flex items-center gap-2.5"
+            >
+              <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                {currentUser && !currentUser.isAnonymous && currentUser.email ? (
+                  (currentUser.displayName?.[0] || currentUser.email?.[0] || 'U').toUpperCase()
+                ) : (
+                  <UserCircleIcon className="w-5 h-5 text-white" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1">
+                  <span className={`w-1.5 h-1.5 rounded-full ${currentUser && !currentUser.isAnonymous ? 'bg-emerald-500' : 'bg-gray-400'}`}></span>
+                  <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400">
+                    {currentUser && !currentUser.isAnonymous ? 'حساب متصل' : 'دخول بالبريد'}
+                  </span>
+                </div>
+                <div className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                  {currentUser && !currentUser.isAnonymous && currentUser.email 
+                    ? currentUser.email 
+                    : (language === 'ar' ? 'تسجيل الدخول' : 'Connexion')}
+                </div>
+              </div>
+            </button>
+
+            <div className="px-2 text-[10px] text-gray-400 dark:text-gray-500 text-center">
               {t.developer}
             </div>
           </div>
         )}
       </aside>
+
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)} 
+        currentUser={currentUser}
+      />
     </>
   );
 };
