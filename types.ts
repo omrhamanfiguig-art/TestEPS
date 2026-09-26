@@ -71,3 +71,18 @@ export interface EnduranceResult {
   vitesseMoyenneKmh: number;
   date: string;
 }
+
+export interface ArchiveRecord {
+  id: string;
+  title: string;
+  description?: string;
+  createdAt: string;
+  createdBy?: string;
+  classCount: number;
+  studentCount: number;
+  data: {
+    classes: { className: string; students: StudentIdentity[] }[];
+    physicalTests: { className: string; results: PhysicalTests[] }[];
+    vmaResults: { className: string; results: StudentResult[] }[];
+  };
+}

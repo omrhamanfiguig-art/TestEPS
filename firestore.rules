@@ -15,5 +15,10 @@ service cloud.firestore {
     match /vma_results/{classId} {
       allow read, write: if true;
     }
+
+    // Archives of previous school years and data snapshots
+    match /archives/{archiveId} {
+      allow read, write: if true;
+    }
   }
 }

@@ -34,6 +34,22 @@
         "updatedAt": { "type": "string", "description": "ISO timestamp of the last modification" }
       },
       "required": ["className", "results", "updatedAt"]
+    },
+    "archives": {
+      "title": "Data Archives",
+      "description": "Archived school years and student rosters snapshots with tests",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier of the archive" },
+        "title": { "type": "string", "description": "Title of the archive, e.g. الموسم الدراسي 2024/2025" },
+        "description": { "type": "string", "description": "Optional notes or remarks" },
+        "createdAt": { "type": "string", "description": "Creation ISO date" },
+        "createdBy": { "type": "string", "description": "Teacher name or device" },
+        "classCount": { "type": "number", "description": "Number of classes archived" },
+        "studentCount": { "type": "number", "description": "Total students in archive" },
+        "data": { "type": "object", "description": "Complete snapshot of classes, physical tests, and VMA results" }
+      },
+      "required": ["id", "title", "createdAt", "classCount", "studentCount"]
     }
   },
   "firestore": {
@@ -48,6 +64,10 @@
     "/vma_results/{classId}": {
       "schema": "vma_results",
       "description": "Shared VMA results"
+    },
+    "/archives/{archiveId}": {
+      "schema": "archives",
+      "description": "Archived historical seasons and student records"
     }
   }
 }

@@ -17,7 +17,7 @@ import {
 import { exportGroupsToWord } from '../utils/wordHelper';
 import { generateAffinityGroups } from '../utils/groupHelper';
 import { LUC_LEGER_DATA } from '../constants';
-import type { StudentIdentity, PhysicalTests, StudentResult } from '../types';
+import type { StudentIdentity, PhysicalTests, StudentResult, ArchiveRecord } from '../types';
 import { 
     ExcelIcon, 
     ArrowUpTrayIcon, 
@@ -33,13 +33,21 @@ import {
     CloudIcon,
     CloudArrowUpIcon,
     CloudArrowDownIcon,
-    ArrowPathIcon
+    ArrowPathIcon,
+    ArchiveBoxIcon,
+    TrashIcon
 } from '../components/Icons';
 import { 
     syncCloudToLocalDB, 
     syncLocalToCloudDB, 
     syncAllData, 
-    fetchAllClassesFromCloud 
+    fetchAllClassesFromCloud,
+    saveArchiveToCloud,
+    fetchArchivesFromCloud,
+    deleteArchiveFromCloud,
+    restoreArchive,
+    exportArchiveAsFile,
+    wipeAllData
 } from '../utils/firebase';
 import { useLanguage } from '../utils/i18n';
 import { calculateBMI, getBMICategory } from './BiometricMeasurementsScreen';
@@ -91,6 +99,27 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
     const [isSyncingCloud, setIsSyncingCloud] = useState(false);
     const [cloudStatus, setCloudStatus] = useState<{ classCount: number; studentCount: number } | null>(null);
 
+    // Archives state
+    const [archives, setArchives] = useState<ArchiveRecord[]>([]);
+    const [loadingArchives, setLoadingArchives] = useState(false);
+    const [isCreateArchiveModalOpen, setIsCreateArchiveModalOpen] = useState(false);
+    const [archiveTitle, setArchiveTitle] = useState('');
+    const [archiveDescription, setArchiveDescription] = useState('');
+    const [isSavingArchive, setIsSavingArchive] = useState(false);
+
+    // Archive restore & delete state
+    const [archiveToRestore, setArchiveToRestore] = useState<ArchiveRecord | null>(null);
+    const [restoreMode, setRestoreMode] = useState<'replace' | 'merge'>('replace');
+    const [isRestoringArchive, setIsRestoringArchive] = useState(false);
+    const [archiveToDelete, setArchiveToDelete] = useState<ArchiveRecord | null>(null);
+    const [isDeletingArchive, setIsDeletingArchive] = useState(false);
+
+    // Wipe all data state
+    const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
+    const [wipeIncludeCloud, setWipeIncludeCloud] = useState(true);
+    const [wipeConfirmationInput, setWipeConfirmationInput] = useState('');
+    const [isWipingData, setIsWipingData] = useState(false);
+
     const loadCloudStatus = async () => {
         try {
             const cloudClasses = await fetchAllClassesFromCloud();
@@ -101,8 +130,21 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
         }
     };
 
+    const loadArchives = async () => {
+        setLoadingArchives(true);
+        try {
+            const list = await fetchArchivesFromCloud();
+            setArchives(list);
+        } catch (e) {
+            console.warn('Could not load archives', e);
+        } finally {
+            setLoadingArchives(false);
+        }
+    };
+
     useEffect(() => {
         loadCloudStatus();
+        loadArchives();
     }, []);
 
     const handleSyncCloudToLocal = async () => {
@@ -154,10 +196,107 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
                 type: res.success ? 'success' : 'error'
             });
             await loadCloudStatus();
+            await loadArchives();
         } catch (err: any) {
             setMessage({ text: err.message || "خطأ أثناء المزامنة الشاملة.", type: 'error' });
         } finally {
             setIsSyncingCloud(false);
+        }
+    };
+
+    const handleOpenCreateArchiveModal = () => {
+        const curYear = new Date().getFullYear();
+        setArchiveTitle(`الموسم الدراسي ${curYear - 1}/${curYear}`);
+        setArchiveDescription('');
+        setIsCreateArchiveModalOpen(true);
+    };
+
+    const handleCreateArchive = async () => {
+        if (!archiveTitle.trim()) {
+            setMessage({ text: 'يرجى إدخال اسم أو عنوان للأرشيف.', type: 'error' });
+            return;
+        }
+        setIsSavingArchive(true);
+        try {
+            const res = await saveArchiveToCloud(archiveTitle, archiveDescription);
+            if (res.success && res.archive) {
+                setMessage({ 
+                    text: `تم حفظ الأرشيف «${res.archive.title}» بنجاح في قاعدة البيانات السحابية (${res.archive.classCount} قسم، ${res.archive.studentCount} تلميذ)!`, 
+                    type: 'success' 
+                });
+                setIsCreateArchiveModalOpen(false);
+                setArchiveTitle('');
+                setArchiveDescription('');
+                await loadArchives();
+            } else {
+                setMessage({ text: res.error || 'تعذر حفظ الأرشيف.', type: 'error' });
+            }
+        } catch (err: any) {
+            setMessage({ text: err.message || 'خطأ أثناء حفظ الأرشيف.', type: 'error' });
+        } finally {
+            setIsSavingArchive(false);
+        }
+    };
+
+    const handleConfirmRestore = async () => {
+        if (!archiveToRestore) return;
+        setIsRestoringArchive(true);
+        try {
+            const res = await restoreArchive(archiveToRestore, restoreMode);
+            if (res.success) {
+                setMessage({ text: res.message || 'تم استرجاع الأرشيف بنجاح!', type: 'success' });
+                setArchiveToRestore(null);
+                await loadCloudStatus();
+            } else {
+                setMessage({ text: res.error || 'تعذر استرجاع الأرشيف.', type: 'error' });
+            }
+        } catch (err: any) {
+            setMessage({ text: err.message || 'خطأ أثناء استرجاع الأرشيف.', type: 'error' });
+        } finally {
+            setIsRestoringArchive(false);
+        }
+    };
+
+    const handleConfirmDeleteArchive = async () => {
+        if (!archiveToDelete) return;
+        setIsDeletingArchive(true);
+        try {
+            const res = await deleteArchiveFromCloud(archiveToDelete.id);
+            if (res.success) {
+                setMessage({ text: `تم حذف الأرشيف «${archiveToDelete.title}» بنجاح.`, type: 'success' });
+                setArchiveToDelete(null);
+                await loadArchives();
+            } else {
+                setMessage({ text: res.error || 'تعذر حذف الأرشيف.', type: 'error' });
+            }
+        } catch (err: any) {
+            setMessage({ text: err.message || 'خطأ أثناء حذف الأرشيف.', type: 'error' });
+        } finally {
+            setIsDeletingArchive(false);
+        }
+    };
+
+    const handleConfirmWipe = async () => {
+        setIsWipingData(true);
+        try {
+            const res = await wipeAllData({ wipeCloud: wipeIncludeCloud });
+            if (res.success) {
+                setMessage({ 
+                    text: wipeIncludeCloud 
+                        ? 'تم مسح جميع البيانات واللوائح بنجاح من جهازك ومن قاعدة البيانات السحابية (Firebase).'
+                        : 'تم مسح جميع البيانات واللوائح المحلية من هذا الجهاز بنجاح.', 
+                    type: 'success' 
+                });
+                setIsWipeModalOpen(false);
+                setWipeConfirmationInput('');
+                await loadCloudStatus();
+            } else {
+                setMessage({ text: res.error || 'تعذر مسح البيانات.', type: 'error' });
+            }
+        } catch (err: any) {
+            setMessage({ text: err.message || 'خطأ أثناء مسح البيانات.', type: 'error' });
+        } finally {
+            setIsWipingData(false);
         }
     };
 
@@ -558,35 +697,59 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
                         )}
                     </div>
 
-                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 shrink-0">
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0">
                         <button
                             type="button"
                             onClick={handleSyncCloudToLocal}
                             disabled={isSyncingCloud}
-                            className="px-3.5 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold transition flex items-center gap-2 border border-white/20 disabled:opacity-50"
+                            className="px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold transition flex items-center gap-1.5 border border-white/20 disabled:opacity-50"
                             title="تحميل لوائح التلاميذ المخزنة في السحابة التي استوردها الأساتذة"
                         >
                             <CloudArrowDownIcon className="w-4 h-4 text-emerald-300" />
-                            <span>جلب الأقسام من السحابة</span>
+                            <span>جلب من السحابة</span>
                         </button>
 
                         <button
                             type="button"
                             onClick={handleSyncLocalToCloud}
                             disabled={isSyncingCloud}
-                            className="px-3.5 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white text-xs font-bold shadow-md transition flex items-center gap-2 border border-indigo-400/30 disabled:opacity-50"
+                            className="px-3 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white text-xs font-bold shadow-md transition flex items-center gap-1.5 border border-indigo-400/30 disabled:opacity-50"
                             title="رفع جميع لوائح التلاميذ الحالية إلى قاعدة البيانات السحابية"
                         >
                             <CloudArrowUpIcon className="w-4 h-4" />
-                            <span>حفظ لوائحي في السحابة</span>
+                            <span>حفظ بالسحابة</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleOpenCreateArchiveModal}
+                            className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold shadow-md transition flex items-center gap-1.5 border border-amber-400/30"
+                            title="حفظ لقطة كاملة من جميع الأقسام والنتائج في الأرشيف السحابي"
+                        >
+                            <ArchiveBoxIcon className="w-4 h-4" />
+                            <span>حفظ بالأرشيف</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setWipeConfirmationInput('');
+                                setWipeIncludeCloud(true);
+                                setIsWipeModalOpen(true);
+                            }}
+                            className="px-3 py-2 rounded-xl bg-rose-600/80 hover:bg-rose-600 active:scale-95 text-white text-xs font-bold transition flex items-center gap-1.5 border border-rose-400/40"
+                            title="مسح جميع البيانات واللوائح من الجهاز ومن قاعدة البيانات السحابية"
+                        >
+                            <TrashIcon className="w-4 h-4" />
+                            <span>مسح البيانات</span>
                         </button>
 
                         <button
                             type="button"
                             onClick={handleFullSync}
                             disabled={isSyncingCloud}
-                            className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white transition border border-white/15 disabled:opacity-50"
-                            title="مزامنة شاملة فورية"
+                            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white transition border border-white/15 disabled:opacity-50"
+                            title="تحيين ومزامنة شاملة فورية"
                         >
                             <div className={isSyncingCloud ? 'animate-spin' : ''}>
                                 <ArrowPathIcon />
@@ -594,6 +757,131 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
                         </button>
                     </div>
                 </div>
+            </div>
+
+            {/* Cloud Archives Section */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700/60 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 dark:border-gray-700 pb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 rounded-xl">
+                            <ArchiveBoxIcon className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h2 className="text-lg font-black text-gray-900 dark:text-white">
+                                    أرشيف المواسم الدراسية والبيانات السحابية
+                                </h2>
+                                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300">
+                                    {archives.length} أرشيف محفوظ
+                                </span>
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                يمكنك حفظ لقطات أرشيفية لكل موسم دراسي أو دورة، واسترجاعها أو تحميلها في أي وقت دون المساس بالبيانات الحالية.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={loadArchives}
+                            disabled={loadingArchives}
+                            className="p-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                            title="تحديث قائمة الأرشيفات"
+                        >
+                            <div className={loadingArchives ? 'animate-spin' : ''}>
+                                <ArrowPathIcon />
+                            </div>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleOpenCreateArchiveModal}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition"
+                        >
+                            <ArchiveBoxIcon className="w-4 h-4" />
+                            <span>حفظ أرشيف جديد الآن</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Archives List */}
+                {loadingArchives ? (
+                    <div className="py-8 text-center text-xs font-bold text-gray-400">
+                        جاري تحميل الأرشيفات من السحابة...
+                    </div>
+                ) : archives.length === 0 ? (
+                    <div className="py-8 px-4 text-center border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl space-y-2 bg-gray-50/50 dark:bg-gray-900/20">
+                        <ArchiveBoxIcon className="w-10 h-10 mx-auto text-gray-400" />
+                        <p className="text-sm font-bold text-gray-700 dark:text-gray-300">لا يوجد أي أرشيف محفوظ حالياً</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                            عند انتهاء موسم دراسي أو عند الرغبة في تفريغ قاعدة البيانات للموسم الجديد، اضغط على "حفظ أرشيف جديد" لتخزين لقطة كاملة لجميع الأقسام والاختبارات بأمان في السحابة.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+                        {archives.map((arch) => (
+                            <div key={arch.id} className="p-4 rounded-xl border border-amber-200/80 dark:border-amber-900/40 bg-amber-50/30 dark:bg-gray-850 shadow-xs flex flex-col justify-between space-y-3">
+                                <div>
+                                    <div className="flex items-start justify-between gap-2">
+                                        <h3 className="font-black text-sm text-gray-900 dark:text-white line-clamp-1">
+                                            {arch.title}
+                                        </h3>
+                                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold shrink-0">
+                                            {arch.createdAt ? new Date(arch.createdAt).toLocaleDateString('ar-MA') : ''}
+                                        </span>
+                                    </div>
+                                    {arch.description && (
+                                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                                            {arch.description}
+                                        </p>
+                                    )}
+                                    <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 pt-2 font-medium">
+                                        <span className="bg-white dark:bg-gray-800 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700">
+                                            🏫 {arch.classCount} أقسام
+                                        </span>
+                                        <span className="bg-white dark:bg-gray-800 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700">
+                                            👥 {arch.studentCount} تلميذ
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-between gap-2 border-t border-amber-100 dark:border-gray-700 pt-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setArchiveToRestore(arch);
+                                            setRestoreMode('replace');
+                                        }}
+                                        className="flex-1 py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs"
+                                        title="استرجاع هذا الأرشيف إلى قاعدة البيانات النشطة"
+                                    >
+                                        <ArrowUpTrayIcon className="w-3.5 h-3.5" />
+                                        <span>استرجاع</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => exportArchiveAsFile(arch)}
+                                        className="p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                                        title="تحميل كملف JSON احتياطي"
+                                    >
+                                        <ArrowDownTrayIcon className="w-4 h-4 text-indigo-600" />
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setArchiveToDelete(arch)}
+                                        className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                                        title="حذف هذا الأرشيف"
+                                    >
+                                        <TrashIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Main Grid */}
@@ -859,6 +1147,274 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* MODAL: Create Archive */}
+            {isCreateArchiveModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+                    <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl p-6 shadow-2xl border border-gray-200 dark:border-gray-700 space-y-4 animate-fadeIn">
+                        <div className="flex items-center gap-3">
+                            <div className="p-3 bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 rounded-xl">
+                                <ArchiveBoxIcon className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black text-gray-900 dark:text-white">
+                                    حفظ لقطة في الأرشيف السحابي
+                                </h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    سيتم تخزين كافة لوائح الأقسام، القياسات، ونتائج VMA كأرشيف تاريخي دائم.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3 pt-2">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                    عنوان أو اسم الأرشيف *
+                                </label>
+                                <input
+                                    type="text"
+                                    value={archiveTitle}
+                                    onChange={(e) => setArchiveTitle(e.target.value)}
+                                    placeholder="مثال: الموسم الدراسي 2024 - 2025"
+                                    className="w-full px-3 py-2 text-sm font-bold border border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-amber-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                    ملاحظات أو وصف (اختياري)
+                                </label>
+                                <textarea
+                                    value={archiveDescription}
+                                    onChange={(e) => setArchiveDescription(e.target.value)}
+                                    rows={2}
+                                    placeholder="مثال: نتائج الأسدوس الأول لجميع مستويات الإعدادي"
+                                    className="w-full px-3 py-2 text-xs border border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-amber-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
+                            <button
+                                type="button"
+                                onClick={() => setIsCreateArchiveModalOpen(false)}
+                                disabled={isSavingArchive}
+                                className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                            >
+                                {t.cancel}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleCreateArchive}
+                                disabled={isSavingArchive}
+                                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition flex items-center gap-2"
+                            >
+                                {isSavingArchive && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                                <span>تأكيد الحفظ في الأرشيف</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: Restore Archive */}
+            {archiveToRestore && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+                    <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl p-6 shadow-2xl border border-gray-200 dark:border-gray-700 space-y-4 animate-fadeIn">
+                        <div className="flex items-center gap-3 text-emerald-600">
+                            <div className="p-3 bg-emerald-100 dark:bg-emerald-950 rounded-xl">
+                                <ArrowUpTrayIcon />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black text-gray-900 dark:text-white">
+                                    استرجاع الأرشيف «{archiveToRestore.title}»
+                                </h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    يتضمن {archiveToRestore.classCount} قسم و {archiveToRestore.studentCount} تلميذ.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2 pt-2">
+                            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                طريقة الاسترجاع:
+                            </label>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                <button
+                                    type="button"
+                                    onClick={() => setRestoreMode('replace')}
+                                    className={`p-3 rounded-xl border text-right transition ${
+                                        restoreMode === 'replace'
+                                            ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 font-bold text-emerald-800 dark:text-emerald-300'
+                                            : 'border-gray-200 dark:border-gray-700 text-gray-600'
+                                    }`}
+                                >
+                                    <div className="font-black mb-0.5">استبدال البيانات الحالية</div>
+                                    <div className="text-[11px] opacity-75">مسح الأقسام النشطة وتعيين الأرشيف مكانها تماماً</div>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setRestoreMode('merge')}
+                                    className={`p-3 rounded-xl border text-right transition ${
+                                        restoreMode === 'merge'
+                                            ? 'border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 font-bold text-emerald-800 dark:text-emerald-300'
+                                            : 'border-gray-200 dark:border-gray-700 text-gray-600'
+                                    }`}
+                                >
+                                    <div className="font-black mb-0.5">دمج مع الأقسام الحالية</div>
+                                    <div className="text-[11px] opacity-75">إضافة أقسام الأرشيف إلى جانب الأقسام الموجودة</div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
+                            <button
+                                type="button"
+                                onClick={() => setArchiveToRestore(null)}
+                                disabled={isRestoringArchive}
+                                className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                            >
+                                {t.cancel}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmRestore}
+                                disabled={isRestoringArchive}
+                                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition flex items-center gap-2"
+                            >
+                                {isRestoringArchive && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                                <span>تأكيد الاسترجاع</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: Delete Archive */}
+            {archiveToDelete && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+                    <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl p-6 shadow-2xl border border-gray-200 dark:border-gray-700 space-y-4 animate-fadeIn">
+                        <div className="flex items-center gap-3 text-rose-600">
+                            <div className="p-3 bg-rose-100 dark:bg-rose-950 rounded-xl">
+                                <TrashIcon />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black text-gray-900 dark:text-white">
+                                    حذف الأرشيف «{archiveToDelete.title}»
+                                </h3>
+                                <p className="text-xs text-rose-600 dark:text-rose-400">
+                                    سيتم حذف هذا الأرشيف نهائياً من السحابة.
+                                </p>
+                            </div>
+                        </div>
+
+                        <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                            هل أنت متأكد من رغبتك في حذف هذا الأرشيف؟ لا يؤثر حذف الأرشيف على الأقسام النشطة حالياً.
+                        </p>
+
+                        <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
+                            <button
+                                type="button"
+                                onClick={() => setArchiveToDelete(null)}
+                                disabled={isDeletingArchive}
+                                className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                            >
+                                {t.cancel}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmDeleteArchive}
+                                disabled={isDeletingArchive}
+                                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition flex items-center gap-2"
+                            >
+                                {isDeletingArchive && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                                <span>نعم، حذف الأرشيف</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: Wipe All Data */}
+            {isWipeModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+                    <div className="bg-white dark:bg-gray-800 w-full max-w-lg rounded-2xl p-6 shadow-2xl border border-rose-200 dark:border-rose-900 space-y-4 animate-fadeIn">
+                        <div className="flex items-start gap-3 text-rose-600">
+                            <div className="p-3 bg-rose-100 dark:bg-rose-950 rounded-xl shrink-0">
+                                <TrashIcon />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-gray-900 dark:text-white">
+                                    مسح جميع البيانات واللوائح (إعادة الضبط)
+                                </h3>
+                                <p className="text-xs text-rose-600 dark:text-rose-400 mt-0.5">
+                                    تحذير: هذا الإجراء سيقوم بحذف كافة لوائح الأقسام والتلاميذ وجميع نتائج الاختبارات والقياسات!
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="bg-amber-50 dark:bg-amber-950/40 p-3 rounded-xl border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
+                            <span className="text-base">💡</span>
+                            <span>
+                                <strong>نصيحة هامة:</strong> إذا كنت تريد إنهاء الموسم الدراسي والبدء من جديد، نوصي أولاً بالضغط على <strong>"حفظ في الأرشيف"</strong> لتخزين نسخة من نتائج الموسم الحالي قبل المسح.
+                            </span>
+                        </div>
+
+                        <div className="space-y-3 pt-1">
+                            <label className="flex items-center gap-2.5 p-3 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50/30 dark:bg-rose-950/20 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={wipeIncludeCloud}
+                                    onChange={(e) => setWipeIncludeCloud(e.target.checked)}
+                                    className="rounded text-rose-600 w-4 h-4"
+                                />
+                                <div className="text-xs">
+                                    <div className="font-black text-gray-900 dark:text-white">
+                                        مسح البيانات أيضاً من قاعدة البيانات السحابية المشتركة (Firebase Firestore)
+                                    </div>
+                                    <div className="text-gray-500 dark:text-gray-400 text-[11px]">
+                                        عند تفعيل هذا الخيار، سيتم مسح اللوائح من السحابة ولن تظهر لدى أي أستاذ آخر.
+                                    </div>
+                                </div>
+                            </label>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                    لتأكيد العملية، يرجى كتابة كلمة <span className="font-mono text-rose-600 font-black">مسح</span> أدناه:
+                                </label>
+                                <input
+                                    type="text"
+                                    value={wipeConfirmationInput}
+                                    onChange={(e) => setWipeConfirmationInput(e.target.value)}
+                                    placeholder="اكتب: مسح"
+                                    className="w-full px-3 py-2 text-sm font-bold border border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-rose-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
+                            <button
+                                type="button"
+                                onClick={() => setIsWipeModalOpen(false)}
+                                disabled={isWipingData}
+                                className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                            >
+                                {t.cancel}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmWipe}
+                                disabled={isWipingData || wipeConfirmationInput.trim() !== 'مسح'}
+                                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 disabled:opacity-50 disabled:pointer-events-none text-white text-xs font-bold shadow-md shadow-rose-600/20 transition flex items-center gap-2"
+                            >
+                                {isWipingData && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                                <span>تأكيد مسح كافة البيانات</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

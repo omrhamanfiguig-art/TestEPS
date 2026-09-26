@@ -170,8 +170,8 @@ export const saveVmaResults = (
   options?: { skipCloudSync?: boolean }
 ) => {
     const res = saveData(VMA_STORE, className, results);
-    if (!options?.skipCloudSync && results.length > 0) {
-      saveVmaResultsToCloud(className, results).catch(() => {});
+    if (!options?.skipCloudSync) {
+      saveVmaResultsToCloud(className, results || []).catch(() => {});
     }
     return res;
 };
@@ -179,7 +179,10 @@ export const getVmaResults = async (className: string): Promise<StudentResult[]>
     const raw = await getData<StudentResult>(VMA_STORE, className);
     return (raw || []).filter(v => v && (!v.nomEleve || !isForbiddenStudentName(v.nomEleve)) && (!v.numeroEleve || !isForbiddenStudentName(v.numeroEleve)));
 };
-export const clearVmaResults = (className: string) => saveData(VMA_STORE, className, []);
+export const clearVmaResults = async (className: string) => {
+    await saveData(VMA_STORE, className, []);
+    saveVmaResultsToCloud(className, []).catch(() => {});
+};
 
 // Endurance Results functions
 export const saveEnduranceResults = (className: string, results: EnduranceResult[]) => saveData(ENDURANCE_STORE, className, results);
@@ -192,8 +195,8 @@ export const savePhysicalTests = (
   options?: { skipCloudSync?: boolean }
 ) => {
     const res = saveData(PHYSICAL_TESTS_STORE, className, results);
-    if (!options?.skipCloudSync && results.length > 0) {
-      savePhysicalTestsToCloud(className, results).catch(() => {});
+    if (!options?.skipCloudSync) {
+      savePhysicalTestsToCloud(className, results || []).catch(() => {});
     }
     return res;
 };
@@ -201,7 +204,26 @@ export const getPhysicalTests = async (className: string): Promise<PhysicalTests
     const raw = await getData<PhysicalTests>(PHYSICAL_TESTS_STORE, className);
     return (raw || []).filter(p => p && (!p.nomEleve || !isForbiddenStudentName(p.nomEleve)) && (!p.numeroEleve || !isForbiddenStudentName(p.numeroEleve)));
 };
-export const clearPhysicalTests = (className: string) => saveData(PHYSICAL_TESTS_STORE, className, []);
+export const clearPhysicalTests = async (className: string) => {
+    await saveData(PHYSICAL_TESTS_STORE, className, []);
+    savePhysicalTestsToCloud(className, []).catch(() => {});
+};
+
+/**
+ * Wipe all data from all local IndexedDB stores
+ */
+export const wipeAllLocalData = async (): Promise<void> => {
+  const db = await initDB();
+  const stores = [STUDENTS_STORE, PHYSICAL_TESTS_STORE, VMA_STORE, ENDURANCE_STORE];
+  const tx = db.transaction(stores, 'readwrite');
+  stores.forEach(storeName => {
+    tx.objectStore(storeName).clear();
+  });
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+};
 
 // Utility to get all available classes and their stats
 export interface ClassStats {
