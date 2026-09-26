@@ -272,12 +272,12 @@ export const syncCloudToLocalDB = async (): Promise<{ success: boolean; classCou
     // Try also to sync physical tests from cloud
     try {
       const ptSnap = await getDocs(collection(db, 'physical_tests'));
-      ptSnap.forEach(async (docSnap) => {
+      for (const docSnap of ptSnap.docs) {
         const data = docSnap.data();
         if (data && data.className && Array.isArray(data.results)) {
           await savePhysicalTests(data.className, data.results, { skipCloudSync: true });
         }
-      });
+      }
     } catch (e) {
       console.warn('Physical tests cloud sync notice:', e);
     }
@@ -285,12 +285,12 @@ export const syncCloudToLocalDB = async (): Promise<{ success: boolean; classCou
     // Try also to sync VMA results from cloud
     try {
       const vmaSnap = await getDocs(collection(db, 'vma_results'));
-      vmaSnap.forEach(async (docSnap) => {
+      for (const docSnap of vmaSnap.docs) {
         const data = docSnap.data();
         if (data && data.className && Array.isArray(data.results)) {
           await saveVmaResults(data.className, data.results, { skipCloudSync: true });
         }
-      });
+      }
     } catch (e) {
       console.warn('VMA cloud sync notice:', e);
     }
