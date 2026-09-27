@@ -23,10 +23,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onAuthSuccess
 }) => {
   const { language } = useLanguage();
-  const [tab, setTab] = useState<'signin' | 'register'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -47,46 +45,65 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleEasyAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
     setLoading(true);
 
-    try {
-      const res = await signInWithEmail(email, password);
-      if (res.success && res.user) {
-        setSuccessMsg(language === 'ar' ? 'تم تسجيل الدخول بنجاح! يتم الآن مزامنة بياناتك.' : 'Connexion réussie ! Vos données sont synchronisées.');
-        if (onAuthSuccess) onAuthSuccess(res.user);
-        setTimeout(() => {
-          onClose();
-        }, 1200);
-      } else {
-        setErrorMsg(res.error || (language === 'ar' ? 'تعذر تسجيل الدخول.' : 'Erreur de connexion.'));
-      }
-    } catch (err: any) {
-      setErrorMsg(err.message || (language === 'ar' ? 'حدث خطأ غير متوقع.' : 'Une erreur est survenue.'));
-    } finally {
+    const cleanEmail = email.trim();
+    if (!cleanEmail) {
+      setErrorMsg(language === 'ar' ? 'يرجى إدخال البريد الإلكتروني.' : 'Veuillez saisir votre e-mail.');
       setLoading(false);
+      return;
     }
-  };
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
-    setSuccessMsg(null);
-    setLoading(true);
+    if (!password || password.length < 6) {
+      setErrorMsg(language === 'ar' ? 'كلمة المرور يجب ألا تقل عن 6 أحرف أو أرقام.' : 'Le mot de passe doit contenir au moins 6 caractères.');
+      setLoading(false);
+      return;
+    }
 
     try {
-      const res = await registerWithEmail(email, password, displayName);
-      if (res.success && res.user) {
-        setSuccessMsg(language === 'ar' ? 'تم إنشاء الحساب بنجاح! يتم الآن ربط وحفظ بياناتك بهذا الحساب.' : 'Compte créé avec succès ! Vos données sont liées à ce compte.');
-        if (onAuthSuccess) onAuthSuccess(res.user);
+      // 1. Try logging in first
+      const signInRes = await signInWithEmail(cleanEmail, password);
+      if (signInRes.success && signInRes.user) {
+        setSuccessMsg(language === 'ar' ? 'تم تسجيل الدخول بنجاح! يتم الآن مزامنة بياناتك.' : 'Connexion réussie ! Vos données sont synchronisées.');
+        if (onAuthSuccess) onAuthSuccess(signInRes.user);
+        setTimeout(() => {
+          onClose();
+        }, 1200);
+        return;
+      }
+
+      // 2. If it failed, let's see if we should register.
+      // If we got 'auth/wrong-password' or similar, it means the user exists but typed the wrong password.
+      // Otherwise (user not found, invalid-credential, or any other error that isn't a direct wrong-password), we try registration.
+      const isWrongPassword = signInRes.error?.includes('auth/wrong-password') || 
+                              signInRes.error?.includes('wrong-password') ||
+                              signInRes.error?.includes('كلمة المرور غير صحيحة');
+
+      if (isWrongPassword) {
+        setErrorMsg(language === 'ar' ? 'كلمة المرور غير صحيحة لهذا الحساب.' : 'Mot de passe incorrect.');
+        setLoading(false);
+        return;
+      }
+
+      // Try automatic registration
+      const autoDisplayName = cleanEmail.split('@')[0];
+      const regRes = await registerWithEmail(cleanEmail, password, autoDisplayName);
+      if (regRes.success && regRes.user) {
+        setSuccessMsg(language === 'ar' ? 'تم إنشاء حسابك الجديد بنجاح! يتم الآن حفظ وربط بياناتك بهذا البريد.' : 'Compte créé avec succès !');
+        if (onAuthSuccess) onAuthSuccess(regRes.user);
         setTimeout(() => {
           onClose();
         }, 1200);
       } else {
-        setErrorMsg(res.error || (language === 'ar' ? 'تعذر إنشاء الحساب.' : 'Erreur de création de compte.'));
+        // If registration returns that the email is already in use, then it was indeed a wrong password
+        if (regRes.error?.includes('auth/email-already-in-use') || regRes.error?.includes('email-already-in-use')) {
+          setErrorMsg(language === 'ar' ? 'هذا الحساب مسجل بالفعل، كلمة المرور التي أدخلتها غير صحيحة.' : 'Mot de passe incorrect.');
+        } else {
+          setErrorMsg(regRes.error || signInRes.error || (language === 'ar' ? 'حدث خطأ أثناء المحاولة.' : 'Une erreur est survenue.'));
+        }
       }
     } catch (err: any) {
       setErrorMsg(err.message || (language === 'ar' ? 'حدث خطأ غير متوقع.' : 'Une erreur est survenue.'));
@@ -276,49 +293,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
           ) : (
             <>
-              {/* Tabs: Sign in vs Register */}
-              <div className="flex rounded-xl bg-gray-100 dark:bg-gray-700/60 p-1 text-xs font-bold">
-                <button
-                  type="button"
-                  onClick={() => setTab('signin')}
-                  className={`flex-1 py-2 rounded-lg transition ${
-                    tab === 'signin'
-                      ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                      : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
-                  }`}
-                >
-                  {language === 'ar' ? 'تسجيل الدخول' : 'Connexion'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTab('register')}
-                  className={`flex-1 py-2 rounded-lg transition ${
-                    tab === 'register'
-                      ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                      : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
-                  }`}
-                >
-                  {language === 'ar' ? 'إنشاء حساب جديد' : 'Créer un compte'}
-                </button>
+              {/* Informative Sub-header */}
+              <div className="p-3.5 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100/50 dark:border-indigo-900/40 text-xs text-indigo-950 dark:text-indigo-200 leading-relaxed text-center font-medium">
+                {language === 'ar' ? (
+                  <p>
+                    أدخل بريدك الإلكتروني وكلمة المرور للبدء فوراً. 
+                    <br />
+                    <span className="font-bold text-indigo-700 dark:text-indigo-400">إذا لم يكن لديك حساب، سيتم إنشاؤه تلقائياً وحفظ بياناتك عليه.</span>
+                  </p>
+                ) : (
+                  <p>
+                    Entrez votre e-mail et un mot de passe.
+                    <br />
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400">Si vous n'avez pas de compte, il sera créé automatiquement.</span>
+                  </p>
+                )}
               </div>
 
               {/* Form */}
-              <form onSubmit={tab === 'signin' ? handleSignIn : handleRegister} className="space-y-3 pt-1">
-                {tab === 'register' && (
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                      {language === 'ar' ? 'الاسم الكامل أو اسم الأستاذ' : 'Nom complet'}
-                    </label>
-                    <input
-                      type="text"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      placeholder={language === 'ar' ? 'أستاذ(ة) فلان' : 'Professeur...'}
-                      className="w-full px-3.5 py-2.5 text-xs font-medium border border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                )}
-
+              <form onSubmit={handleEasyAuth} className="space-y-3 pt-1">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
                     {language === 'ar' ? 'البريد الإلكتروني' : 'Adresse e-mail'} *
@@ -348,11 +341,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     dir="ltr"
                     className="w-full px-3.5 py-2.5 text-xs font-medium border border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-indigo-500 text-left font-mono"
                   />
-                  {tab === 'register' && (
-                    <span className="text-[10px] text-gray-400 mt-0.5 block">
-                      {language === 'ar' ? '6 أحرف أو أرقام على الأقل' : '6 caractères minimum'}
-                    </span>
-                  )}
+                  <span className="text-[10px] text-gray-400 mt-0.5 block">
+                    {language === 'ar' ? '6 أحرف أو أرقام على الأقل' : '6 caractères minimum'}
+                  </span>
                 </div>
 
                 <button
@@ -362,9 +353,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 >
                   {loading && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                   <span>
-                    {tab === 'signin'
-                      ? (language === 'ar' ? 'تسجيل الدخول ومزامنة البيانات' : 'Se connecter')
-                      : (language === 'ar' ? 'إنشاء الحساب وبدء الحفظ' : 'Créer le compte')}
+                    {language === 'ar' ? 'دخول أو فتح حساب جديد ومزامنة' : 'Se connecter ou créer un compte'}
                   </span>
                 </button>
               </form>
