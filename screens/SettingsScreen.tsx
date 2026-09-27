@@ -17,7 +17,8 @@ import {
 import { useLanguage, Language } from '../utils/i18n';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { PWAInstallButton } from '../components/PWAInstallButton';
-import { auth, subscribeToAuthChanges, syncAllData } from '../utils/firebase';
+import { auth, subscribeToAuthChanges, syncAllData, wipeAllData } from '../utils/firebase';
+import { deleteClass, getAllClasses } from '../utils/db';
 import { AuthModal } from '../components/AuthModal';
 
 interface SettingsScreenProps {
@@ -36,6 +37,14 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [classes, setClasses] = useState<{ className: string }[]>([]);
+  const [selectedClassToDelete, setSelectedClassToDelete] = useState<string>('');
+  const [isWipingAll, setIsWipingAll] = useState(false);
+  const [isDeletingClass, setIsDeletingClass] = useState(false);
+
+  useEffect(() => {
+    getAllClasses().then(c => setClasses(c));
+  }, []);
 
   useEffect(() => {
     const unsub = subscribeToAuthChanges((u) => setCurrentUser(u));
@@ -53,11 +62,31 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
       const res = await syncAllData();
       setSyncStatus(res.message);
       setTimeout(() => setSyncStatus(null), 5000);
+      getAllClasses().then(c => setClasses(c)); // Refresh classes list
     } catch (e: any) {
       setSyncStatus(e.message || 'فشلت المزامنة');
     } finally {
       setIsSyncing(false);
     }
+  };
+
+  const handleWipeAll = async () => {
+    if (!window.confirm('هل أنت متأكد؟ سيتم حذف جميع البيانات نهائياً من الجهاز والسحابة.')) return;
+    setIsWipingAll(true);
+    await wipeAllData();
+    setIsWipingAll(false);
+    window.location.reload();
+  };
+
+  const handleDeleteClass = async () => {
+    if (!selectedClassToDelete) return;
+    if (!window.confirm(`هل أنت متأكد من حذف بيانات القسم: ${selectedClassToDelete}؟`)) return;
+    setIsDeletingClass(true);
+    await deleteClass(selectedClassToDelete);
+    setIsDeletingClass(false);
+    setSelectedClassToDelete('');
+    const updated = await getAllClasses();
+    setClasses(updated);
   };
 
   const isRealUser = currentUser && !currentUser.isAnonymous && currentUser.email;
@@ -242,6 +271,39 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
             </button>
           </div>
         )}
+      </section>
+
+      {/* Data Management Section */}
+      <section className="bg-red-50 dark:bg-red-950/20 rounded-2xl shadow-lg p-6 space-y-4 border border-red-100 dark:border-red-900/40">
+        <h2 className="text-lg font-bold text-red-800 dark:text-red-200">إدارة البيانات</h2>
+        
+        <div className="flex flex-col gap-4">
+          <div className="flex gap-2">
+            <select 
+              className="flex-grow p-2 rounded-xl border border-red-200 dark:border-red-800 bg-white dark:bg-gray-800"
+              value={selectedClassToDelete}
+              onChange={(e) => setSelectedClassToDelete(e.target.value)}
+            >
+              <option value="">اختر قسماً للحذف</option>
+              {classes.map(c => <option key={c.className} value={c.className}>{c.className}</option>)}
+            </select>
+            <button 
+              onClick={handleDeleteClass}
+              disabled={!selectedClassToDelete || isDeletingClass}
+              className="px-4 py-2 bg-red-600 text-white rounded-xl font-bold disabled:opacity-50"
+            >
+              حذف القسم
+            </button>
+          </div>
+          
+          <button 
+            onClick={handleWipeAll}
+            disabled={isWipingAll}
+            className="w-full px-4 py-2 bg-red-800 text-white rounded-xl font-bold"
+          >
+            حذف جميع البيانات نهائياً
+          </button>
+        </div>
       </section>
 
       {/* PWA Phone Installation Section */}
