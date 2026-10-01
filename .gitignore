@@ -2,7 +2,8 @@
 bun.lock
 bun.lockb
 node_modules/
-dist/
+dist/*
+!dist/index.html
 .env
 .env.*
 .DS_Store
