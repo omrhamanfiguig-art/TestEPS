@@ -87,6 +87,36 @@
         "updatedAt": { "type": "string", "description": "ISO timestamp of the last modification" }
       },
       "required": ["id", "className", "date", "records", "summary"]
+    },
+    "textbook_sessions": {
+      "title": "Textbook Sessions",
+      "description": "Physical education textbook log entries containing session numbers, dates, goals, timeslots, and classes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique session ID" },
+        "sessionNumber": { "type": "string", "description": "Session number e.g. الحصة 1" },
+        "goal": { "type": "string", "description": "Pedagogical goal of the session" },
+        "className": { "type": "string", "description": "The display name of the class" },
+        "date": { "type": "string", "description": "Date of the session YYYY-MM-DD" },
+        "timeSlot": { "type": "string", "description": "Session time slot e.g. 08:30 - 10:30" },
+        "ownerEmail": { "type": "string", "description": "Email of the logging teacher" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of creation" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of last modification" }
+      },
+      "required": ["id", "sessionNumber", "goal", "className", "date", "timeSlot", "createdAt"]
+    },
+    "teachers": {
+      "title": "Teacher Profiles and Timetables",
+      "description": "Profiles, assigned classes, and timetables for the physical education teachers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Teacher unique identifier (e.g. teacher_1)" },
+        "name": { "type": "string", "description": "Display name of the teacher" },
+        "assignedClasses": { "type": "array", "description": "List of class names assigned to this teacher" },
+        "timetable": { "type": "object", "description": "Map representing the weekly timetable of morning classes" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of the last modification" }
+      },
+      "required": ["id", "name", "assignedClasses", "timetable", "updatedAt"]
     }
   },
   "firestore": {
@@ -113,6 +143,14 @@
     "/users/{userId}": {
       "schema": "users",
       "description": "Teacher account profiles"
+    },
+    "/textbook_sessions/{sessionId}": {
+      "schema": "textbook_sessions",
+      "description": "Log entries of textbook sessions"
+    },
+    "/teachers/{teacherId}": {
+      "schema": "teachers",
+      "description": "Profiles and timetables of the teachers"
     }
   }
 }

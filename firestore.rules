@@ -31,6 +31,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Teachers and timetables configuration
+    match /teachers/{teacherId} {
+      allow read, write: if true;
+    }
+
     // Teacher profile and settings
     match /users/{userId} {
       allow read, write: if true;

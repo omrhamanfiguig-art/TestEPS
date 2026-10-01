@@ -1023,6 +1023,54 @@ export const fetchTextbookSessionsFromCloud = async (): Promise<any[]> => {
   }
 };
 
+/**
+ * Save / Update a Teacher Profile with Timetable in Firestore
+ */
+export const saveTeacherProfileToCloud = async (
+  teacherId: string,
+  profile: { name: string; assignedClasses: string[]; timetable: any }
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    if (!teacherId) return { success: false, error: 'معرف الأستاذ غير صالح.' };
+    const docRef = doc(db, 'teachers', teacherId);
+    
+    const payload = sanitizeForFirestore({
+      id: teacherId,
+      name: profile.name,
+      assignedClasses: profile.assignedClasses || [],
+      timetable: profile.timetable || {},
+      updatedAt: new Date().toISOString()
+    });
+
+    await setDoc(docRef, payload, { merge: true });
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error saving teacher profile to cloud:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Fetch all Teacher Profiles with Timetables from Firestore
+ */
+export const fetchTeacherProfilesFromCloud = async (): Promise<any[]> => {
+  try {
+    const colRef = collection(db, 'teachers');
+    const snapshot = await getDocs(colRef);
+    const profiles: any[] = [];
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      if (data && data.id) {
+        profiles.push(data);
+      }
+    });
+    return profiles;
+  } catch (err) {
+    console.error('Error fetching teacher profiles from cloud:', err);
+    return [];
+  }
+};
+
 
 
 

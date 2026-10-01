@@ -875,8 +875,9 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
             </div>
           </div>
 
-          {/* Table Container */}
-          <div className="overflow-x-auto">
+          {/* Table / Card Container */}
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-xs text-right">
               <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 font-bold border-b border-gray-100 dark:border-gray-700">
                 <tr>
@@ -1034,6 +1035,120 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
               </tbody>
             </table>
           </div>
+
+          {/* Mobile Elegant Card List View */}
+          <div className="block md:hidden divide-y divide-gray-100 dark:divide-gray-700">
+            {filteredStudents.length === 0 ? (
+              <div className="p-8 text-center text-gray-400 text-xs">لا توجد نتائج تطابق خيارات البحث</div>
+            ) : (
+              filteredStudents.map((s, idx) => {
+                const rec = records[s.numeroEleve] || { studentNumber: s.numeroEleve, status: 'present' };
+                const currentStatus = rec.status;
+
+                return (
+                  <div 
+                    key={s.numeroEleve} 
+                    className={`p-4 flex flex-col gap-3 transition ${
+                      currentStatus === 'absent' ? 'bg-rose-500/5' : ''
+                    }`}
+                  >
+                    {/* Top: Avatar and student info */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-[11px] font-black text-gray-400">#{idx + 1}</span>
+                        <StudentAvatar
+                          photoUrl={s.photoUrl}
+                          nomEleve={s.nomEleve}
+                          sexe={s.sexe}
+                          size="sm"
+                        />
+                        <div>
+                          <div className="font-bold text-gray-900 dark:text-white text-sm">
+                            {s.nomEleve}
+                          </div>
+                          <div className="text-[10px] font-mono text-gray-400 flex items-center gap-2">
+                            <span>{s.numeroEleve}</span>
+                            <span className={`px-1 rounded-sm text-[9px] font-bold ${
+                              s.sexe === 'F' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {s.sexe === 'F' ? 'أنثى' : 'ذكر'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quick Edit/Delete */}
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStudentToEdit(s);
+                            setIsAddEditStudentOpen(true);
+                          }}
+                          className="p-1 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                        >
+                          <PencilSquareIcon className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteStudent(s.numeroEleve, s.nomEleve)}
+                          className="p-1 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                        >
+                          <TrashIcon className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Middle: Attendance state selection grid */}
+                    <div className="grid grid-cols-5 gap-1 pt-1">
+                      {(['present', 'absent', 'late', 'justified', 'no-kit'] as const).map(status => {
+                        const colors = {
+                          present: 'bg-emerald-600 text-white shadow-xs border-emerald-600',
+                          absent: 'bg-rose-600 text-white shadow-xs border-rose-600',
+                          late: 'bg-amber-500 text-white shadow-xs border-amber-500',
+                          justified: 'bg-blue-600 text-white shadow-xs border-blue-600',
+                          'no-kit': 'bg-purple-600 text-white shadow-xs border-purple-600'
+                        };
+                        const labels = {
+                          present: 'حاضر',
+                          absent: 'غائب',
+                          late: 'تأخر',
+                          justified: 'مبرر',
+                          'no-kit': 'بذلة'
+                        };
+                        const isActive = currentStatus === status;
+                        return (
+                          <button
+                            key={status}
+                            type="button"
+                            onClick={() => handleStatusChange(s.numeroEleve, status)}
+                            className={`py-1.5 rounded-xl font-bold text-[10px] transition text-center border active:scale-95 ${
+                              isActive 
+                                ? colors[status] 
+                                : 'bg-gray-50 border-gray-200 text-gray-600 dark:bg-gray-700/50 dark:border-gray-600 dark:text-gray-300 hover:bg-gray-100'
+                            }`}
+                          >
+                            {labels[status]}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Bottom: Note input */}
+                    <div className="relative mt-1">
+                      <input
+                        type="text"
+                        value={rec.note || ''}
+                        onChange={(e) => handleNoteChange(s.numeroEleve, e.target.value)}
+                        placeholder="إضافة ملاحظة أو سبب الغياب..."
+                        className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-150 dark:border-gray-600 rounded-xl px-3 py-1.5 text-[11px] text-gray-900 dark:text-white outline-none focus:ring-1 focus:ring-indigo-500/50"
+                      />
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       )}
 
@@ -1058,7 +1173,8 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
             </button>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-xs text-right">
               <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 font-bold border-b border-gray-100 dark:border-gray-700">
                 <tr>
@@ -1146,6 +1262,98 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card List View */}
+          <div className="block md:hidden divide-y divide-gray-100 dark:divide-gray-700">
+            {students.length === 0 ? (
+              <div className="p-8 text-center text-gray-400 text-xs">لا توجد لوائح تلاميذ لعرضها</div>
+            ) : (
+              students.map((s, idx) => {
+                let pres = 0;
+                let abs = 0;
+                let just = 0;
+                let lte = 0;
+                let noK = 0;
+
+                previousSessions.forEach(sess => {
+                  const r = (sess.records || []).find(rec => rec.studentNumber === s.numeroEleve);
+                  const st = r?.status || 'present';
+                  if (st === 'present') pres++;
+                  else if (st === 'absent') abs++;
+                  else if (st === 'justified') just++;
+                  else if (st === 'late') { lte++; pres++; }
+                  else if (st === 'no-kit') { noK++; pres++; }
+                });
+
+                const total = previousSessions.length;
+                const rate = total > 0 ? Math.round((pres / total) * 100) : 100;
+
+                return (
+                  <div 
+                    key={s.numeroEleve}
+                    className="p-4 flex flex-col gap-2.5 transition hover:bg-gray-50/50 dark:hover:bg-gray-800/50"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-[11px] font-black text-gray-400">#{idx + 1}</span>
+                        <div>
+                          <div className="font-bold text-gray-900 dark:text-white text-sm">
+                            {s.nomEleve}
+                          </div>
+                          <div className="text-[10px] font-mono text-gray-400 flex items-center gap-2">
+                            <span>{s.numeroEleve}</span>
+                            <span className={`px-1 rounded-sm text-[9px] font-bold ${
+                              s.sexe === 'F' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {s.sexe === 'F' ? 'أنثى' : 'ذكر'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                        rate >= 90 ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                        rate >= 75 ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-rose-100 text-rose-700 border border-rose-200'
+                      }`}>
+                        {rate}% حضور
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2 pt-2 border-t border-gray-100 dark:border-gray-700/40 text-center">
+                      <div>
+                        <div className="text-[10px] text-gray-400 dark:text-gray-500">غير مبرر</div>
+                        <div className={`text-xs font-bold font-mono mt-0.5 ${abs > 2 ? 'text-rose-600 font-black' : 'text-gray-700 dark:text-gray-300'}`}>
+                          {abs}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-gray-400 dark:text-gray-500">مبرر</div>
+                        <div className="text-xs font-bold font-mono mt-0.5 text-blue-600">{just}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-gray-400 dark:text-gray-500">تأخر</div>
+                        <div className="text-xs font-bold font-mono mt-0.5 text-amber-600">{lte}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-gray-400 dark:text-gray-500">بدون بذلة</div>
+                        <div className="text-xs font-bold font-mono mt-0.5 text-purple-600">{noK}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-1 text-[10px] font-bold text-gray-500 bg-gray-50 dark:bg-gray-800/40 p-2 rounded-xl border border-gray-100/50 dark:border-gray-700/50">
+                      <span>التقييم العام للمواظبة:</span>
+                      {abs >= 5 ? (
+                        <span className="text-rose-600 font-black">⚠️ غياب مقلق ومتكرر</span>
+                      ) : abs >= 3 ? (
+                        <span className="text-amber-600 font-bold">تنبيه مواظبة</span>
+                      ) : (
+                        <span className="text-emerald-600 font-bold">مواظب بانتظام</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       )}
