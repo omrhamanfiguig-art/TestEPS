@@ -308,39 +308,47 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
         </div>
       </div>
 
-      {/* Sport Selector Pills */}
-      <div className="flex flex-wrap items-center gap-2">
-        {sports.map(sport => (
-            <button
-                key={sport.id}
-                onClick={() => setCurrentSport(sport.id)}
-                className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 border group relative ${
-                    currentSport === sport.id 
-                    ? 'bg-orange-600 text-white border-orange-500 shadow-md' 
-                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-orange-50'
-                }`}
+      {/* Sport Selector Dropdown */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-white dark:bg-gray-800 p-4 rounded-3xl shadow-xs border border-gray-100 dark:border-gray-700 w-full">
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-grow">
+          <span className="text-xs font-black text-gray-500 dark:text-gray-400 shrink-0">النشاط الرياضي الحالي:</span>
+          <div className="relative flex-grow sm:max-w-xs">
+            <select
+              value={currentSport}
+              onChange={(e) => setCurrentSport(e.target.value)}
+              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-2 text-xs font-extrabold text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 cursor-pointer"
             >
-                <span>{sport.icon}</span>
-                <span>{language === 'ar' ? sport.labelAr : sport.labelFr}</span>
-                
-                {sport.id !== 'football' && (
-                    <span 
-                        onClick={(e) => handleDeleteSport(e, sport.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-opacity"
-                    >
-                        <TrashIcon className="w-3 h-3" />
-                    </span>
-                )}
+              {sports.map(sport => (
+                <option key={sport.id} value={sport.id}>
+                  {sport.icon} {language === 'ar' ? sport.labelAr : sport.labelFr}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Action Buttons: Delete current custom sport & Add sport */}
+        <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+          {currentSport !== 'football' && (
+            <button
+              type="button"
+              onClick={(e) => handleDeleteSport(e, currentSport)}
+              className="p-2 rounded-xl border border-rose-200 dark:border-rose-900/40 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 hover:text-rose-700 transition active:scale-95 cursor-pointer"
+              title="حذف هذا النشاط الرياضي"
+            >
+              <TrashIcon className="w-4 h-4" />
             </button>
-        ))}
-        
-        <button
+          )}
+
+          <button
+            type="button"
             onClick={() => setIsAddSportOpen(true)}
-            className="px-4 py-2.5 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 border border-dashed border-gray-300 dark:border-gray-600 text-gray-400 hover:border-orange-500 hover:text-orange-500"
-        >
+            className="px-3 py-2 rounded-xl text-xs font-black transition bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 border border-orange-200 dark:border-orange-900/50 flex items-center gap-1.5 hover:bg-orange-100 dark:hover:bg-orange-900/30 active:scale-95 cursor-pointer"
+          >
             <PlusIcon className="w-4 h-4" />
-            <span>إضافة نشاط</span>
-        </button>
+            <span>إضافة نشاط جديد</span>
+          </button>
+        </div>
       </div>
 
       {/* Add Sport Modal */}

@@ -585,15 +585,17 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Session Designation */}
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1">رقم الحصة / عنوانها:</label>
-                    <input 
-                      type="text"
+                    <label className="block text-xs font-bold text-gray-500 mb-1">رقم الحصة:</label>
+                    <select 
                       value={formSessionNumber}
                       onChange={(e) => setFormSessionNumber(e.target.value)}
-                      placeholder="مثال: الحصة 1 أو الحصة الأولى"
-                      className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-bold text-sm"
+                      className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-bold text-sm cursor-pointer"
                       required
-                    />
+                    >
+                      {Array.from({ length: 10 }, (_, i) => `الحصة ${i + 1}`).map(num => (
+                        <option key={num} value={num}>{num}</option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Class Select */}
