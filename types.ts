@@ -47,10 +47,25 @@ export interface PhysicalTests {
   photoUrl?: string;
   vma?: number;
   vitesse30m?: number;
+  vitesse60m?: number;
+  vitesse80m?: number;
   sautHorizontal?: number;
   sautVertical?: number;
   lancerMedball?: number;
   lancerPoids?: number;
+  sautLong?: number;
+  vitesseDist?: number;
+  enduranceDist?: number;
+  enduranceTemps?: number;
+  scoreVitesse?: number;
+  scoreEndurance?: number;
+  scoreSautLong?: number;
+  scoreLancerPoids?: number;
+  scoreSautHorizontal?: number;
+  scoreSautVertical?: number;
+  scoreMedball?: number;
+  scoreSouplesse?: number;
+  scoreEquilibre?: number;
   souplesse?: number;
   souplesseAssis?: number;
   souplesseDebout?: number;
@@ -58,6 +73,12 @@ export interface PhysicalTests {
   poids?: number;
   taille?: number;
   frequenceCardiaque?: number;
+  sportCollectifScore?: number;
+  sportCollectifName?: string;
+  sportCollectifNote?: string;
+  noteMotrice?: number;
+  noteComportement?: number;
+  noteCognitive?: number;
   date?: string;
 }
 
@@ -86,3 +107,43 @@ export interface ArchiveRecord {
     vmaResults: { className: string; results: StudentResult[] }[];
   };
 }
+
+export type AttendanceStatus = 'present' | 'absent' | 'justified' | 'late' | 'no-kit';
+
+export interface AttendanceRecord {
+  studentNumber: string;
+  status: AttendanceStatus;
+  note?: string;
+}
+
+export interface AttendanceSession {
+  id: string;
+  className: string;
+  date: string; // YYYY-MM-DD
+  timeSlot: string; // e.g. "08:00 - 10:00"
+  topic?: string;
+  sessionNumber?: string; // رقم الحصة (مثال: الحصة الأولى، الحصة الثانية، إلخ)
+  records: AttendanceRecord[];
+  summary: {
+    total: number;
+    present: number;
+    absent: number;
+    justified: number;
+    late: number;
+    noKit: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TextbookSession {
+  id: string;
+  sessionNumber: string; // الحصة (مثال: الحصة 1)
+  goal: string; // هدفها
+  className: string; // القسم
+  date: string; // التاريخ
+  timeSlot: string; // التوقيت
+  createdAt: string;
+  updatedAt: string;
+}
+

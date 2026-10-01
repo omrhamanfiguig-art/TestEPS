@@ -11,7 +11,13 @@ import {
     ChevronDoubleRightIcon,
     GlobeAltIcon,
     AcademicCapIcon,
-    UserCircleIcon
+    UserCircleIcon,
+    CalendarDaysIcon,
+    TrophyIcon,
+    SparklesIcon,
+    UserGroupIcon,
+    TableCellsIcon,
+    DocumentTextIcon
 } from './Icons';
 import { useLanguage } from '../utils/i18n';
 import { getAllClasses, ClassStats } from '../utils/db';
@@ -20,9 +26,15 @@ import type { User } from 'firebase/auth';
 import { AuthModal } from './AuthModal';
 
 export type ActiveScreen = 
-  | 'physical-tests' 
-  | 'measurements' 
   | 'classes'
+  | 'physical-tests'
+  | 'athletics'
+  | 'team-games'
+  | 'global-grades'
+  | 'textbook'
+  | 'talent'
+  | 'attendance'
+  | 'measurements' 
   | 'settings';
 
 interface SidebarProps {
@@ -78,7 +90,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       id: 'physical-tests' as ActiveScreen,
       label: t.navPhysicalTests,
-      icon: <RunningManIcon className="w-5 h-5" />
+      icon: <TrophyIcon className="w-5 h-5" />,
+      badge: language === 'ar' ? 'تقويم' : 'Éval'
+    },
+    {
+      id: 'athletics' as ActiveScreen,
+      label: t.navAthletics,
+      icon: <RunningManIcon className="w-5 h-5" />,
+      badge: '60m/80m'
+    },
+    {
+      id: 'team-games' as ActiveScreen,
+      label: t.navTeamGames,
+      icon: <UserGroupIcon className="w-5 h-5" />,
+      badge: language === 'ar' ? 'جماعية' : 'S.Co'
+    },
+    {
+      id: 'global-grades' as ActiveScreen,
+      label: t.navGlobalGrades,
+      icon: <TableCellsIcon className="w-5 h-5" />,
+      badge: language === 'ar' ? 'نقط' : 'Notes'
+    },
+    {
+      id: 'talent' as ActiveScreen,
+      label: t.navTalent,
+      icon: <SparklesIcon className="w-5 h-5 text-amber-500" />,
+      badge: language === 'ar' ? 'موهبة' : 'Talents'
+    },
+    {
+      id: 'attendance' as ActiveScreen,
+      label: t.navAttendance,
+      icon: <CalendarDaysIcon className="w-5 h-5" />,
+      badge: language === 'ar' ? 'حصص' : 'Présence'
+    },
+    {
+      id: 'textbook' as ActiveScreen,
+      label: language === 'ar' ? 'دفتر النصوص الرياضي' : 'Cahier de Textes',
+      icon: <DocumentTextIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />,
+      badge: language === 'ar' ? 'توثيق' : 'Prog'
     },
     {
       id: 'measurements' as ActiveScreen,
@@ -261,6 +310,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onClose={() => setIsAuthModalOpen(false)} 
         currentUser={currentUser}
       />
+
+      {/* Fixed Bottom Tab Bar for Mobile Navigation (Thumb-Zone Optimization) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 z-40 flex items-center justify-around px-2 pb-safe shadow-lg">
+        {[
+          { id: 'classes' as ActiveScreen, label: language === 'ar' ? 'الأقسام' : 'Classes', icon: <AcademicCapIcon className="w-5 h-5" /> },
+          { id: 'physical-tests' as ActiveScreen, label: language === 'ar' ? 'الروائز' : 'Tests', icon: <TrophyIcon className="w-5 h-5" /> },
+          { id: 'attendance' as ActiveScreen, label: language === 'ar' ? 'الغياب' : 'Présence', icon: <CalendarDaysIcon className="w-5 h-5" /> },
+          { id: 'team-games' as ActiveScreen, label: language === 'ar' ? 'الألعاب' : 'S.Co', icon: <UserGroupIcon className="w-5 h-5" /> },
+          { id: 'global-grades' as ActiveScreen, label: language === 'ar' ? 'المحضر' : 'Bilan', icon: <TableCellsIcon className="w-5 h-5" /> },
+        ].map(item => {
+          const isActive = activeScreen === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => handleNavClick(item.id)}
+              className={`flex flex-col items-center justify-center flex-1 h-full min-w-0 transition-all ${
+                isActive 
+                  ? 'text-indigo-600 dark:text-indigo-400 font-extrabold scale-105' 
+                  : 'text-gray-500 dark:text-gray-400 font-medium hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              <div className={`${isActive ? 'scale-110' : ''} transition-transform`}>
+                {item.icon}
+              </div>
+              <span className="text-[10px] tracking-tight mt-0.5 truncate max-w-full">
+                {item.label}
+              </span>
+            </button>
+          );
+        })}
+      </nav>
     </>
   );
 };

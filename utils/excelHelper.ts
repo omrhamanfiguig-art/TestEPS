@@ -1,6 +1,7 @@
-import { StudentIdentity, PhysicalTests, StudentResult } from '../types';
+import { StudentIdentity, PhysicalTests, StudentResult, AttendanceSession, AttendanceRecord } from '../types';
 import { getPhysicalTests, getStudentList, getVmaResults } from './db';
 import { detectGenderFromName } from './genderHelper';
+import { formatSecondsToMinSec, parseMinSecToSeconds } from './ScoringConstants';
 
 /**
  * Normalizes Arabic text by removing diacritics, normalizing Alef variants, 
@@ -108,7 +109,13 @@ const FORBIDDEN_STUDENT_NAMES_RAW = [
   'ministere',
   'royaume',
   'academie',
-  'direction'
+  'direction',
+  'إطار الكسارة',
+  'اطار الكساره',
+  'برنامج الكسارة',
+  'نقط المراقبة',
+  'بيان النقط',
+  'لائحة التلاميذ'
 ];
 
 const FORBIDDEN_STUDENT_NAMES_NORMALIZED = FORBIDDEN_STUDENT_NAMES_RAW.map(kw => normalizeArabic(kw));
@@ -256,6 +263,8 @@ export const parseStudentExcel = (data: ArrayBuffer): { students: StudentIdentit
           cellNorm.includes('رقم مسار') || 
           cellNorm.includes('رمز مسار') || 
           cellNorm.includes('كود مسار') || 
+          cellNorm.includes('رقم الترتيب') ||
+          cellNorm.includes('الرقم الترتيبي') ||
           cellNorm.includes('code massar') || 
           cellNorm.includes('cne') ||
           cellNorm.includes('matricule')
@@ -263,7 +272,6 @@ export const parseStudentExcel = (data: ArrayBuffer): { students: StudentIdentit
           massarIdx = c;
           score += 5;
         } else if (
-          cellNorm.includes('الترتيبي') || 
           cellNorm === 'n°' || 
           cellNorm === 'no' || 
           cellNorm === 'num' || 
@@ -277,6 +285,7 @@ export const parseStudentExcel = (data: ArrayBuffer): { students: StudentIdentit
         
         // Student Name (handles إسم التلميذ, اسم التلميذ, الاسم والنسب, Nom, etc.)
         if (
+          cellNorm.includes('إسم التلميذ') || 
           cellNorm.includes('اسم التلميذ') || 
           cellNorm.includes('الاسم والنسب') || 
           cellNorm.includes('اسم و نسب') || 
@@ -559,7 +568,7 @@ export const parsePhysicalTestsExcel = (data: ArrayBuffer): ParsedPhysicalTestsD
       if (!cellNorm) continue;
 
       // VMA check first
-      if (cellNorm.includes('vma') || cellNorm.includes('v.m.a') || cellNorm.includes('القصوى الهوائية')) {
+      if (cellNorm.includes('vma') || cellNorm.includes('v.m.a') || cellNorm.includes('القصوى الهوائية') || cellNorm === 'ق ه ا' || cellNorm === 'ق.هـ.أ') {
         tempMap.vma = c;
         matchedCount++;
       } else if (
@@ -570,6 +579,8 @@ export const parsePhysicalTestsExcel = (data: ArrayBuffer): ParsedPhysicalTestsD
         cellNorm.includes('cne') ||
         cellNorm.includes('matricule') ||
         cellNorm.includes('الترتيبي') ||
+        cellNorm.includes('رقم الترتيب') ||
+        cellNorm.includes('ترتيب') ||
         cellNorm === 'n°' ||
         cellNorm === 'no' ||
         cellNorm === 'num' ||
@@ -583,9 +594,11 @@ export const parsePhysicalTestsExcel = (data: ArrayBuffer): ParsedPhysicalTestsD
         }
       } else if (
         cellNorm.includes('اسم التلميذ') ||
+        cellNorm.includes('إسم التلميذ') ||
         cellNorm.includes('الاسم والنسب') ||
         cellNorm.includes('اسم و نسب') ||
         cellNorm.includes('الاسم الكامل') ||
+        cellNorm.includes('الاسم') ||
         cellNorm.includes('nom') ||
         cellNorm.includes('prenom') ||
         cellNorm.includes('eleve') ||
@@ -604,14 +617,23 @@ export const parsePhysicalTestsExcel = (data: ArrayBuffer): ParsedPhysicalTestsD
       ) {
         tempMap.sexe = c;
         matchedCount++;
-      } else if (cellNorm.includes('30') || cellNorm.includes('سرعة') || cellNorm.includes('vitesse') || cellNorm.includes('sprint')) {
+      } else if (cellNorm.includes('30') || cellNorm.includes('سرعة') || cellNorm.includes('vitesse') || cellNorm.includes('sprint') || cellNorm === '30م') {
         tempMap.vitesse30m = c;
         matchedCount++;
       } else if (cellNorm.includes('رمي') || cellNorm.includes('كرة') || cellNorm.includes('طبي') || cellNorm.includes('lancer') || cellNorm.includes('medball') || cellNorm.includes('ballon')) {
         tempMap.lancerMedball = c;
         matchedCount++;
-      } else if (cellNorm.includes('افقي') || cellNorm.includes('طولي') || cellNorm.includes('horizontal') || cellNorm.includes('longueur') || cellNorm.includes('long jump')) {
+      } else if (cellNorm.includes('افقي') || (cellNorm.includes('قفز') && cellNorm.includes('ثبات')) || cellNorm.includes('horizontal') || (cellNorm.includes('longueur') && cellNorm.includes('detente'))) {
         tempMap.sautHorizontal = c;
+        matchedCount++;
+      } else if (cellNorm.includes('طولي') || cellNorm.includes('قفز طولي') || (cellNorm.includes('longueur') && !cellNorm.includes('detente')) || cellNorm.includes('long jump')) {
+        tempMap.sautLong = c;
+        matchedCount++;
+      } else if (cellNorm.includes('جلة') || cellNorm.includes('دفع الجلة') || (cellNorm.includes('poids') && cellNorm.includes('lancer')) || cellNorm.includes('shot put')) {
+        tempMap.lancerPoids = c;
+        matchedCount++;
+      } else if (cellNorm.includes('تحمل') || cellNorm.includes('جري التحمل') || cellNorm.includes('endurance') || cellNorm.includes('600') || cellNorm.includes('1000')) {
+        tempMap.enduranceTemps = c;
         matchedCount++;
       } else if (cellNorm.includes('عمودي') || cellNorm.includes('ارتقاء') || cellNorm.includes('سارجنت') || cellNorm.includes('vertical') || cellNorm.includes('sargent') || cellNorm.includes('detente')) {
         tempMap.sautVertical = c;
@@ -730,8 +752,11 @@ export const parsePhysicalTestsExcel = (data: ArrayBuffer): ParsedPhysicalTestsD
       vma: vmaVal,
       vitesse30m: colMap.vitesse30m !== undefined ? parseNumericCell(row[colMap.vitesse30m]) : undefined,
       sautHorizontal: colMap.sautHorizontal !== undefined ? parseNumericCell(row[colMap.sautHorizontal]) : undefined,
+      sautLong: colMap.sautLong !== undefined ? parseNumericCell(row[colMap.sautLong]) : undefined,
       sautVertical: colMap.sautVertical !== undefined ? parseNumericCell(row[colMap.sautVertical]) : undefined,
       lancerMedball: colMap.lancerMedball !== undefined ? parseNumericCell(row[colMap.lancerMedball]) : undefined,
+      lancerPoids: colMap.lancerPoids !== undefined ? parseNumericCell(row[colMap.lancerPoids]) : undefined,
+      enduranceTemps: colMap.enduranceTemps !== undefined ? parseMinSecToSeconds(row[colMap.enduranceTemps]) : undefined,
       souplesseAssis: colMap.souplesseAssis !== undefined ? parseNumericCell(row[colMap.souplesseAssis]) : undefined,
       souplesseDebout: colMap.souplesseDebout !== undefined ? parseNumericCell(row[colMap.souplesseDebout]) : undefined,
       equilibreStatique: colMap.equilibreStatique !== undefined ? parseNumericCell(row[colMap.equilibreStatique]) : undefined,
@@ -894,7 +919,14 @@ export const exportClassPhysicalTestsToExcel = async (className: string): Promis
     "القسم",
     "VMA (كم/س)",
     "30 م سرعة (ث)",
-    "القفز الأفقي (م)",
+    "نقطة السرعة",
+    "القفز الطولي (م)",
+    "نقطة القفز",
+    "دفع الجلة (م)",
+    "نقطة الجلة",
+    "المسافات المتوسطة (د:ث)",
+    "نقطة التحمل",
+    "القفز الأفقي (سم)",
     "القفز العمودي (سم)",
     "رمي الكرة الطبية (م)",
     "المرونة - جلوس (سم)",
@@ -906,7 +938,7 @@ export const exportClassPhysicalTestsToExcel = async (className: string): Promis
   const rows: any[][] = [headers];
 
   studentRows.forEach((s, idx) => {
-    const p = testMap.get(s.numeroEleve);
+    const p = testMap.get(s.numeroEleve) as any;
     const v = vmaMap.get(s.numeroEleve);
     const finalVma = p?.vma ?? v?.vma ?? '';
 
@@ -917,6 +949,13 @@ export const exportClassPhysicalTestsToExcel = async (className: string): Promis
       className,
       finalVma !== '' ? Number(finalVma) : '',
       p?.vitesse30m ?? '',
+      p?.scoreVitesse ?? '',
+      p?.sautLong ?? '',
+      p?.scoreSautLong ?? '',
+      p?.lancerPoids ?? '',
+      p?.scoreLancerPoids ?? '',
+      p?.enduranceTemps ? formatSecondsToMinSec(p.enduranceTemps) : '',
+      p?.scoreEndurance ?? '',
       p?.sautHorizontal ?? '',
       p?.sautVertical ?? '',
       p?.lancerMedball ?? '',
@@ -1105,4 +1144,363 @@ export const exportClassVmaResultsToExcel = async (className: string): Promise<{
 
   return { success: true, count: results.length };
 };
+
+/**
+ * Export a single attendance session to Excel
+ */
+export const exportSessionAttendanceToExcel = (
+  session: AttendanceSession, 
+  students: StudentIdentity[]
+): boolean => {
+  const XLSX = (window as any).XLSX;
+  if (!XLSX) {
+    alert("لم يتم تحميل مكتبة Excel.");
+    return false;
+  }
+
+  const recordMap = new Map<string, AttendanceRecord>();
+  (session.records || []).forEach(r => recordMap.set(r.studentNumber, r));
+
+  const statusArabic: Record<string, string> = {
+    'present': 'حاضر',
+    'absent': 'غائب',
+    'justified': 'غياب مبرر',
+    'late': 'تأخر',
+    'no-kit': 'بدون بذلة رياضية'
+  };
+
+  const headers = [
+    "الترتيب",
+    "رقم مسار",
+    "الاسم والنسب",
+    "الجنس",
+    "القسم",
+    "حالة الحضور",
+    "ملاحظات",
+    "التاريخ",
+    "التوقيت",
+    "موضوع الحصة"
+  ];
+
+  const rows: any[][] = [headers];
+
+  students.forEach((s, idx) => {
+    const rec = recordMap.get(s.numeroEleve);
+    const status = rec?.status || 'present';
+    rows.push([
+      idx + 1,
+      s.numeroEleve,
+      s.nomEleve,
+      s.sexe === 'F' ? 'أنثى' : 'ذكر',
+      session.className,
+      statusArabic[status] || status,
+      rec?.note || '',
+      session.date,
+      session.timeSlot,
+      session.topic || 'حصة التربية البدنية'
+    ]);
+  });
+
+  // Add Summary Rows
+  rows.push([]);
+  rows.push(["ملخص الحصة:", "", "", "", "", "", "", "", "", ""]);
+  rows.push(["مجموع التلاميذ:", session.summary.total]);
+  rows.push(["عدد الحاضرين:", session.summary.present]);
+  rows.push(["عدد الغائبين:", session.summary.absent]);
+  rows.push(["عدد المتأخرين:", session.summary.late]);
+  rows.push(["غياب مبرر:", session.summary.justified]);
+  rows.push(["بدون بذلة:", session.summary.noKit]);
+  const attRate = session.summary.total > 0 ? ((session.summary.present / session.summary.total) * 100).toFixed(1) + '%' : '0%';
+  rows.push(["نسبة الحضور:", attRate]);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [
+    { wch: 8 },
+    { wch: 14 },
+    { wch: 26 },
+    { wch: 8 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 22 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 22 }
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "ورقة الغياب");
+  const fileName = `ورقة_غياب_${session.className.replace(/\s+/g, '_')}_${session.date}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  return true;
+};
+
+/**
+ * Export cumulative attendance summary across all sessions for a class
+ */
+export const exportClassAttendanceCumulativeToExcel = (
+  className: string, 
+  sessions: AttendanceSession[], 
+  students: StudentIdentity[]
+): boolean => {
+  const XLSX = (window as any).XLSX;
+  if (!XLSX) {
+    alert("لم يتم تحميل مكتبة Excel.");
+    return false;
+  }
+
+  const headers = [
+    "الترتيب",
+    "رقم مسار",
+    "الاسم والنسب",
+    "الجنس",
+    "القسم",
+    "مجموع الحصص",
+    "عدد الحضور",
+    "نسبة الحضور %",
+    "الغياب غير المبرر",
+    "الغياب المبرر",
+    "التأخرات",
+    "بدون بذلة رياضية",
+    "التقييم العام للمواظبة"
+  ];
+
+  const rows: any[][] = [headers];
+
+  const totalSessions = sessions.length;
+
+  students.forEach((s, idx) => {
+    let presentCount = 0;
+    let absentCount = 0;
+    let justifiedCount = 0;
+    let lateCount = 0;
+    let noKitCount = 0;
+
+    sessions.forEach(sess => {
+      const rec = (sess.records || []).find(r => r.studentNumber === s.numeroEleve);
+      const status = rec?.status || 'present';
+      if (status === 'present') presentCount++;
+      else if (status === 'absent') absentCount++;
+      else if (status === 'justified') justifiedCount++;
+      else if (status === 'late') {
+        lateCount++;
+        presentCount++; // late student was present
+      } else if (status === 'no-kit') {
+        noKitCount++;
+        presentCount++;
+      }
+    });
+
+    const rate = totalSessions > 0 ? ((presentCount / totalSessions) * 100).toFixed(1) : '100';
+    let assessment = 'مواظب ممتاز';
+    if (absentCount >= 5) assessment = 'غياب متكرر ومقلق';
+    else if (absentCount >= 3) assessment = 'تنبيه مواظبة';
+    else if (absentCount >= 1) assessment = 'مواظبة مقبولة';
+
+    rows.push([
+      idx + 1,
+      s.numeroEleve,
+      s.nomEleve,
+      s.sexe === 'F' ? 'أنثى' : 'ذكر',
+      className,
+      totalSessions,
+      presentCount,
+      rate + '%',
+      absentCount,
+      justifiedCount,
+      lateCount,
+      noKitCount,
+      assessment
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [
+    { wch: 8 },
+    { wch: 14 },
+    { wch: 26 },
+    { wch: 8 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 18 },
+    { wch: 22 }
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "تقرير المواظبة التراكمي");
+  const fileName = `تقرير_المواظبة_التراكمي_${className.replace(/\s+/g, '_')}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  return true;
+};
+
+/**
+ * Export sports activities and attendance summary for all sessions to Excel
+ */
+export const exportAllSessionsSportsActivityToExcel = (
+  sessions: AttendanceSession[]
+): boolean => {
+  const XLSX = (window as any).XLSX;
+  if (!XLSX) {
+    alert("لم يتم تحميل مكتبة Excel.");
+    return false;
+  }
+
+  const headers = [
+    "الترتيب",
+    "رقم الحصة",
+    "القسم",
+    "النشاط / موضوع الحصة",
+    "التاريخ",
+    "التوقيت",
+    "مجموع التلاميذ",
+    "عدد الحاضرين",
+    "عدد الغائبين",
+    "غياب مبرر",
+    "المتأخرون",
+    "بدون بذلة رياضة",
+    "نسبة الحضور %"
+  ];
+
+  const rows: any[][] = [
+    ["تقرير الأنشطة الرياضية وتتبع الحصص الدراسية للتربية البدنية"],
+    ["تاريخ التصدير: " + new Date().toLocaleDateString('ar-MA')],
+    [],
+    headers
+  ];
+
+  // Sort sessions chronologically (oldest first)
+  const sortedSessions = [...sessions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  sortedSessions.forEach((sess, idx) => {
+    const presentCount = sess.summary?.present ?? 0;
+    const totalCount = sess.summary?.total ?? 0;
+    const rate = totalCount > 0 ? ((presentCount / totalCount) * 100).toFixed(1) + '%' : '0%';
+
+    rows.push([
+      idx + 1,
+      sess.sessionNumber || `الحصة ${idx + 1}`,
+      sess.className,
+      sess.topic || 'التربية البدنية والرياضية',
+      sess.date,
+      sess.timeSlot || '-',
+      totalCount,
+      presentCount,
+      sess.summary?.absent ?? 0,
+      sess.summary?.justified ?? 0,
+      sess.summary?.late ?? 0,
+      sess.summary?.noKit ?? 0,
+      rate
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  ws['!cols'] = [
+    { wch: 8 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 30 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 16 }
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "سجل الأنشطة الرياضية");
+  const fileName = `سجل_الأنشطة_الرياضية_والحصص_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  return true;
+};
+
+/**
+ * Export sports talent analysis and top performers results to Excel
+ */
+export interface TalentExportRow {
+  rank: number;
+  studentNumber: string;
+  studentName: string;
+  className: string;
+  gender: string;
+  totalScore: number;
+  scorePercentage: string;
+  badge: string;
+  metricValues: Record<string, string | number>;
+}
+
+export const exportTalentAnalysisToExcel = (
+  filterTitle: string,
+  metricHeaders: { key: string; label: string }[],
+  dataRows: TalentExportRow[]
+): boolean => {
+  const XLSX = (window as any).XLSX;
+  if (!XLSX) {
+    alert("لم يتم تحميل مكتبة Excel.");
+    return false;
+  }
+
+  const headers = [
+    "الترتيب",
+    "رقم مسار / ID",
+    "الاسم والنسب",
+    "القسم",
+    "الجنس",
+    ...metricHeaders.map(m => m.label),
+    "المجموع الإجمالي (نقطة/20)",
+    "نسبة التفوق %",
+    "تصنيف الموهبة"
+  ];
+
+  const rows: any[][] = [
+    ["لائحة المتفوقين رياضياً وانتقاء الموهوبين - " + filterTitle],
+    ["تاريخ التصدير: " + new Date().toLocaleDateString('ar-MA')],
+    [],
+    headers
+  ];
+
+  dataRows.forEach(item => {
+    const row = [
+      item.rank,
+      item.studentNumber,
+      item.studentName,
+      item.className,
+      item.gender === 'F' ? 'أنثى' : 'ذكر',
+      ...metricHeaders.map(m => item.metricValues[m.key] !== undefined ? item.metricValues[m.key] : '-'),
+      item.totalScore,
+      item.scorePercentage,
+      item.badge
+    ];
+    rows.push(row);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  ws['!cols'] = [
+    { wch: 8 },
+    { wch: 14 },
+    { wch: 28 },
+    { wch: 14 },
+    { wch: 8 },
+    ...metricHeaders.map(() => ({ wch: 18 })),
+    { wch: 20 },
+    { wch: 14 },
+    { wch: 24 }
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "المتفوقون رياضياً");
+  const fileName = `تقرير_المتفوقين_رياضيا_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  return true;
+};
+
 

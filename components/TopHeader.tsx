@@ -40,6 +40,18 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     switch (activeScreen) {
       case 'physical-tests':
         return t.navPhysicalTests;
+      case 'athletics':
+        return t.navAthletics;
+      case 'team-games':
+        return t.navTeamGames;
+      case 'global-grades':
+        return t.navGlobalGrades;
+      case 'talent':
+        return t.navTalent;
+      case 'attendance':
+        return t.navAttendance;
+      case 'textbook':
+        return language === 'ar' ? 'دفتر النصوص الرياضي' : 'Cahier de Textes';
       case 'measurements':
         return t.navMeasurements;
       case 'classes':

@@ -2,8 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Sidebar, ActiveScreen } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
 import { PhysicalTestsScreen } from './screens/PhysicalTestsScreen';
+import { AthleticsScreen } from './screens/AthleticsScreen';
+import { TeamGamesScreen } from './screens/TeamGamesScreen';
+import { GlobalGradesScreen } from './screens/GlobalGradesScreen';
+import { TextbookScreen } from './screens/TextbookScreen';
+import { TalentScreen } from './screens/TalentScreen';
 import { BiometricMeasurementsScreen } from './screens/BiometricMeasurementsScreen';
 import { ClassesScreen } from './screens/ClassesScreen';
+import { AttendanceScreen } from './screens/AttendanceScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { LanguageProvider, useLanguage } from './utils/i18n';
 import { getAllClasses } from './utils/db';
@@ -82,7 +88,7 @@ const MainLayout: React.FC = () => {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden pb-16 md:pb-0">
         <TopHeader
           activeScreen={activeScreen}
           setActiveScreen={setActiveScreen}
@@ -101,6 +107,41 @@ const MainLayout: React.FC = () => {
             />
           )}
 
+          {activeScreen === 'team-games' && (
+            <TeamGamesScreen
+              selectedClass={selectedClass}
+              setSelectedClass={setSelectedClass}
+            />
+          )}
+
+          {activeScreen === 'global-grades' && (
+            <GlobalGradesScreen
+              selectedClass={selectedClass}
+              setSelectedClass={setSelectedClass}
+            />
+          )}
+
+          {activeScreen === 'textbook' && (
+            <TextbookScreen
+              selectedClass={selectedClass}
+              setSelectedClass={setSelectedClass}
+            />
+          )}
+
+          {activeScreen === 'athletics' && (
+            <AthleticsScreen
+              selectedClass={selectedClass}
+              setSelectedClass={setSelectedClass}
+            />
+          )}
+
+          {activeScreen === 'talent' && (
+            <TalentScreen
+              selectedClass={selectedClass}
+              setSelectedClass={setSelectedClass}
+            />
+          )}
+
           {activeScreen === 'measurements' && (
             <BiometricMeasurementsScreen
               selectedClass={selectedClass}
@@ -114,6 +155,14 @@ const MainLayout: React.FC = () => {
               selectedClass={selectedClass}
               setSelectedClass={setSelectedClass}
               onNavigateToScreen={setActiveScreen}
+            />
+          )}
+
+          {activeScreen === 'attendance' && (
+            <AttendanceScreen
+              selectedClass={selectedClass}
+              setSelectedClass={setSelectedClass}
+              sessionDate={sessionDate}
             />
           )}
 

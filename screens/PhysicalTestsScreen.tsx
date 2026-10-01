@@ -15,12 +15,28 @@ import {
     TableCellsIcon,
     Squares2X2Icon,
     ChevronDownIcon,
-    UserPlusIcon
+    UserPlusIcon,
+    ArrowPathIcon,
+    TrophyIcon
 } from '../components/Icons';
 import { StudentDataModal } from '../components/StudentDataModal';
 import { AddEditStudentModal } from '../components/AddEditStudentModal';
 import { StudentAvatar } from '../components/StudentAvatar';
 import { Sprint30mTestModal } from '../components/Sprint30mTestModal';
+import { AthleticsTestModal } from '../components/AthleticsTestModal';
+import { StaticBalanceTestModal } from '../components/StaticBalanceTestModal';
+import { BaremeSettingsModal } from '../components/BaremeSettingsModal';
+import { 
+    calculateScore, 
+    getCustomScale,
+    formatSecondsToMinSec, 
+    formatMinSecWithLabel, 
+    parseMinSecToSeconds,
+    SPEED_SCALE_30M, 
+    LONG_JUMP_SCALE, 
+    SHOT_PUT_SCALE, 
+    ENDURANCE_SCALE_1000M 
+} from '../utils/ScoringConstants';
 import { parsePhysicalTestsExcel, downloadPhysicalTestsTemplate, ParsedPhysicalTestsData } from '../utils/excelHelper';
 import { LUC_LEGER_DATA } from '../constants';
 import { VmaTestScreen } from './VmaTestScreen';
@@ -46,8 +62,8 @@ const findClosestPalier = (vma: number) => {
     return closest;
 };
 
-// Physical test keys (8 tests in total - strictly NO biometric measurements)
-type PhysicalTestField = 'vma' | 'vitesse30m' | 'sautHorizontal' | 'sautVertical' | 'lancerMedball' | 'souplesseAssis' | 'souplesseDebout' | 'equilibreStatique';
+// Physical test keys
+type PhysicalTestField = 'vma' | 'vitesse30m' | 'sautHorizontal' | 'sautVertical' | 'lancerMedball' | 'souplesseAssis' | 'souplesseDebout' | 'equilibreStatique' | 'sautLong' | 'lancerPoids' | 'enduranceTemps';
 
 export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({ 
     selectedClass, 
@@ -69,6 +85,10 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
     const [studentToEdit, setStudentToEdit] = useState<StudentIdentity | null>(null);
     const [isLucLegerModalOpen, setIsLucLegerModalOpen] = useState(false);
     const [isSprintModalOpen, setIsSprintModalOpen] = useState(false);
+    const [isAthleticsModalOpen, setIsAthleticsModalOpen] = useState(false);
+    const [athleticsTestType, setAthleticsTestType] = useState<'speed' | 'endurance' | 'long-jump' | 'shot-put'>('speed');
+    const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
+    const [isBaremeModalOpen, setIsBaremeModalOpen] = useState(false);
     
     // Import state
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -76,6 +96,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
     const [syncVma, setSyncVma] = useState(true);
     const [updateStudentList, setUpdateStudentList] = useState(true);
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -86,6 +107,24 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
             return () => clearTimeout(timer);
         }
     }, [notification]);
+
+    useEffect(() => {
+        if (results.length === 0 || !selectedClass) return;
+
+        const timer = setTimeout(async () => {
+            setIsSaving(true);
+            try {
+                await savePhysicalTests(selectedClass, results);
+                // No notification for auto-save, just the spinner
+            } catch (err) {
+                console.error('Auto-save failed', err);
+            } finally {
+                setIsSaving(false);
+            }
+        }, 2000);
+
+        return () => clearTimeout(timer);
+    }, [results, selectedClass]);
 
     // Load data when selectedClass changes
     const loadClassData = (className: string) => {
@@ -136,10 +175,31 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
     };
 
     const handleInputChange = (field: keyof PhysicalTests, value: string) => {
-        setFormData(prev => ({
-            ...prev,
-            [field]: value === '' ? undefined : Number(value)
-        }));
+        let numVal: number | undefined;
+        if (field === 'enduranceTemps') {
+            numVal = parseMinSecToSeconds(value);
+        } else {
+            numVal = value === '' ? undefined : Number(value);
+        }
+
+        setFormData(prev => {
+            const next = {
+                ...prev,
+                [field]: numVal
+            };
+            if (selectedStudent && numVal !== undefined && !isNaN(numVal)) {
+                if (field === 'vitesse30m') {
+                    next.scoreVitesse = calculateScore(numVal, getCustomScale('speed'), selectedStudent.sexe || 'M', true);
+                } else if (field === 'sautLong') {
+                    next.scoreSautLong = calculateScore(numVal, getCustomScale('long-jump'), selectedStudent.sexe || 'M', false);
+                } else if (field === 'lancerPoids') {
+                    next.scoreLancerPoids = calculateScore(numVal, getCustomScale('shot-put'), selectedStudent.sexe || 'M', false);
+                } else if (field === 'enduranceTemps') {
+                    next.scoreEndurance = calculateScore(numVal, getCustomScale('endurance'), selectedStudent.sexe || 'M', true);
+                }
+            }
+            return next;
+        });
     };
 
     const handleSave = async () => {
@@ -201,10 +261,16 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
 
     // Quick table inline field change handler
     const handleTableFieldChange = async (student: StudentIdentity, field: PhysicalTestField, rawVal: string) => {
-        const numVal = rawVal === '' ? undefined : Number(rawVal);
+        let numVal: number | undefined;
+        if (field === 'enduranceTemps') {
+            numVal = parseMinSecToSeconds(rawVal);
+        } else {
+            numVal = rawVal === '' ? undefined : Number(rawVal);
+        }
+
         const existingResult = results.find(r => r.numeroEleve === student.numeroEleve);
         
-        const updatedItem: PhysicalTests = {
+        const updatedItem: any = {
             ...(existingResult || {}),
             numeroEleve: student.numeroEleve,
             nomEleve: student.nomEleve,
@@ -212,6 +278,19 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
             [field]: numVal,
             date: existingResult?.date || sessionDate || new Date().toISOString()
         };
+
+        // Automatic score calculation for relevant fields
+        if (numVal !== undefined && !isNaN(numVal)) {
+            if (field === 'vitesse30m') {
+                updatedItem.scoreVitesse = calculateScore(numVal, getCustomScale('speed'), student.sexe || 'M', true);
+            } else if (field === 'sautLong') {
+                updatedItem.scoreSautLong = calculateScore(numVal, getCustomScale('long-jump'), student.sexe || 'M', false);
+            } else if (field === 'lancerPoids') {
+                updatedItem.scoreLancerPoids = calculateScore(numVal, getCustomScale('shot-put'), student.sexe || 'M', false);
+            } else if (field === 'enduranceTemps') {
+                updatedItem.scoreEndurance = calculateScore(numVal, getCustomScale('endurance'), student.sexe || 'M', true);
+            }
+        }
 
         const updatedResults = [...results];
         const idx = updatedResults.findIndex(r => r.numeroEleve === student.numeroEleve);
@@ -222,7 +301,6 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
         }
 
         setResults(updatedResults);
-        await savePhysicalTests(selectedClass, updatedResults);
 
         // Sync VMA if vma field changed
         if (field === 'vma' && numVal !== undefined && !isNaN(numVal)) {
@@ -284,11 +362,18 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                 "الرقم": student.numeroEleve,
                 "الاسم والنسب": student.nomEleve,
                 "الجنس": student.sexe || '',
-                "السرعة القصوى الهوائية (كم/س)": finalVma !== undefined ? finalVma : '',
+                "VMA (كم/س)": finalVma !== undefined ? finalVma : '',
                 "30 م سرعة (ث)": res?.vitesse30m !== undefined ? res.vitesse30m : '',
+                "نقطة السرعة": (res as any)?.scoreVitesse ?? '',
+                "القفز الطولي (م)": (res as any)?.sautLong ?? '',
+                "نقطة القفز": (res as any)?.scoreSautLong ?? '',
+                "دفع الجلة (م)": (res as any)?.lancerPoids ?? '',
+                "نقطة الجلة": (res as any)?.scoreLancerPoids ?? '',
+                "المسافات المتوسطة (د:ث)": (res as any)?.enduranceTemps ? formatSecondsToMinSec((res as any).enduranceTemps) : '',
+                "نقطة التحمل": (res as any)?.scoreEndurance ?? '',
                 "القفز الأفقي (سم)": res?.sautHorizontal !== undefined ? res.sautHorizontal : '',
-                "القفز العمودي سارجنت (سم)": res?.sautVertical !== undefined ? res.sautVertical : '',
-                "رمي الكرة الطبية 3كلغ (متر)": res?.lancerMedball !== undefined ? res.lancerMedball : '',
+                "القفز العمودي (سم)": res?.sautVertical !== undefined ? res.sautVertical : '',
+                "رمي الكرة الطبية (م)": res?.lancerMedball !== undefined ? res.lancerMedball : '',
                 "المرونة جلوس (سم)": res?.souplesseAssis !== undefined ? res.souplesseAssis : '',
                 "المرونة وقوف (سم)": res?.souplesseDebout !== undefined ? res.souplesseDebout : '',
                 "التوازن الثابت (ث)": res?.equilibreStatique !== undefined ? res.equilibreStatique : '',
@@ -429,6 +514,9 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
         if (res?.souplesseAssis !== undefined) count++;
         if (res?.souplesseDebout !== undefined) count++;
         if (res?.equilibreStatique !== undefined) count++;
+        if (res?.sautLong !== undefined) count++;
+        if (res?.lancerPoids !== undefined) count++;
+        if (res?.enduranceTemps !== undefined) count++;
         return count;
     };
 
@@ -556,13 +644,18 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
 
                     {/* Field Test & Export Action Buttons */}
                     <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                        {isSaving && (
+                            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-xl border border-indigo-100 dark:border-indigo-800">
+                                <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
+                                <span className="text-[10px] font-black">حفظ تلقائي...</span>
+                            </div>
+                        )}
+
                         <button
-                            onClick={() => setIsSprintModalOpen(true)}
-                            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs text-white bg-orange-600 hover:bg-orange-700 transition active:scale-95 cursor-pointer"
-                            title="تنظيم سباق 30 م سرعة بين 2 إلى 4 تلاميذ مع توقيت آلي بالعداد"
+                            onClick={() => setIsBalanceModalOpen(true)}
+                            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs text-white bg-teal-600 hover:bg-teal-700 transition active:scale-95 cursor-pointer"
                         >
-                            <RunningManIcon className="w-4 h-4 shrink-0 text-orange-200" />
-                            <span>اختبار 30 م سرعة</span>
+                            <span>توازن (متعدد)</span>
                         </button>
 
                         <button
@@ -695,6 +788,18 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                     <th className="p-2.5 font-bold min-w-[95px]">
                                         <div>توازن ثابت</div>
                                         <div className="text-[10px] font-normal text-gray-400">ثانية</div>
+                                    </th>
+                                    <th className="p-2.5 font-bold min-w-[110px] bg-red-50/50 dark:bg-red-950/20 text-red-950 dark:text-red-300 border-x border-red-200/50 dark:border-red-900/50">
+                                        <div>جري التحمل</div>
+                                        <div className="text-[10px] font-normal text-red-600 dark:text-red-400">دقائق:ثواني (د:ث)</div>
+                                    </th>
+                                    <th className="p-2.5 font-bold min-w-[95px]">
+                                        <div>قفز طولي</div>
+                                        <div className="text-[10px] font-normal text-gray-400">متر</div>
+                                    </th>
+                                    <th className="p-2.5 font-bold min-w-[95px]">
+                                        <div>دفع الجلة</div>
+                                        <div className="text-[10px] font-normal text-gray-400">متر</div>
                                     </th>
                                     <th className="p-2.5 font-bold w-20">الإنجاز</th>
                                     <th className="p-2.5 font-bold w-12">بطاقة</th>
@@ -862,14 +967,53 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                 />
                                             </td>
 
+                                            {/* Endurance in min:sec (e.g. 03:20) */}
+                                            <td className="p-1.5 bg-red-50/30 dark:bg-red-950/10 border-x border-red-100 dark:border-red-950/40">
+                                                <input
+                                                    type="text"
+                                                    placeholder="3:20"
+                                                    defaultValue={res?.enduranceTemps !== undefined ? formatSecondsToMinSec(res.enduranceTemps) : ''}
+                                                    key={`endurance-${student.numeroEleve}-${res?.enduranceTemps}`}
+                                                    onBlur={(e) => handleTableFieldChange(student, 'enduranceTemps', e.target.value)}
+                                                    className="w-full text-center py-1.5 px-1 rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-gray-800 text-red-800 dark:text-red-300 font-bold focus:ring-1 focus:ring-red-500 focus:outline-none font-mono"
+                                                    title="أدخل التوقيت بالدقائق والثواني (مثال 3:25 أو 03:25)"
+                                                />
+                                            </td>
+
+                                            {/* Saut Long */}
+                                            <td className="p-1.5">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    placeholder=""
+                                                    defaultValue={res?.sautLong !== undefined ? res.sautLong : ''}
+                                                    key={`sautLong-${student.numeroEleve}-${res?.sautLong}`}
+                                                    onBlur={(e) => handleTableFieldChange(student, 'sautLong', e.target.value)}
+                                                    className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                                                />
+                                            </td>
+
+                                            {/* Lancer Poids */}
+                                            <td className="p-1.5">
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    placeholder=""
+                                                    defaultValue={res?.lancerPoids !== undefined ? res.lancerPoids : ''}
+                                                    key={`lancerPoids-${student.numeroEleve}-${res?.lancerPoids}`}
+                                                    onBlur={(e) => handleTableFieldChange(student, 'lancerPoids', e.target.value)}
+                                                    className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                                                />
+                                            </td>
+
                                             {/* Completion */}
                                             <td className="p-2">
                                                 {completedCount > 0 ? (
                                                     <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-full">
-                                                        {completedCount}/8
+                                                        {completedCount}/11
                                                     </span>
                                                 ) : (
-                                                    <span className="text-[10px] text-gray-400">0/8</span>
+                                                    <span className="text-[10px] text-gray-400">0/11</span>
                                                 )}
                                             </td>
 
@@ -1188,7 +1332,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                     </div>
 
                                     {/* Explosive Power / Vertical Jump */}
-                                    <div className="space-y-4 bg-gray-50 dark:bg-gray-700/30 p-4 rounded-xl border border-gray-100 dark:border-gray-700 sm:col-span-2">
+                                    <div className="space-y-4 bg-gray-50 dark:bg-gray-700/30 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
                                         <h3 className="font-bold text-sm text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-gray-600 pb-2 flex items-center gap-2">
                                             <span>📐</span>
                                             <span>الارتقاء والقوة الانفجارية</span>
@@ -1204,6 +1348,105 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                 placeholder=""
                                                 className="w-full rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 py-2 px-3 text-sm text-center font-bold" 
                                             />
+                                        </div>
+                                    </div>
+
+                                    {/* Evaluated Athletics: Endurance, Long Jump, Shot Put */}
+                                    <div className="space-y-4 bg-red-50/40 dark:bg-red-950/20 p-4 rounded-xl border border-red-200/60 dark:border-red-900/40 sm:col-span-2">
+                                        <div className="flex items-center justify-between border-b border-red-200/60 dark:border-red-800/60 pb-2">
+                                            <h3 className="font-bold text-sm text-red-900 dark:text-red-300 flex items-center gap-2">
+                                                <TrophyIcon className="w-4 h-4 text-red-600" />
+                                                <span>التقويم الرياضي (سلم الباريم المعتمد)</span>
+                                            </h3>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsBaremeModalOpen(true)}
+                                                className="text-xs text-red-700 dark:text-red-300 hover:underline font-bold"
+                                            >
+                                                معاينة سلم التنقيط (الباريم)
+                                            </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                            {/* Endurance with MM:SS */}
+                                            <div className="bg-white dark:bg-gray-800 p-3 rounded-xl border border-red-200 dark:border-red-800/40 space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                                                        جري التحمل (د:ث)
+                                                    </label>
+                                                    <span className="text-[10px] font-bold text-red-600 dark:text-red-400">دقائق:ثواني</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="مثال: 3:20"
+                                                        value={formData.enduranceTemps !== undefined ? formatSecondsToMinSec(formData.enduranceTemps) : ''}
+                                                        onChange={e => handleInputChange('enduranceTemps', e.target.value)}
+                                                        className="w-full rounded-lg border border-red-300 dark:bg-gray-700 dark:border-red-700 py-2 px-2 text-sm text-center font-bold font-mono text-red-700 dark:text-red-300" 
+                                                    />
+                                                    <span className={`px-2 py-1.5 rounded-lg text-xs font-black min-w-[50px] text-center ${
+                                                        (formData.scoreEndurance ?? 0) >= 10 
+                                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' 
+                                                            : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                                                    }`}>
+                                                        {formData.scoreEndurance !== undefined ? `${formData.scoreEndurance}/20` : '-/20'}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Long Jump */}
+                                            <div className="bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                                                        القفز الطولي
+                                                    </label>
+                                                    <span className="text-[10px] font-bold text-gray-400">متر</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <input 
+                                                        type="number" 
+                                                        step="0.01"
+                                                        placeholder="0.00"
+                                                        value={formData.sautLong ?? ''} 
+                                                        onChange={e => handleInputChange('sautLong', e.target.value)}
+                                                        className="w-full rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 py-2 px-2 text-sm text-center font-bold" 
+                                                    />
+                                                    <span className={`px-2 py-1.5 rounded-lg text-xs font-black min-w-[50px] text-center ${
+                                                        (formData.scoreSautLong ?? 0) >= 10 
+                                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' 
+                                                            : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                                                    }`}>
+                                                        {formData.scoreSautLong !== undefined ? `${formData.scoreSautLong}/20` : '-/20'}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Shot Put */}
+                                            <div className="bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                                                        دفع الجلة
+                                                    </label>
+                                                    <span className="text-[10px] font-bold text-gray-400">متر</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <input 
+                                                        type="number" 
+                                                        step="0.01"
+                                                        placeholder="0.00"
+                                                        value={formData.lancerPoids ?? ''} 
+                                                        onChange={e => handleInputChange('lancerPoids', e.target.value)}
+                                                        className="w-full rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 py-2 px-2 text-sm text-center font-bold" 
+                                                    />
+                                                    <span className={`px-2 py-1.5 rounded-lg text-xs font-black min-w-[50px] text-center ${
+                                                        (formData.scoreLancerPoids ?? 0) >= 10 
+                                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' 
+                                                            : 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300'
+                                                    }`}>
+                                                        {formData.scoreLancerPoids !== undefined ? `${formData.scoreLancerPoids}/20` : '-/20'}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -1412,6 +1655,33 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                     initialClass={selectedClass || (classList.length > 0 ? classList[0].className : '')}
                     classList={classList.map(c => c.className)}
                     onDataSaved={() => loadClassData(selectedClass)}
+                />
+            )}
+
+            {isAthleticsModalOpen && (
+                <AthleticsTestModal
+                    isOpen={isAthleticsModalOpen}
+                    onClose={() => setIsAthleticsModalOpen(false)}
+                    initialClass={selectedClass || (classList.length > 0 ? classList[0].className : '')}
+                    testType={athleticsTestType}
+                    onDataSaved={() => loadClassData(selectedClass)}
+                />
+            )}
+
+            {isBalanceModalOpen && (
+                <StaticBalanceTestModal
+                    isOpen={isBalanceModalOpen}
+                    onClose={() => setIsBalanceModalOpen(false)}
+                    initialClass={selectedClass || (classList.length > 0 ? classList[0].className : '')}
+                    onDataSaved={() => loadClassData(selectedClass)}
+                />
+            )}
+
+            {isBaremeModalOpen && (
+                <BaremeSettingsModal
+                    isOpen={isBaremeModalOpen}
+                    onClose={() => setIsBaremeModalOpen(false)}
+                    defaultTestKey="endurance"
                 />
             )}
         </div>

@@ -12,7 +12,8 @@ import {
     XMarkIcon,
     PencilSquareIcon,
     ChevronDownIcon,
-    UserPlusIcon
+    UserPlusIcon,
+    ArrowPathIcon
 } from '../components/Icons';
 import { StudentDataModal } from '../components/StudentDataModal';
 import { AddEditStudentModal } from '../components/AddEditStudentModal';
@@ -54,6 +55,7 @@ export const BiometricMeasurementsScreen: React.FC<BiometricMeasurementsScreenPr
     const [filterQuery, setFilterQuery] = useState('');
     const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
     const [modalStudentNumber, setModalStudentNumber] = useState<string | null>(null);
     const [isAddEditStudentOpen, setIsAddEditStudentOpen] = useState(false);
     const [studentToEdit, setStudentToEdit] = useState<StudentIdentity | null>(null);
@@ -106,6 +108,26 @@ export const BiometricMeasurementsScreen: React.FC<BiometricMeasurementsScreenPr
             frequenceCardiaque: record?.frequenceCardiaque
         });
     }, [selectedStudent, testsData]);
+
+    // Auto-save logic
+    useEffect(() => {
+        if (testsData.length === 0 || !selectedClass) return;
+
+        const timer = setTimeout(async () => {
+            setIsSaving(true);
+            try {
+                await savePhysicalTests(selectedClass, testsData);
+                // Dispatch event to update other screens if needed
+                window.dispatchEvent(new CustomEvent('dbUpdated'));
+            } catch (err) {
+                console.error('Auto-save failed', err);
+            } finally {
+                setIsSaving(false);
+            }
+        }, 2000);
+
+        return () => clearTimeout(timer);
+    }, [testsData, selectedClass]);
 
     // Handle inline table editing
     const handleTableValueChange = (studentId: string, field: 'taille' | 'poids' | 'frequenceCardiaque', value: string) => {
@@ -318,6 +340,13 @@ export const BiometricMeasurementsScreen: React.FC<BiometricMeasurementsScreenPr
                             <span>{t.individualMode}</span>
                         </button>
                     </div>
+
+                    {isSaving && (
+                        <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-lg border border-emerald-100 dark:border-emerald-800">
+                            <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
+                            <span className="text-[10px] font-bold ps-1 pe-1">جاري الحفظ تلقائياً...</span>
+                        </div>
+                    )}
 
                     {viewMode === 'table' && (
                         <button

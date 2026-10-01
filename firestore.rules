@@ -11,6 +11,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Attendance sessions and student roll call records
+    match /attendance_sessions/{sessionId} {
+      allow read, write: if true;
+    }
+
     // VMA Luc Léger results
     match /vma_results/{classId} {
       allow read, write: if true;
@@ -18,6 +23,11 @@ service cloud.firestore {
 
     // Archives of previous school years and data snapshots
     match /archives/{archiveId} {
+      allow read, write: if true;
+    }
+
+    // Textbook of sports sessions (دفتر النصوص)
+    match /textbook_sessions/{sessionId} {
       allow read, write: if true;
     }
 

@@ -70,12 +70,33 @@
         "lastLogin": { "type": "string", "description": "Last sign in timestamp" }
       },
       "required": ["uid", "email"]
+    },
+    "attendance_sessions": {
+      "title": "Attendance Sessions",
+      "description": "Student attendance rolls and absences per session with date, time, and status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique session ID" },
+        "className": { "type": "string", "description": "Name of the class" },
+        "date": { "type": "string", "description": "Date of the session YYYY-MM-DD" },
+        "timeSlot": { "type": "string", "description": "Session time slot e.g. 08:30 - 10:30" },
+        "topic": { "type": "string", "description": "Topic or activity of the session" },
+        "records": { "type": "array", "description": "List of student attendance records" },
+        "summary": { "type": "object", "description": "Counts of present, absent, justified, late, etc." },
+        "ownerEmail": { "type": "string", "description": "Email of the teacher" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of the last modification" }
+      },
+      "required": ["id", "className", "date", "records", "summary"]
     }
   },
   "firestore": {
     "/classes/{classId}": {
       "schema": "classes",
       "description": "Shared student lists per class"
+    },
+    "/attendance_sessions/{sessionId}": {
+      "schema": "attendance_sessions",
+      "description": "Attendance rolls and sessions per class"
     },
     "/physical_tests/{classId}": {
       "schema": "physical_tests",

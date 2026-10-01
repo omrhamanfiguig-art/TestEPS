@@ -23,7 +23,7 @@ import {
   signInWithPopup,
   User
 } from 'firebase/auth';
-import type { StudentIdentity, PhysicalTests, StudentResult, ArchiveRecord } from '../types';
+import type { StudentIdentity, PhysicalTests, StudentResult, ArchiveRecord, AttendanceSession } from '../types';
 import firebaseConfig from '../firebase-applet-config.json';
 import { 
   saveStudentList, 
@@ -894,5 +894,135 @@ export const signOutTeacher = async (): Promise<{ success: boolean; error?: stri
 export const subscribeToAuthChanges = (callback: (user: User | null) => void): Unsubscribe => {
   return onAuthStateChanged(auth, callback);
 };
+
+/**
+ * Save an attendance session to Firestore
+ */
+export const saveAttendanceSessionToCloud = async (
+  session: AttendanceSession
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    if (!session || !session.id) return { success: false };
+    const docRef = doc(db, 'attendance_sessions', session.id);
+    const user = auth.currentUser;
+    const authorEmail = user?.email || null;
+
+    const payload = sanitizeForFirestore({
+      ...session,
+      ownerEmail: authorEmail,
+      updatedAt: new Date().toISOString()
+    });
+
+    await setDoc(docRef, payload, { merge: true });
+    return { success: true };
+  } catch (err: any) {
+    if (err?.code === 'unavailable' || err?.message?.includes('offline') || err?.message?.includes('unavailable')) {
+      return { success: true };
+    }
+    console.error('Error saving attendance session to cloud:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Delete an attendance session from Firestore
+ */
+export const deleteAttendanceSessionFromCloud = async (sessionId: string): Promise<boolean> => {
+  try {
+    const docRef = doc(db, 'attendance_sessions', sessionId);
+    await deleteDoc(docRef);
+    return true;
+  } catch (err) {
+    console.error('Error deleting attendance session from cloud:', err);
+    return false;
+  }
+};
+
+/**
+ * Fetch attendance sessions for a class from Firestore
+ */
+export const fetchAttendanceSessionsFromCloud = async (className: string): Promise<AttendanceSession[]> => {
+  try {
+    const colRef = collection(db, 'attendance_sessions');
+    const snapshot = await getDocs(colRef);
+    const sessions: AttendanceSession[] = [];
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data() as AttendanceSession;
+      if (data && data.className === className) {
+        sessions.push(data);
+      }
+    });
+    return sessions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  } catch (err) {
+    console.error('Error fetching attendance from cloud:', err);
+    return [];
+  }
+};
+
+/**
+ * Save a Textbook session to Firestore
+ */
+export const saveTextbookSessionToCloud = async (
+  session: any
+): Promise<{ success: boolean; error?: string }> => {
+  try {
+    if (!session || !session.id) return { success: false };
+    const docRef = doc(db, 'textbook_sessions', session.id);
+    const user = auth.currentUser;
+    const authorEmail = user?.email || null;
+
+    const payload = sanitizeForFirestore({
+      ...session,
+      ownerEmail: authorEmail,
+      updatedAt: new Date().toISOString()
+    });
+
+    await setDoc(docRef, payload, { merge: true });
+    return { success: true };
+  } catch (err: any) {
+    if (err?.code === 'unavailable' || err?.message?.includes('offline') || err?.message?.includes('unavailable')) {
+      return { success: true };
+    }
+    console.error('Error saving textbook session to cloud:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Delete a Textbook session from Firestore
+ */
+export const deleteTextbookSessionFromCloud = async (sessionId: string): Promise<boolean> => {
+  try {
+    const docRef = doc(db, 'textbook_sessions', sessionId);
+    await deleteDoc(docRef);
+    return true;
+  } catch (err) {
+    console.error('Error deleting textbook session from cloud:', err);
+    return false;
+  }
+};
+
+/**
+ * Fetch all Textbook sessions from Firestore
+ */
+export const fetchTextbookSessionsFromCloud = async (): Promise<any[]> => {
+  try {
+    const colRef = collection(db, 'textbook_sessions');
+    const snapshot = await getDocs(colRef);
+    const sessions: any[] = [];
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      if (data && data.id) {
+        sessions.push(data);
+      }
+    });
+    return sessions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  } catch (err) {
+    console.error('Error fetching textbook from cloud:', err);
+    return [];
+  }
+};
+
+
 
 

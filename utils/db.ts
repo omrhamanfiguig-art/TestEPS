@@ -1,20 +1,24 @@
 // utils/db.ts
 
-import type { StudentIdentity, StudentResult, EnduranceResult, PhysicalTests } from '../types';
+import type { StudentIdentity, StudentResult, EnduranceResult, PhysicalTests, AttendanceSession } from '../types';
 import { isForbiddenStudentName } from './excelHelper';
 import { 
   saveClassToCloud, 
   savePhysicalTestsToCloud, 
   saveVmaResultsToCloud, 
-  deleteClassFromCloud 
+  deleteClassFromCloud,
+  saveAttendanceSessionToCloud,
+  deleteAttendanceSessionFromCloud,
+  fetchAttendanceSessionsFromCloud
 } from './firebase';
 
 const DB_NAME = 'epsAppDB';
-const DB_VERSION = 2; // Incremented version for new store
+const DB_VERSION = 3; // Incremented version for attendance store
 const VMA_STORE = 'vmaResults';
 const ENDURANCE_STORE = 'enduranceResults';
 const STUDENTS_STORE = 'studentLists';
 const PHYSICAL_TESTS_STORE = 'physicalTestsResults';
+const ATTENDANCE_STORE = 'attendanceSessions';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -56,6 +60,12 @@ const initDB = (): Promise<IDBDatabase> => {
       if (!dbInstance.objectStoreNames.contains(PHYSICAL_TESTS_STORE)) {
         const physicalTestsStore = dbInstance.createObjectStore(PHYSICAL_TESTS_STORE, { keyPath: 'id', autoIncrement: true });
         physicalTestsStore.createIndex('className', 'className', { unique: false });
+      }
+
+      if (!dbInstance.objectStoreNames.contains(ATTENDANCE_STORE)) {
+        const attStore = dbInstance.createObjectStore(ATTENDANCE_STORE, { keyPath: 'id' });
+        attStore.createIndex('className', 'className', { unique: false });
+        attStore.createIndex('date', 'date', { unique: false });
       }
     };
   });
@@ -742,3 +752,150 @@ export const searchStudentsGlobal = async (query: string): Promise<GlobalStudent
     };
   });
 };
+
+// -------------------------------------------------------------
+// Attendance Sessions Management
+// -------------------------------------------------------------
+const ATTENDANCE_STORAGE_PREFIX = 'eps_attendance_session_v1_';
+
+/**
+ * Get all attendance sessions recorded for a specific class
+ */
+export const getAttendanceSessions = async (className: string): Promise<AttendanceSession[]> => {
+  if (!className) return [];
+
+  try {
+    const db = await initDB();
+    const tx = db.transaction(ATTENDANCE_STORE, 'readonly');
+    const store = tx.objectStore(ATTENDANCE_STORE);
+    const index = store.index('className');
+    const req = index.getAll(IDBKeyRange.only(className));
+
+    return new Promise((resolve) => {
+      req.onsuccess = () => {
+        let list: AttendanceSession[] = req.result || [];
+        // Fallback to local storage if empty
+        if (list.length === 0) {
+          try {
+            const raw = localStorage.getItem(`${ATTENDANCE_STORAGE_PREFIX}${className}`);
+            if (raw) {
+              list = JSON.parse(raw);
+            }
+          } catch (e) {}
+        }
+        // Sort newest date first
+        list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        resolve(list);
+      };
+      req.onerror = () => {
+        // Fallback to localStorage
+        try {
+          const raw = localStorage.getItem(`${ATTENDANCE_STORAGE_PREFIX}${className}`);
+          const list: AttendanceSession[] = raw ? JSON.parse(raw) : [];
+          resolve(list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        } catch {
+          resolve([]);
+        }
+      };
+    });
+  } catch (err) {
+    try {
+      const raw = localStorage.getItem(`${ATTENDANCE_STORAGE_PREFIX}${className}`);
+      const list: AttendanceSession[] = raw ? JSON.parse(raw) : [];
+      return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    } catch {
+      return [];
+    }
+  }
+};
+
+/**
+ * Save or update an attendance session locally and to cloud
+ */
+export const saveAttendanceSession = async (session: AttendanceSession): Promise<void> => {
+  if (!session || !session.id || !session.className) return;
+
+  // 1. Save to localStorage mirror
+  try {
+    const raw = localStorage.getItem(`${ATTENDANCE_STORAGE_PREFIX}${session.className}`);
+    let list: AttendanceSession[] = raw ? JSON.parse(raw) : [];
+    const idx = list.findIndex(s => s.id === session.id);
+    if (idx >= 0) {
+      list[idx] = session;
+    } else {
+      list.unshift(session);
+    }
+    localStorage.setItem(`${ATTENDANCE_STORAGE_PREFIX}${session.className}`, JSON.stringify(list));
+  } catch (e) {
+    console.warn('LocalStorage save attendance session notice:', e);
+  }
+
+  // 2. Save to IndexedDB
+  try {
+    const db = await initDB();
+    const tx = db.transaction(ATTENDANCE_STORE, 'readwrite');
+    const store = tx.objectStore(ATTENDANCE_STORE);
+    store.put(session);
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch (err) {
+    console.warn('IndexedDB save attendance notice:', err);
+  }
+
+  // 3. Save to Cloud Firestore
+  saveAttendanceSessionToCloud(session).catch(e => console.warn('Cloud sync attendance notice:', e));
+  window.dispatchEvent(new CustomEvent('dbUpdated'));
+};
+
+/**
+ * Delete an attendance session
+ */
+export const deleteAttendanceSession = async (className: string, sessionId: string): Promise<void> => {
+  // 1. Remove from localStorage
+  try {
+    const raw = localStorage.getItem(`${ATTENDANCE_STORAGE_PREFIX}${className}`);
+    if (raw) {
+      let list: AttendanceSession[] = JSON.parse(raw);
+      list = list.filter(s => s.id !== sessionId);
+      localStorage.setItem(`${ATTENDANCE_STORAGE_PREFIX}${className}`, JSON.stringify(list));
+    }
+  } catch (e) {}
+
+  // 2. Remove from IndexedDB
+  try {
+    const db = await initDB();
+    const tx = db.transaction(ATTENDANCE_STORE, 'readwrite');
+    const store = tx.objectStore(ATTENDANCE_STORE);
+    store.delete(sessionId);
+    await new Promise<void>((resolve) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    });
+  } catch (err) {}
+
+  // 3. Remove from Cloud
+  deleteAttendanceSessionFromCloud(sessionId).catch(() => {});
+  window.dispatchEvent(new CustomEvent('dbUpdated'));
+};
+
+/**
+ * Fetch all attendance sessions across all classes
+ */
+export const getAllAttendanceSessions = async (): Promise<AttendanceSession[]> => {
+  try {
+    const db = await initDB();
+    const tx = db.transaction(ATTENDANCE_STORE, 'readonly');
+    const store = tx.objectStore(ATTENDANCE_STORE);
+    const req = store.getAll();
+
+    return new Promise((resolve) => {
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+};
+

@@ -7,6 +7,11 @@ export interface Translations {
   appName: string;
   appSubtitle: string;
   navPhysicalTests: string;
+  navAthletics: string;
+  navTalent: string;
+  navAttendance: string;
+  navTeamGames: string;
+  navGlobalGrades: string;
   navMeasurements: string;
   navClasses: string;
   navImportExport: string;
@@ -79,9 +84,14 @@ export interface Translations {
   athletics: string;
   morphologyHealth: string;
   sprint30m: string;
+  sprint60m: string;
+  sprint80m: string;
   longJump: string;
+  longJumpAthletic: string;
   verticalJump: string;
   medballThrow: string;
+  shotPut: string;
+  endurance: string;
   flexibilitySitting: string;
   flexibilityStanding: string;
   staticBalance: string;
@@ -172,7 +182,12 @@ const translations: Record<Language, Translations> = {
   ar: {
     appName: "روائز التربية البدنية والرياضية",
     appSubtitle: "الاختبارات البدنية والقياسات البيومترية",
-    navPhysicalTests: "الاختبارات البدنية",
+    navPhysicalTests: "التقويم والاختبارات البدنية",
+    navAthletics: "مسابقات ألعاب القوى",
+    navTalent: "استغلال النتائج والمتفوقون",
+    navAttendance: "تتبع الغياب والحصص",
+    navTeamGames: "تنقيط الألعاب الجماعية",
+    navGlobalGrades: "النقط الإجمالية (كافة التلاميذ)",
     navMeasurements: "القياسات (الطول/الوزن/النبض)",
     navClasses: "لائحة الأقسام",
     navImportExport: "استيراد وتصدير",
@@ -240,9 +255,14 @@ const translations: Record<Language, Translations> = {
     athletics: "ألعاب القوى والمهارات الحركية",
     morphologyHealth: "البنية والصحة العامة",
     sprint30m: "30 م سرعة",
+    sprint60m: "60 م سرعة",
+    sprint80m: "80 م سرعة",
     longJump: "القفز الأفقي",
+    longJumpAthletic: "القفز الطولي",
     verticalJump: "القفز العمودي (سارجنت)",
     medballThrow: "رمي الكرة الطبية (3 كلغ)",
+    shotPut: "دفع الجلة",
+    endurance: "المسافات المتوسطة",
     flexibilitySitting: "المرونة في وضعية الجلوس",
     flexibilityStanding: "المرونة في وضعية الوقوف",
     staticBalance: "التوازن الثابت",
@@ -257,9 +277,9 @@ const translations: Record<Language, Translations> = {
     importExportTitle: "مركز الاستيراد والتصدير",
     importExportSubtitle: "استيراد وتصدير لوائح التلاميذ والنتائج ونماذج العمل الجاهزة",
     importStudentsCard: "استيراد لائحة التلاميذ",
-    importStudentsDesc: "استيراد أسماء وأرقام التلاميذ مباشرة من ملف إكسيل لمنظومة مسار أو المعتمد.",
+    importStudentsDesc: "استيراد أسماء وأرقام التلاميذ مباشرة من ملفات إكسيل (مسار، المعتمد، أو لوائحك الخاصة).",
     importPhysicalCard: "استيراد الاختبارات البدنية و VMA",
-    importPhysicalDesc: "استيراد النتائج والقياسات من ملف Excel مع إمكانية المزامنة الفورية مع لائحة التلاميذ وقيم VMA.",
+    importPhysicalDesc: "استيراد النتائج من ملفات إكسيل (إطار الكسارة، مسار، أو النماذج الجاهزة) مع المزامنة الفورية.",
     downloadTemplatesCard: "تحميل النماذج الجاهزة",
     downloadTemplatesDesc: "تحميل ملفات Excel فارغة ومجهزة بأعمدة منظمة جاهزة للطباعة أو التعبئة الرقمية.",
     exportResultsCard: "تصدير نتائج الاختبارات",
@@ -328,7 +348,12 @@ const translations: Record<Language, Translations> = {
   fr: {
     appName: "Batterie des Tests EPS",
     appSubtitle: "Tests physiques et biométrie",
-    navPhysicalTests: "Tests physiques",
+    navPhysicalTests: "Évaluations & Tests",
+    navAthletics: "Activités Athlétiques",
+    navTalent: "Détection des Talents",
+    navAttendance: "Suivi des Absences",
+    navTeamGames: "Sports Collectifs",
+    navGlobalGrades: "Notes Globales (Bilan)",
     navMeasurements: "Mesures biométriques",
     navClasses: "Liste des classes",
     navImportExport: "Import & Export",
@@ -396,9 +421,14 @@ const translations: Record<Language, Translations> = {
     athletics: "Athlétisme & Qualités motrices",
     morphologyHealth: "Morphologie & Santé",
     sprint30m: "Vitesse 30 mètres",
+    sprint60m: "Vitesse 60 mètres",
+    sprint80m: "Vitesse 80 mètres",
     longJump: "Saut en longueur",
+    longJumpAthletic: "Saut en Longueur",
     verticalJump: "Détente verticale (Sargent)",
     medballThrow: "Lancer de médecine-ball (3kg)",
+    shotPut: "Lancer du Poids",
+    endurance: "Demi-fond (Endurance)",
     flexibilitySitting: "Souplesse en position assise",
     flexibilityStanding: "Souplesse en position debout",
     staticBalance: "Équilibre statique",
@@ -413,9 +443,9 @@ const translations: Record<Language, Translations> = {
     importExportTitle: "Centre d'Importation & Exportation",
     importExportSubtitle: "Gestion des listes, résultats d'évaluation et modèles prêts à l'emploi",
     importStudentsCard: "Importer la liste des élèves",
-    importStudentsDesc: "Importer les noms et identifiants directement depuis un fichier Excel Massar ou Moutamad.",
+    importStudentsDesc: "Importer les noms et identifiants depuis un fichier Excel (Massar, Moutamad ou vos propres listes).",
     importPhysicalCard: "Importer les tests physiques et VMA",
-    importPhysicalDesc: "Importer les résultats depuis un classeur Excel avec synchronisation automatique VMA et liste d'élèves.",
+    importPhysicalDesc: "Importer les résultats depuis un classeur Excel (Etar Al Kassara, Massar ou nos gabarits) avec synchro automatique.",
     downloadTemplatesCard: "Télécharger les modèles vierges",
     downloadTemplatesDesc: "Obtenir des gabarits Excel structurés avec les colonnes adaptées, prêts à être remplis.",
     exportResultsCard: "Exporter les résultats",
