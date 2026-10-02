@@ -875,20 +875,16 @@ export const registerWithEmail = async (
       await updateProfile(user, { displayName: displayName.trim() }).catch(() => {});
     }
 
-    // Save/update user doc in Firestore
-    try {
-      await setDoc(doc(db, 'users', user.uid), sanitizeForFirestore({
-        uid: user.uid,
-        email: user.email,
-        displayName: displayName || user.displayName || user.email?.split('@')[0],
-        createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString()
-      }), { merge: true });
-    } catch (e) {
-      console.warn('Could not save user profile to firestore:', e);
-    }
+    // Save/update user doc in Firestore (non-blocking)
+    setDoc(doc(db, 'users', user.uid), sanitizeForFirestore({
+      uid: user.uid,
+      email: user.email,
+      displayName: displayName || user.displayName || user.email?.split('@')[0],
+      createdAt: new Date().toISOString(),
+      lastLogin: new Date().toISOString()
+    }), { merge: true }).catch(e => console.warn('Could not save user profile to firestore:', e));
 
-    // Automatically sync cloud database for this user
+    // Automatically sync cloud database for this user (non-blocking)
     syncCloudToLocalDB().catch(() => {});
 
     return { success: true, user };
@@ -913,20 +909,16 @@ export const signInWithEmail = async (
     const credential = await signInWithEmailAndPassword(auth, cleanEmail, password);
     const user = credential.user;
 
-    // Update lastLogin in Firestore
-    try {
-      await setDoc(doc(db, 'users', user.uid), sanitizeForFirestore({
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName || user.email?.split('@')[0],
-        lastLogin: new Date().toISOString()
-      }), { merge: true });
-    } catch (e) {
-      console.warn('Could not update user login in firestore:', e);
-    }
+    // Update lastLogin in Firestore (non-blocking)
+    setDoc(doc(db, 'users', user.uid), sanitizeForFirestore({
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName || user.email?.split('@')[0],
+      lastLogin: new Date().toISOString()
+    }), { merge: true }).catch(e => console.warn('Could not update user login in firestore:', e));
 
-    // Pull all cloud classes into local IndexedDB
-    await syncCloudToLocalDB();
+    // Pull all cloud classes into local IndexedDB (non-blocking)
+    syncCloudToLocalDB().catch(() => {});
     window.dispatchEvent(new CustomEvent('dbUpdated'));
 
     return { success: true, user };

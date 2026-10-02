@@ -102,7 +102,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         if (regRes.error?.includes('auth/email-already-in-use') || regRes.error?.includes('email-already-in-use')) {
           setErrorMsg(language === 'ar' ? 'هذا الحساب مسجل بالفعل، كلمة المرور التي أدخلتها غير صحيحة.' : 'Mot de passe incorrect.');
         } else {
-          setErrorMsg(regRes.error || signInRes.error || (language === 'ar' ? 'حدث خطأ أثناء المحاولة.' : 'Une erreur est survenue.'));
+          // Display the exact Firebase error message for debugging
+          setErrorMsg(regRes.error || signInRes.error || (language === 'ar' ? 'حدث خطأ: ' : 'Erreur: ') + (regRes.error || signInRes.error || 'Unknown'));
         }
       }
     } catch (err: any) {
