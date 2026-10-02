@@ -88,7 +88,7 @@ const MainLayout: React.FC = () => {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden pb-16 md:pb-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden pb-24 md:pb-0">
         <TopHeader
           activeScreen={activeScreen}
           setActiveScreen={setActiveScreen}

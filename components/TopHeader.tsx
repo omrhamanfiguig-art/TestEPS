@@ -65,15 +65,15 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
   return (
     <>
-      <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 sm:px-6 flex items-center justify-between z-30 sticky top-0">
-        <div className="flex items-center gap-3 min-w-0">
+      <header className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-3 sm:px-6 flex items-center justify-between z-30 sticky top-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           {/* Mobile Hamburger Menu Toggle */}
           <button
             onClick={onOpenMobileMenu}
-            className="md:hidden p-2 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition flex-shrink-0"
+            className="md:hidden p-2 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition flex-shrink-0 active:scale-95"
             aria-label="القائمة الجانبية"
           >
-            <Bars3Icon />
+            <Bars3Icon className="w-5 h-5" />
           </button>
 
           <h2 className="text-sm sm:text-lg font-black text-gray-900 dark:text-white truncate">
@@ -81,12 +81,12 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           </h2>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-2.5">
+        <div className="flex items-center gap-1.5 sm:gap-2.5">
           {/* Teacher Account / Login Button */}
           <button
             type="button"
             onClick={() => setIsAuthOpen(true)}
-            className={`px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-bold rounded-xl border transition flex items-center gap-1.5 shadow-2xs ${
+            className={`px-2 sm:px-3 py-1.5 text-[11px] sm:text-xs font-bold rounded-xl border transition flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer ${
               isRealUser
                 ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100'
                 : 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100'
@@ -95,16 +95,16 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           >
             {isRealUser ? (
               <>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span className="max-w-[120px] sm:max-w-[160px] truncate font-mono text-[11px]">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                <span className="max-w-[80px] xs:max-w-[120px] sm:max-w-[160px] truncate font-mono text-[11px]">
                   {currentUser.displayName || currentUser.email?.split('@')[0]}
                 </span>
               </>
             ) : (
               <>
-                <UserCircleIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <UserCircleIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
                 <span className="hidden xs:inline">
-                  {language === 'ar' ? 'دخول بحساب' : 'Connexion'}
+                  {language === 'ar' ? 'دخول' : 'Connexion'}
                 </span>
               </>
             )}
@@ -114,20 +114,20 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           <button
             type="button"
             onClick={() => setIsAboutOpen(true)}
-            className="px-2.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-bold rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center gap-1.5 shadow-xs"
+            className="p-1.5 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-bold rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
             title={language === 'ar' ? 'حول التطبيق' : 'À propos'}
           >
-            <InformationCircleIcon className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
+            <InformationCircleIcon className="w-4 h-4 text-gray-500 dark:text-gray-400 shrink-0" />
             <span className="hidden sm:inline">{language === 'ar' ? 'حول التطبيق' : 'À propos'}</span>
           </button>
 
           {/* Header Language Switcher */}
           <button
             onClick={() => setLanguage(language === 'ar' ? 'fr' : 'ar')}
-            className="px-2 sm:px-2.5 py-1.5 text-[10px] sm:text-xs font-bold rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition flex items-center gap-1 sm:gap-1.5"
+            className="px-2 sm:px-2.5 py-1.5 text-[10px] sm:text-xs font-bold rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition flex items-center gap-1 sm:gap-1.5 active:scale-95 cursor-pointer"
             title="Changer la langue / تغيير اللغة"
           >
-            <GlobeAltIcon className="w-3.5 h-3.5" />
+            <GlobeAltIcon className="w-3.5 h-3.5 shrink-0" />
             <span>{language === 'ar' ? 'FR' : 'عربي'}</span>
           </button>
         </div>

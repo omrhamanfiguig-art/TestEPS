@@ -524,7 +524,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
         </div>
 
         {/* Top Controls: Level, Class Select & Actions */}
-        <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto">
           {/* Level Filter Dropdown */}
           {academicLevels.length > 0 && (
             <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600">
@@ -576,7 +576,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
             className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs active:scale-95 transition cursor-pointer"
             title="إضافة تلميذ جديد للقسم الحالية"
           >
-            <UserPlusIcon className="w-4 h-4" />
+            <UserPlusIcon className="w-4 h-4 shrink-0" />
             <span>إضافة تلميذ</span>
           </button>
 
@@ -592,19 +592,12 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
           </button>
 
           {/* Save Button */}
-          {isSaving && (
-             <div className="flex items-center gap-2 px-3 py-1 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-lg border border-indigo-100 dark:border-indigo-800">
-                <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
-                <span className="text-[10px] font-bold">حفظ تلقائي...</span>
-             </div>
-          )}
-
           <button
             type="button"
             onClick={() => handleSaveSession()}
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-extrabold text-white bg-indigo-700 hover:bg-indigo-800 shadow-xs active:scale-95 transition cursor-pointer"
+            className="col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-extrabold text-white bg-indigo-700 hover:bg-indigo-800 shadow-xs active:scale-95 transition cursor-pointer"
           >
-            <CheckCircleIcon className="w-4 h-4" />
+            <CheckCircleIcon className="w-4 h-4 shrink-0" />
             <span>حفظ الحصة</span>
           </button>
         </div>

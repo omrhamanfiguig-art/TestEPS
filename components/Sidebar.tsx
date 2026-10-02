@@ -312,12 +312,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       />
 
       {/* Fixed Bottom Tab Bar for Mobile Navigation (Thumb-Zone Optimization) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 z-40 flex items-center justify-around px-2 pb-safe shadow-lg">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 z-40 flex items-center justify-around px-1 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
         {[
           { id: 'classes' as ActiveScreen, label: language === 'ar' ? 'الأقسام' : 'Classes', icon: <AcademicCapIcon className="w-5 h-5" /> },
           { id: 'physical-tests' as ActiveScreen, label: language === 'ar' ? 'الروائز' : 'Tests', icon: <TrophyIcon className="w-5 h-5" /> },
+          { id: 'athletics' as ActiveScreen, label: language === 'ar' ? 'القوى' : 'Athlé', icon: <RunningManIcon className="w-5 h-5" /> },
           { id: 'attendance' as ActiveScreen, label: language === 'ar' ? 'الغياب' : 'Présence', icon: <CalendarDaysIcon className="w-5 h-5" /> },
-          { id: 'team-games' as ActiveScreen, label: language === 'ar' ? 'الألعاب' : 'S.Co', icon: <UserGroupIcon className="w-5 h-5" /> },
           { id: 'global-grades' as ActiveScreen, label: language === 'ar' ? 'المحضر' : 'Bilan', icon: <TableCellsIcon className="w-5 h-5" /> },
         ].map(item => {
           const isActive = activeScreen === item.id;
@@ -325,21 +325,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               key={item.id}
               onClick={() => handleNavClick(item.id)}
-              className={`flex flex-col items-center justify-center flex-1 h-full min-w-0 transition-all ${
+              className={`flex flex-col items-center justify-center flex-1 h-full min-w-0 py-1 transition-all active:scale-95 cursor-pointer ${
                 isActive 
-                  ? 'text-indigo-600 dark:text-indigo-400 font-extrabold scale-105' 
-                  : 'text-gray-500 dark:text-gray-400 font-medium hover:text-gray-700 dark:hover:text-gray-300'
+                  ? 'text-indigo-600 dark:text-indigo-400 font-black' 
+                  : 'text-gray-500 dark:text-gray-400 font-semibold hover:text-gray-700 dark:hover:text-gray-300'
               }`}
             >
-              <div className={`${isActive ? 'scale-110' : ''} transition-transform`}>
+              <div className={`p-1 rounded-xl transition-all ${
+                isActive ? 'bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 shadow-2xs scale-105' : ''
+              }`}>
                 {item.icon}
               </div>
-              <span className="text-[10px] tracking-tight mt-0.5 truncate max-w-full">
+              <span className="text-[10px] tracking-tight mt-0.5 truncate max-w-full font-bold">
                 {item.label}
               </span>
             </button>
           );
         })}
+
+        {/* 6th Menu button for opening full drawer */}
+        <button
+          type="button"
+          onClick={() => setIsMobileOpen(true)}
+          className={`flex flex-col items-center justify-center flex-1 h-full min-w-0 py-1 transition-all active:scale-95 cursor-pointer ${
+            isMobileOpen
+              ? 'text-indigo-600 dark:text-indigo-400 font-black'
+              : 'text-gray-500 dark:text-gray-400 font-semibold hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          <div className="p-1 rounded-xl">
+            <Bars3Icon className="w-5 h-5" />
+          </div>
+          <span className="text-[10px] tracking-tight mt-0.5 truncate max-w-full font-bold">
+            {language === 'ar' ? 'المزيد' : 'Menu'}
+          </span>
+        </button>
       </nav>
     </>
   );

@@ -109,8 +109,8 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                     </div>
                 </div>
                 
-                <div className="flex flex-wrap items-end gap-2.5">
-                    <div className="flex-1 sm:flex-initial">
+                <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-end gap-2.5 w-full lg:w-auto">
+                    <div className="col-span-2 sm:flex-initial">
                         <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">{t.class}</label>
                         <div className="relative">
                             <select
@@ -133,17 +133,17 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
 
                     <button
                         onClick={() => setIsBaremeModalOpen(true)}
-                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl shadow-xs text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 transition active:scale-95 cursor-pointer"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 text-xs sm:text-sm font-bold rounded-xl shadow-xs text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 transition active:scale-95 cursor-pointer"
                     >
-                        <TrophyIcon className="w-4 h-4" />
-                        <span>سلم التنقيط (الباريم)</span>
+                        <TrophyIcon className="w-4 h-4 shrink-0" />
+                        <span>سلم التنقيط</span>
                     </button>
 
                     <button
                         onClick={handleExport}
-                        className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-bold rounded-xl shadow-xs text-white bg-emerald-600 hover:bg-emerald-700 transition active:scale-95 cursor-pointer"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 text-xs sm:text-sm font-bold rounded-xl shadow-xs text-white bg-emerald-600 hover:bg-emerald-700 transition active:scale-95 cursor-pointer"
                     >
-                        <ArrowDownTrayIcon className="w-4 h-4" />
+                        <ArrowDownTrayIcon className="w-4 h-4 shrink-0" />
                         <span>تصدير Excel</span>
                     </button>
                 </div>

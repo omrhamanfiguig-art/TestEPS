@@ -17,8 +17,17 @@ import {
     ChevronDownIcon,
     UserPlusIcon,
     ArrowPathIcon,
-    TrophyIcon
+    TrophyIcon,
+    CheckIcon,
+    AcademicCapIcon
 } from '../components/Icons';
+import { 
+    getTeacherProfiles, 
+    getTeacherForClass, 
+    detectLevelFromClassName, 
+    EDUCATIONAL_LEVELS, 
+    TeacherProfile 
+} from '../utils/teacherHelper';
 import { StudentDataModal } from '../components/StudentDataModal';
 import { AddEditStudentModal } from '../components/AddEditStudentModal';
 import { StudentAvatar } from '../components/StudentAvatar';
@@ -98,8 +107,52 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
     const [updateStudentList, setUpdateStudentList] = useState(true);
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+
+    // Teacher and Academic Level Filters
+    const [filterTeacher, setFilterTeacher] = useState<string>('ALL');
+    const [filterLevel, setFilterLevel] = useState<string>('ALL');
+    const [teacherProfiles, setTeacherProfiles] = useState<TeacherProfile[]>(() => getTeacherProfiles());
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Keep teacher profiles in sync with storage & cloud
+    useEffect(() => {
+        const handleTeachersUpdate = () => {
+            setTeacherProfiles(getTeacherProfiles());
+        };
+        window.addEventListener('teachersUpdated', handleTeachersUpdate);
+        window.addEventListener('dbUpdated', handleTeachersUpdate);
+        return () => {
+            window.removeEventListener('teachersUpdated', handleTeachersUpdate);
+            window.removeEventListener('dbUpdated', handleTeachersUpdate);
+        };
+    }, []);
+
+    // Filter classList according to selected Teacher and Level
+    const filteredClassList = useMemo(() => {
+        return classList.filter(cls => {
+            if (filterTeacher !== 'ALL') {
+                const assignedTeacher = getTeacherForClass(cls.className);
+                if (assignedTeacher !== filterTeacher) return false;
+            }
+            if (filterLevel !== 'ALL') {
+                const levelInfo = detectLevelFromClassName(cls.className);
+                if (levelInfo.key !== filterLevel) return false;
+            }
+            return true;
+        });
+    }, [classList, filterTeacher, filterLevel]);
+
+    // Automatically select the first class of the filtered list if current class is filtered out
+    useEffect(() => {
+        if (filteredClassList.length > 0) {
+            const isCurrentInFiltered = filteredClassList.some(c => c.className === selectedClass);
+            if (!isCurrentInFiltered) {
+                setSelectedClass(filteredClassList[0].className);
+            }
+        }
+    }, [filteredClassList, selectedClass, setSelectedClass]);
 
     // Auto-dismiss notification
     useEffect(() => {
@@ -108,24 +161,6 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
             return () => clearTimeout(timer);
         }
     }, [notification]);
-
-    useEffect(() => {
-        if (results.length === 0 || !selectedClass) return;
-
-        const timer = setTimeout(async () => {
-            setIsSaving(true);
-            try {
-                await savePhysicalTests(selectedClass, results);
-                // No notification for auto-save, just the spinner
-            } catch (err) {
-                console.error('Auto-save failed', err);
-            } finally {
-                setIsSaving(false);
-            }
-        }, 2000);
-
-        return () => clearTimeout(timer);
-    }, [results, selectedClass]);
 
     // Load data when selectedClass changes
     const loadClassData = (className: string) => {
@@ -286,10 +321,10 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
             setVmaResults(updatedVmaList);
         }
 
-        setNotification({
-            message: `تم حفظ نتائج التلميذ(ة) ${selectedStudent.nomEleve} في قاعدة البيانات السحابية (Firebase) بنجاح.`,
-            type: 'success'
-        });
+        // Silent background save without disruptive banner
+        setIsSaving(false);
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 2500);
     };
 
     // Helper functions to prevent React "Received NaN for the defaultValue attribute" error
@@ -361,6 +396,23 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
         }
 
         setResults(updatedResults);
+
+        // Immediate background silent auto-save
+        setIsSaving(true);
+        setSaveStatus('saving');
+        savePhysicalTests(selectedClass, updatedResults)
+            .then(() => {
+                setSaveStatus('saved');
+                window.dispatchEvent(new CustomEvent('dbUpdated'));
+                setTimeout(() => setSaveStatus('idle'), 2500);
+            })
+            .catch(err => {
+                console.error('Silent auto-save failed:', err);
+                setSaveStatus('idle');
+            })
+            .finally(() => {
+                setIsSaving(false);
+            });
 
         // Sync VMA if vma field changed
         if (field === 'vma' && numVal !== undefined && !isNaN(numVal)) {
@@ -633,51 +685,47 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
             )}
 
             {/* Header Card */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
-                <div className="flex items-center gap-3 text-indigo-600 dark:text-indigo-400">
-                    <div className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
-                        <RunningManIcon className="w-7 h-7" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t.physicalTestsTitle}</h1>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t.physicalTestsSubtitle}</p>
-                    </div>
-                </div>
-                
-                <div className="flex flex-wrap items-end gap-2.5">
-                    <div className="flex-1 sm:flex-initial">
-                        <label htmlFor="class-select" className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
-                            {t.class}
-                        </label>
-                        <div className="relative">
-                            <select
-                                id="class-select"
-                                value={selectedClass}
-                                onChange={(e) => setSelectedClass(e.target.value)}
-                                className="appearance-none w-full sm:w-48 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 pe-8 text-sm font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs cursor-pointer"
-                            >
-                                <option value="" disabled>{t.classNamePlaceholder || 'اختر القسم'}</option>
-                                {classList.map(cls => (
-                                    <option key={cls.className} value={cls.className} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-medium">
-                                        {cls.className} ({cls.studentCount} {language === 'ar' ? 'تلميذ' : 'élèves'})
-                                    </option>
-                                ))}
-                                {selectedClass && !classList.some(c => c.className === selectedClass) && (
-                                    <option value={selectedClass} className="bg-white dark:bg-gray-800">{selectedClass}</option>
-                                )}
-                            </select>
-                            <div className="absolute end-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                                <ChevronDownIcon className="w-4 h-4" />
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-5 sm:p-6 space-y-4">
+                {/* Row 1: Title, Subtitle, Background Save Status Badge, and View Switcher */}
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                    <div className="flex items-center gap-3 text-indigo-600 dark:text-indigo-400">
+                        <div className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
+                            <RunningManIcon className="w-7 h-7" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                                <h1 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white">{t.physicalTestsTitle}</h1>
+                                
+                                {/* Discreet Background Auto-Save Indicator */}
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 shadow-2xs">
+                                    {isSaving || saveStatus === 'saving' ? (
+                                        <>
+                                            <ArrowPathIcon className="w-3 h-3 animate-spin text-indigo-600 dark:text-indigo-400" />
+                                            <span className="text-indigo-600 dark:text-indigo-400 font-black">حفظ باطني في الخلفية...</span>
+                                        </>
+                                    ) : saveStatus === 'saved' ? (
+                                        <>
+                                            <CheckIcon className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                            <span>تم الحفظ باطنياً ✓</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                            <span>الحفظ التلقائي باطني ومفعّل</span>
+                                        </>
+                                    )}
+                                </div>
                             </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t.physicalTestsSubtitle}</p>
                         </div>
                     </div>
 
                     {/* View mode toggle */}
-                    <div className="flex items-center bg-gray-100 dark:bg-gray-700/60 p-1 rounded-xl border border-gray-200 dark:border-gray-600">
+                    <div className="flex items-center bg-gray-100 dark:bg-gray-700/60 p-1 rounded-xl border border-gray-200 dark:border-gray-600 self-end lg:self-auto shrink-0">
                         <button
                             type="button"
                             onClick={() => setViewMode('table')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                 viewMode === 'table'
                                     ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
                                     : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
@@ -690,7 +738,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                         <button
                             type="button"
                             onClick={() => setViewMode('cards')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                 viewMode === 'cards'
                                     ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
                                     : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
@@ -701,30 +749,120 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                             <span>بطاقات فردية</span>
                         </button>
                     </div>
+                </div>
+
+                {/* Row 2: Filtering Controls (Teacher & Level & Class) and Quick Launch Action Buttons */}
+                <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
+                    {/* Filters Bar */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* 1. Filter by Teacher */}
+                        <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-900/60 px-2.5 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xs">
+                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 shrink-0">
+                                👨‍🏫 الأستاذ:
+                            </span>
+                            <select
+                                value={filterTeacher}
+                                onChange={(e) => setFilterTeacher(e.target.value)}
+                                className="text-xs font-bold py-0.5 px-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                            >
+                                <option value="ALL">👨‍🏫 جميع الأساتذة</option>
+                                {teacherProfiles.map(tp => {
+                                    const assignedCount = classList.filter(c => getTeacherForClass(c.className) === tp.name).length;
+                                    return (
+                                        <option key={tp.id} value={tp.name}>
+                                            👨‍🏫 {tp.name} ({assignedCount} قسم)
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                        </div>
+
+                        {/* 2. Filter by Level */}
+                        <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-900/60 px-2.5 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xs">
+                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 shrink-0">
+                                🎓 المستوى:
+                            </span>
+                            <select
+                                value={filterLevel}
+                                onChange={(e) => setFilterLevel(e.target.value)}
+                                className="text-xs font-bold py-0.5 px-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                            >
+                                <option value="ALL">🎓 جميع المستويات</option>
+                                {EDUCATIONAL_LEVELS.filter(l => l.key !== 'all').map(lvl => {
+                                    const levelCount = classList.filter(c => detectLevelFromClassName(c.className).key === lvl.key).length;
+                                    return (
+                                        <option key={lvl.key} value={lvl.key}>
+                                            {lvl.label} ({levelCount} قسم)
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                        </div>
+
+                        {/* 3. Class Selector (Filtered) */}
+                        <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-900/60 px-2.5 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xs">
+                            <label htmlFor="class-select" className="text-xs font-bold text-gray-700 dark:text-gray-300 shrink-0">
+                                🏫 القسم:
+                            </label>
+                            <div className="relative">
+                                <select
+                                    id="class-select"
+                                    value={selectedClass}
+                                    onChange={(e) => setSelectedClass(e.target.value)}
+                                    className="appearance-none text-xs font-bold py-0.5 ps-2 pe-7 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                >
+                                    {filteredClassList.length === 0 ? (
+                                        <option value="" disabled>لا يوجد أقسام مطابقة للفلتر</option>
+                                    ) : (
+                                        filteredClassList.map(cls => (
+                                            <option key={cls.className} value={cls.className}>
+                                                {cls.className} ({cls.studentCount} {language === 'ar' ? 'تلميذ' : 'élèves'})
+                                            </option>
+                                        ))
+                                    )}
+                                    {selectedClass && !filteredClassList.some(c => c.className === selectedClass) && (
+                                        <option value={selectedClass}>{selectedClass}</option>
+                                    )}
+                                </select>
+                                <div className="absolute end-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                    <ChevronDownIcon className="w-3.5 h-3.5" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Reset filters pill if any filter active */}
+                        {(filterTeacher !== 'ALL' || filterLevel !== 'ALL') && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setFilterTeacher('ALL');
+                                    setFilterLevel('ALL');
+                                }}
+                                className="text-[11px] font-bold px-2 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition flex items-center gap-1 cursor-pointer"
+                                title="إلغاء التصفية وعرض جميع الأقسام والأساتذة"
+                            >
+                                <XMarkIcon className="w-3.5 h-3.5" />
+                                <span>إلغاء التصفية</span>
+                            </button>
+                        )}
+                    </div>
 
                     {/* Field Test & Export Action Buttons */}
-                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                        {isSaving && (
-                            <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-xl border border-indigo-100 dark:border-indigo-800">
-                                <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
-                                <span className="text-[10px] font-black">حفظ تلقائي...</span>
-                            </div>
-                        )}
-
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-wrap items-center gap-2 w-full xl:w-auto shrink-0">
                         <button
                             onClick={() => setIsBalanceModalOpen(true)}
-                            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs text-white bg-teal-600 hover:bg-teal-700 transition active:scale-95 cursor-pointer"
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs text-white bg-teal-600 hover:bg-teal-700 transition active:scale-95 cursor-pointer"
                         >
                             <span>توازن (متعدد)</span>
                         </button>
 
                         <button
                             onClick={() => setIsLucLegerModalOpen(true)}
-                            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs text-white bg-amber-600 hover:bg-amber-700 transition active:scale-95 cursor-pointer"
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs text-white bg-amber-600 hover:bg-amber-700 transition active:scale-95 cursor-pointer"
                             title="إجراء اختبار Luc Léger المكوك 20م الميداني لتحديد السرعة القصوى الهوائية"
                         >
                             <RunningManIcon className="w-4 h-4 shrink-0" />
-                            <span>اختبار Luc Léger</span>
+                            <span>Luc Léger</span>
                         </button>
 
                         <button
@@ -732,10 +870,10 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                 setSprintTestType('speed');
                                 setIsSprintModalOpen(true);
                             }}
-                            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs text-white bg-orange-600 hover:bg-orange-700 transition active:scale-95 cursor-pointer"
-                            title="تشغيل الميقاتي الميداني للسرعة 30م"
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs text-white bg-orange-600 hover:bg-orange-700 transition active:scale-95 cursor-pointer"
+                            title="تشغيل الميقاتي الميداني لسباقات السرعة"
                         >
-                            <span>⏱️ ميقاتي 30م</span>
+                            <span>⏱️ ميقاتي السرعة</span>
                         </button>
 
                         <button
@@ -743,16 +881,16 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                 setSprintTestType('endurance');
                                 setIsSprintModalOpen(true);
                             }}
-                            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs text-white bg-red-600 hover:bg-red-700 transition active:scale-95 cursor-pointer"
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs text-white bg-red-600 hover:bg-red-700 transition active:scale-95 cursor-pointer"
                             title="تشغيل ميقاتي سباق السرعة المتوسطة (التحمل بالدقائق والثواني)"
                         >
-                            <span>⏱️ ميقاتي السرعة المتوسطة</span>
+                            <span>⏱️ ميقاتي التحمل</span>
                         </button>
 
                         <button
                             onClick={handleExport}
                             disabled={!hasEnteredValues}
-                            className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs transition active:scale-95 ${
+                            className={`col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs transition active:scale-95 ${
                                 hasEnteredValues
                                     ? 'text-white bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20 cursor-pointer'
                                     : 'text-gray-400 bg-gray-200 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed opacity-60'
@@ -760,7 +898,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                             title={hasEnteredValues ? "تصدير النتائج الكاملة إلى ملف Excel" : "يصبح التصدير متاحاً بمجرد إدخال أول قيمة في هذا القسم"}
                         >
                             <ArrowDownTrayIcon className="w-4 h-4 shrink-0" />
-                            <span>تصدير (Excel)</span>
+                            <span>تصدير Excel</span>
                         </button>
                     </div>
                 </div>
@@ -807,8 +945,24 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                             </span>
                         </div>
 
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                            <span>يمكنك إدخال النتائج مباشرة في الجدول بدون أرقام مسبقة، ويتم الحفظ تلقائياً.</span>
+                        {/* Real-time Silent Background Auto-save Status Indicator */}
+                        <div className="text-xs">
+                            {saveStatus === 'saving' || isSaving ? (
+                                <span className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                                    <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
+                                    <span>جاري الحفظ باطنياً في الخلفية...</span>
+                                </span>
+                            ) : saveStatus === 'saved' ? (
+                                <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                                    <CheckIcon className="w-3.5 h-3.5" />
+                                    <span>✓ تم الحفظ باطنياً في الخلفية</span>
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+                                    <span>الحفظ باطني وتلقائي في الخلفية عند إدخال أي نتيجة.</span>
+                                </span>
+                            )}
                         </div>
                     </div>
 

@@ -590,7 +590,7 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto">
           {/* Hidden File Input for Excel student import (Multiple files supported) */}
           <input
             type="file"
@@ -605,31 +605,31 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
           <button
             onClick={() => handleOpenAddStudent(selectedClass || classes[0]?.className)}
             disabled={classes.length === 0}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs sm:text-sm font-bold shadow-md shadow-emerald-600/20 transition"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs sm:text-sm font-bold shadow-xs active:scale-95 transition cursor-pointer"
             title={language === 'ar' ? 'إضافة تلميذ جديد إلى لائحة القسم' : 'Ajouter un élève'}
           >
-            <UserPlusIcon className="w-4 h-4" />
+            <UserPlusIcon className="w-4 h-4 shrink-0" />
             <span>{language === 'ar' ? 'إضافة تلميذ' : 'Ajouter élève'}</span>
           </button>
 
           {/* Import Classes (استيراد الأقسام) button */}
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-indigo-600/20 transition"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold shadow-xs active:scale-95 transition cursor-pointer"
             title={language === 'ar' ? 'استيراد قسم أو عدة أقسام من ملفات Excel دفعة واحدة' : 'Importer une ou plusieurs classes'}
           >
-            <ArrowUpTrayIcon />
-            <span>{language === 'ar' ? 'استيراد الأقسام' : 'استيراد الأقسام (Excel)'}</span>
+            <ArrowUpTrayIcon className="w-4 h-4 shrink-0" />
+            <span>{language === 'ar' ? 'استيراد أقسام' : 'Importer'}</span>
           </button>
 
           {/* Download Template button */}
           <button
             onClick={() => downloadStudentsTemplate(selectedClass)}
             title={language === 'ar' ? 'تحميل نموذج Excel فارغ' : 'Télécharger modèle Excel'}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs sm:text-sm font-bold transition"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs sm:text-sm font-bold active:scale-95 transition cursor-pointer"
           >
-            <ExcelIcon className="w-4 h-4 text-emerald-600" />
-            <span className="hidden sm:inline">{language === 'ar' ? 'نموذج فارغ' : 'Modèle'}</span>
+            <ExcelIcon className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{language === 'ar' ? 'نموذج فارغ' : 'Modèle'}</span>
           </button>
 
           {/* Cloud Sync button */}
@@ -637,14 +637,14 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
             onClick={handleCloudSync}
             disabled={isSyncingCloud}
             title={language === 'ar' ? 'مزامنة لوائح التلاميذ مع قاعدة البيانات السحابية لمشاركتها مع جميع الأساتذة' : 'Synchroniser avec la base cloud'}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs sm:text-sm font-bold transition"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs sm:text-sm font-bold active:scale-95 transition cursor-pointer"
           >
-            <div className={isSyncingCloud ? 'animate-spin' : ''}>
+            <div className={`shrink-0 ${isSyncingCloud ? 'animate-spin' : ''}`}>
               <CloudIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             </div>
-            <span className="hidden sm:inline">
+            <span>
               {isSyncingCloud 
-                ? (language === 'ar' ? 'جاري المزامنة...' : 'Sync...') 
+                ? (language === 'ar' ? 'مزامنة...' : 'Sync...') 
                 : (language === 'ar' ? 'مزامنة سحابية' : 'Sync Cloud')}
             </span>
           </button>
@@ -653,9 +653,9 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
           <button
             onClick={fetchClassesData}
             title={language === 'ar' ? 'تحديث الإحصائيات' : 'Actualiser'}
-            className="p-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+            className="col-span-2 sm:col-span-1 p-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center transition active:scale-95 cursor-pointer"
           >
-            <ArrowPathIcon />
+            <ArrowPathIcon className="w-4 h-4" />
           </button>
         </div>
       </div>

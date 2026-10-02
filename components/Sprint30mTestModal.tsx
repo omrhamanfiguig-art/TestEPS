@@ -696,18 +696,18 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
             </div>
 
             {raceConfig.isMinutes ? (
-              <div className="flex items-baseline justify-center font-mono font-black text-amber-400 drop-shadow-md my-2">
-                <span className="text-5xl sm:text-7xl tracking-wider">
+              <div className="flex items-baseline justify-center font-mono font-black text-amber-400 drop-shadow-md my-2 flex-wrap text-center">
+                <span className="text-4xl xs:text-5xl sm:text-7xl tracking-wider">
                   {Math.floor(elapsedTime / 60000).toString().padStart(2, '0')}:{Math.floor((elapsedTime % 60000) / 1000).toString().padStart(2, '0')}
                 </span>
-                <span className="text-2xl sm:text-3xl text-amber-200/80 ms-1 font-mono">
+                <span className="text-xl xs:text-2xl sm:text-3xl text-amber-200/80 ms-1 font-mono">
                   .{Math.floor((elapsedTime % 1000) / 10).toString().padStart(2, '0')}
                 </span>
-                <span className="text-xl sm:text-2xl text-amber-100 font-sans font-bold ms-3">دقيقة</span>
+                <span className="text-base xs:text-xl sm:text-2xl text-amber-100 font-sans font-bold ms-2">دقيقة</span>
               </div>
             ) : (
-              <div className="text-5xl sm:text-7xl font-mono font-black tracking-wider text-amber-400 drop-shadow-md my-2">
-                {formattedSeconds} <span className="text-2xl font-bold text-gray-400">ثانية</span>
+              <div className="text-4xl xs:text-5xl sm:text-7xl font-mono font-black tracking-wider text-amber-400 drop-shadow-md my-2">
+                {formattedSeconds} <span className="text-xl sm:text-2xl font-bold text-gray-400">ثانية</span>
               </div>
             )}
 
@@ -840,78 +840,53 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
               </div>
             )}
 
-            {/* Main Action Buttons (Icon-Only with Hover Tooltips) */}
-            <div className="flex items-center gap-4 mt-2 flex-wrap justify-center">
+            {/* Main Action Buttons (Optimized for Mobile with Clear Labels and Touch Targets) */}
+            <div className="flex items-center gap-2.5 sm:gap-4 mt-2 flex-wrap justify-center w-full">
               {testState === 'idle' && (
-                <div className="relative group">
-                  <button
-                    onClick={startTimer}
-                    aria-label="بدء السباق الانطلاق"
-                    className="p-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl shadow-lg shadow-emerald-600/30 transition transform hover:scale-105 active:scale-95 cursor-pointer"
-                  >
-                    <PlayIcon className="w-7 h-7 fill-current" />
-                  </button>
-                  <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 text-xs font-black bg-gray-900 text-white px-3 py-1 rounded-xl shadow-xl whitespace-nowrap z-50 border border-gray-700">
-                    بدء السباق الانطلاق 🚀
-                  </div>
-                </div>
+                <button
+                  onClick={startTimer}
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl shadow-lg shadow-emerald-600/30 transition transform active:scale-95 cursor-pointer text-sm sm:text-base"
+                >
+                  <PlayIcon className="w-6 h-6 fill-current" />
+                  <span>بدء الانطلاق 🚀</span>
+                </button>
               )}
 
               {testState === 'running' && (
-                <div className="relative group">
-                  <button
-                    onClick={pauseTimer}
-                    aria-label="إيقاف مؤقت"
-                    className="p-3.5 bg-amber-500 hover:bg-amber-400 text-white font-black rounded-2xl shadow-lg shadow-amber-500/30 transition transform hover:scale-105 active:scale-95 cursor-pointer"
-                  >
-                    <PauseIcon className="w-7 h-7" />
-                  </button>
-                  <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 text-xs font-black bg-gray-900 text-white px-3 py-1 rounded-xl shadow-xl whitespace-nowrap z-50 border border-gray-700">
-                    إيقاف مؤقت ⏸️
-                  </div>
-                </div>
+                <button
+                  onClick={pauseTimer}
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-3.5 bg-amber-500 hover:bg-amber-400 text-white font-black rounded-2xl shadow-lg shadow-amber-500/30 transition transform active:scale-95 cursor-pointer text-sm sm:text-base"
+                >
+                  <PauseIcon className="w-6 h-6" />
+                  <span>إيقاف مؤقت ⏸️</span>
+                </button>
               )}
 
               {testState === 'paused' && (
-                <div className="relative group">
-                  <button
-                    onClick={startTimer}
-                    aria-label="متابعة"
-                    className="p-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl shadow-lg shadow-emerald-600/30 transition transform hover:scale-105 active:scale-95 cursor-pointer"
-                  >
-                    <PlayIcon className="w-7 h-7 fill-current" />
-                  </button>
-                  <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 text-xs font-black bg-gray-900 text-white px-3 py-1 rounded-xl shadow-xl whitespace-nowrap z-50 border border-gray-700">
-                    متابعة ▶️
-                  </div>
-                </div>
+                <button
+                  onClick={startTimer}
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-5 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-2xl shadow-lg shadow-emerald-600/30 transition transform active:scale-95 cursor-pointer text-sm sm:text-base"
+                >
+                  <PlayIcon className="w-6 h-6 fill-current" />
+                  <span>متابعة ▶️</span>
+                </button>
               )}
 
-              <div className="relative group">
-                <button
-                  onClick={resetTimer}
-                  aria-label="إعادة ضبط العداد"
-                  className="p-3.5 bg-gray-700 hover:bg-gray-600 text-gray-200 font-bold rounded-2xl transition transform hover:scale-105 active:scale-95 cursor-pointer"
-                >
-                  <ArrowPathIcon className="w-7 h-7" />
-                </button>
-                <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 text-xs font-black bg-gray-900 text-white px-3 py-1 rounded-xl shadow-xl whitespace-nowrap z-50 border border-gray-700">
-                  إعادة ضبط العداد 🔄
-                </div>
-              </div>
+              <button
+                onClick={resetTimer}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-3.5 bg-gray-700 hover:bg-gray-600 text-gray-200 font-bold rounded-2xl transition transform active:scale-95 cursor-pointer text-xs sm:text-sm"
+              >
+                <ArrowPathIcon className="w-5 h-5" />
+                <span className="hidden xs:inline">تصفير 🔄</span>
+              </button>
 
-              <div className="relative group">
-                <button
-                  onClick={prepareNextRun}
-                  aria-label="السباق التالي"
-                  className="p-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-600/30 transition transform hover:scale-105 active:scale-95 cursor-pointer"
-                >
-                  <ChevronRightIcon className="w-7 h-7 rotate-180" />
-                </button>
-                <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 text-xs font-black bg-gray-900 text-white px-3 py-1 rounded-xl shadow-xl whitespace-nowrap z-50 border border-gray-700">
-                  السباق التالي ⏩
-                </div>
-              </div>
+              <button
+                onClick={prepareNextRun}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-2xl shadow-lg shadow-indigo-600/30 transition transform active:scale-95 cursor-pointer text-xs sm:text-sm"
+              >
+                <span>الفوج التالي ⏩</span>
+                <ChevronRightIcon className="w-4 h-4 rotate-180" />
+              </button>
             </div>
           </div>
 
