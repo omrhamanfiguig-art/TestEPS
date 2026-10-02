@@ -995,19 +995,23 @@ export const deleteChampionshipRegistration = async (id: string): Promise<void> 
     const tx = db.transaction(CHAMPIONSHIPS_STORE, 'readwrite');
     const store = tx.objectStore(CHAMPIONSHIPS_STORE);
     store.delete(id);
-    await new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
-    window.dispatchEvent(new CustomEvent('dbUpdated'));
 
-    // Delete from Cloud in background
+    // Delete from Cloud
     try {
       const { deleteChampionshipFromCloud } = await import('./firebase');
-      deleteChampionshipFromCloud(id).catch(() => {});
-    } catch (_) {}
+      await deleteChampionshipFromCloud(id);
+    } catch (err) {
+      console.error("Failed to delete championship from cloud:", err);
+    }
+
+    window.dispatchEvent(new CustomEvent('dbUpdated'));
   } catch (err) {
     console.error("Failed to delete championship registration:", err);
+    throw err;
   }
 };
 

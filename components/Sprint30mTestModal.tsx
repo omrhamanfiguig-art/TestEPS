@@ -24,7 +24,7 @@ import {
 } from '../utils/ScoringConstants';
 import { startBluetoothKeepAlive, stopBluetoothKeepAlive } from '../utils/audioHelper';
 
-export type RaceTestType = 'speed' | 'speed-60' | 'speed-80' | 'endurance';
+export type RaceTestType = 'speed' | 'speed-60' | 'speed-80' | 'endurance' | 'relay';
 
 interface Sprint30mTestModalProps {
   isOpen: boolean;
@@ -62,7 +62,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
   const [currentTestType, setCurrentTestType] = useState<RaceTestType>(testType);
   const [selectedClass, setSelectedClass] = useState<string>(initialClass);
   const [classes, setClasses] = useState<string[]>(() => normalizeClassNames(classList));
-  const [laneCount, setLaneCount] = useState<number>(() => (testType === 'endurance' ? 4 : 3));
+  const [laneCount, setLaneCount] = useState<number>(() => (testType === 'relay' || testType === 'endurance' ? 4 : 3));
   const [students, setStudents] = useState<StudentIdentity[]>([]);
   const [physicalResults, setPhysicalResults] = useState<PhysicalTests[]>([]);
 
@@ -71,6 +71,12 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
       setCurrentTestType(testType);
     }
   }, [testType]);
+
+  useEffect(() => {
+    if (currentTestType === 'relay') {
+      setLaneCount(4);
+    }
+  }, [currentTestType]);
 
   // Race metadata config
   const raceConfig = useMemo(() => {
@@ -110,6 +116,18 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
           scale: ENDURANCE_SCALE_1000M,
           scoreField: 'scoreEndurance' as const,
           isMinutes: true
+        };
+      case 'relay':
+        return {
+          title: 'اختبار سباق التتابع (Relay Race)',
+          subtitle: 'تسجيل التوقيت المتتالي لتمرير العصا / وصول المتسابقين الأربعة وصلاحية اختيارهم بالترتيب',
+          counterLabel: 'عداد وقت سباق التتابع (ثواني)',
+          unitLabel: 'ثانية',
+          field: 'vitesseRelay' as const,
+          distanceMeters: 400,
+          scale: SPEED_SCALE_30M,
+          scoreField: 'scoreRelay' as const,
+          isMinutes: false
         };
       case 'speed':
       default:
@@ -310,6 +328,12 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
     }
   }, [testState]);
 
+  const getStudentNumberDisplay = (s: StudentIdentity) => {
+    if (s.orderIndex) return String(s.orderIndex);
+    const idx = students.findIndex(st => String(st.numeroEleve) === String(s.numeroEleve));
+    return idx >= 0 ? String(idx + 1) : '?';
+  };
+
   const [idleViewMode, setIdleViewMode] = useState<'lanes' | 'grid'>('lanes');
 
   // Untested and tested student groups for high efficiency
@@ -377,6 +401,15 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
 
   // Helper for rank labels (الأول، الثاني، الثالث...)
   const getArabicRankName = (index: number) => {
+    if (currentTestType === 'relay') {
+      const relayPositions = [
+        'المتسابق الأول (الانطلاق) 🏃‍♂️',
+        'المتسابق الثاني (التمرير 1) 🏃‍♂️',
+        'المتسابق الثالث (التمرير 2) 🏃‍♂️',
+        'المتسابق الرابع (الوصول 🏁)',
+      ];
+      return relayPositions[index] || `المتسابق ${index + 1}`;
+    }
     const ranks = [
       'الأول 🥇',
       'الثاني 🥈',
@@ -883,7 +916,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                                   <optgroup label={`⭐ لم يختبروا بعد (${untestedStudents.length})`}>
                                     {untestedStudents.map(s => {
                                       const isAssigned = selectedRunners.some(r => r.laneIndex !== runner.laneIndex && String(r.studentNumber) === String(s.numeroEleve));
-                                      const numDisplay = s.orderIndex || (students.findIndex(st => String(st.numeroEleve) === String(s.numeroEleve)) + 1);
+                                      const numDisplay = getStudentNumberDisplay(s);
                                       return (
                                         <option key={s.numeroEleve} value={s.numeroEleve} disabled={isAssigned}>
                                           #{numDisplay} - {s.nomEleve} {isAssigned ? '(مسند لمركز آخر)' : ''}
@@ -896,7 +929,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                                   <optgroup label={`🔄 سبق اختبارهم (${testedStudents.length})`}>
                                     {testedStudents.map(({ student: s, prevTime }) => {
                                       const isAssigned = selectedRunners.some(r => r.laneIndex !== runner.laneIndex && String(r.studentNumber) === String(s.numeroEleve));
-                                      const numDisplay = s.orderIndex || (students.findIndex(st => String(st.numeroEleve) === String(s.numeroEleve)) + 1);
+                                      const numDisplay = getStudentNumberDisplay(s);
                                       return (
                                         <option key={s.numeroEleve} value={s.numeroEleve} disabled={isAssigned}>
                                           #{numDisplay} - {s.nomEleve} ({raceConfig.isMinutes ? `${formatSecondsToMinSec(prevTime)} د` : `${prevTime}ث`}) {isAssigned ? '(مسند لمركز آخر)' : ''}
@@ -1198,14 +1231,14 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                                       : 'bg-amber-100 dark:bg-amber-900/80 text-amber-950 dark:text-amber-100 border-amber-400 ring-2 ring-amber-400/50 font-black animate-pulse'
                                   }`}
                                 >
-                                  <option value="">-- اضغط لاختيار تلميذ الممر #{runner.laneIndex} لهذا التوقيت --</option>
+                                  <option value="">-- اضغط لاختيار تلميذ {currentTestType === 'relay' ? 'لهذا المركز' : `الممر #${runner.laneIndex}`} لهذا التوقيت --</option>
                                   {untestedStudents.length > 0 && (
-                                    <optgroup label={`⭐ تلاميذ لم يختبروا بعد في 30م (${untestedStudents.length})`}>
+                                    <optgroup label={`⭐ تلاميذ لم يختبروا بعد (${untestedStudents.length})`}>
                                       {untestedStudents.map(s => {
                                         const isAssigned = selectedRunners.some(r => r.laneIndex !== runner.laneIndex && String(r.studentNumber) === String(s.numeroEleve));
                                         return (
                                           <option key={s.numeroEleve} value={s.numeroEleve} disabled={isAssigned}>
-                                            #{s.orderIndex || s.numeroEleve} - {s.nomEleve} ({s.sexe === 'F' ? 'أنثى' : 'ذكر'}) {isAssigned ? '(بممر آخر)' : ''}
+                                            #{getStudentNumberDisplay(s)} - {s.nomEleve} ({s.sexe === 'F' ? 'أنثى' : 'ذكر'}) {isAssigned ? '(بمركز آخر)' : ''}
                                           </option>
                                         );
                                       })}
@@ -1217,7 +1250,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                                         const isAssigned = selectedRunners.some(r => r.laneIndex !== runner.laneIndex && String(r.studentNumber) === String(s.numeroEleve));
                                         return (
                                           <option key={s.numeroEleve} value={s.numeroEleve} disabled={isAssigned}>
-                                            #{s.orderIndex || s.numeroEleve} - {s.nomEleve} ({s.sexe === 'F' ? 'أنثى' : 'ذكر'}) [سابقاً: {prevTime}ث] {isAssigned ? '(بممر آخر)' : ''}
+                                            #{getStudentNumberDisplay(s)} - {s.nomEleve} ({s.sexe === 'F' ? 'أنثى' : 'ذكر'}) [سابقاً: {prevTime}ث] {isAssigned ? '(بمركز آخر)' : ''}
                                           </option>
                                         );
                                       })}
@@ -1241,7 +1274,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                                       const isAssigned = selectedRunners.some(r => r.laneIndex !== runner.laneIndex && String(r.studentNumber) === String(s.numeroEleve));
                                       return (
                                         <option key={s.numeroEleve} value={s.numeroEleve} disabled={isAssigned}>
-                                          #{s.orderIndex || s.numeroEleve} - {s.nomEleve} {isAssigned ? '(بممر آخر)' : ''}
+                                          #{getStudentNumberDisplay(s)} - {s.nomEleve} {isAssigned ? '(بمركز آخر)' : ''}
                                         </option>
                                       );
                                     })}

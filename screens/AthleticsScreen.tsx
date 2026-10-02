@@ -73,6 +73,7 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
         { id: 'speed', label: t.sprint30m, icon: <RunningManIcon className="w-5 h-5" />, color: 'bg-orange-500', testKey: 'speed' },
         { id: 'speed-60', label: t.sprint60m, icon: <RunningManIcon className="w-5 h-5" />, color: 'bg-orange-600', testKey: 'speed-60' },
         { id: 'speed-80', label: t.sprint80m, icon: <RunningManIcon className="w-5 h-5" />, color: 'bg-orange-700', testKey: 'speed-80' },
+        { id: 'relay', label: 'سباق التتابع (Relay)', icon: <RunningManIcon className="w-5 h-5" />, color: 'bg-amber-600', testKey: 'relay' },
         { id: 'endurance', label: t.endurance, icon: <RunningManIcon className="w-5 h-5" />, color: 'bg-red-600', testKey: 'endurance' },
         { id: 'long-jump', label: t.longJumpAthletic, icon: <TrophyIcon className="w-5 h-5" />, color: 'bg-indigo-600', testKey: 'long-jump' },
         { id: 'shot-put', label: t.shotPut, icon: <TrophyIcon className="w-5 h-5" />, color: 'bg-gray-600', testKey: 'shot-put' },
@@ -171,7 +172,7 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                         <div className="pt-2">
                             <button
                                 onClick={() => {
-                                    if (test.testKey === 'speed' || test.testKey === 'speed-60' || test.testKey === 'speed-80' || test.testKey === 'endurance') {
+                                    if (test.testKey === 'speed' || test.testKey === 'speed-60' || test.testKey === 'speed-80' || test.testKey === 'relay' || test.testKey === 'endurance') {
                                         setRaceStopwatchType(test.testKey as RaceTestType);
                                         setIsRaceStopwatchOpen(true);
                                     } else {
@@ -207,6 +208,7 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                                 <th className="p-3 font-bold">30 م (ث)</th>
                                 <th className="p-3 font-bold">60 م (ث)</th>
                                 <th className="p-3 font-bold">80 م (ث)</th>
+                                <th className="p-3 font-bold">سباق التتابع (ث)</th>
                                 <th className="p-3 font-bold">السرعة المتوسطة (د:ث)</th>
                                 <th className="p-3 font-bold">القفز الطولي (م)</th>
                                 <th className="p-3 font-bold">دفع الجلة (م)</th>
@@ -226,6 +228,7 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                                         <td className="p-3 font-mono">{r?.vitesse30m ? `${r.vitesse30m} ث` : '-'}</td>
                                         <td className="p-3 font-mono">{(r as any)?.vitesse60m ? `${(r as any).vitesse60m} ث` : '-'}</td>
                                         <td className="p-3 font-mono">{(r as any)?.vitesse80m ? `${(r as any).vitesse80m} ث` : '-'}</td>
+                                        <td className="p-3 font-mono">{(r as any)?.vitesseRelay ? `${(r as any).vitesseRelay} ث` : '-'}</td>
                                         <td className="p-3 font-mono text-red-600 dark:text-red-400 font-bold">{r?.enduranceTemps ? `${formatSecondsToMinSec(r.enduranceTemps)} د` : '-'}</td>
                                         <td className="p-3 font-mono">{r?.sautLong ? `${r.sautLong} م` : '-'}</td>
                                         <td className="p-3 font-mono">{r?.lancerPoids ? `${r.lancerPoids} م` : '-'}</td>

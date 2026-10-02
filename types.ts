@@ -50,6 +50,7 @@ export interface PhysicalTests {
   vitesse30m?: number;
   vitesse60m?: number;
   vitesse80m?: number;
+  vitesseRelay?: number;
   sautHorizontal?: number;
   sautVertical?: number;
   lancerMedball?: number;
@@ -60,6 +61,7 @@ export interface PhysicalTests {
   enduranceTemps?: number;
   scoreVitesse?: number;
   scoreEndurance?: number;
+  scoreRelay?: number;
   scoreSautLong?: number;
   scoreLancerPoids?: number;
   scoreSautHorizontal?: number;
@@ -158,6 +160,7 @@ export interface ChampionshipRegistration {
   championshipType: 'cross_country' | 'athletics' | 'football'; // نوع البطولة
   sportCollectifRole?: string; // e.g. "مدافع", "حارس مرمى", "مهاجم" for football or "100m", "دفع الجلة" for athletics
   note?: string;
+  photoUrl?: string;
   createdAt: string;
 }
 

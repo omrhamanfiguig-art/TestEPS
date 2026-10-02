@@ -14,6 +14,7 @@ import {
   InformationCircleIcon
 } from '../components/Icons';
 import { useLanguage } from '../utils/i18n';
+import { StudentAvatar } from '../components/StudentAvatar';
 import { 
   getAllClasses, 
   saveChampionshipRegistration, 
@@ -54,6 +55,7 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
 
   // Form states
   const [selectedStudent, setSelectedStudent] = useState<GlobalStudentSearchResult | null>(null);
+  const [editingRegistration, setEditingRegistration] = useState<ChampionshipRegistration | null>(null);
   const [birthDate, setBirthDate] = useState<string>('');
   const [sportRole, setSportRole] = useState<string>('');
   const [note, setNote] = useState<string>('');
@@ -234,34 +236,48 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
     }
   }, [selectedStudent, registrations]);
 
+  const handleStartEdit = (reg: ChampionshipRegistration) => {
+    setEditingRegistration(reg);
+    setSelectedStudent(null);
+    setBirthDate(reg.dateNaissance || '');
+    setSportRole(reg.sportCollectifRole || '');
+    setNote(reg.note || '');
+  };
+
   // Submit Handler
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStudent) {
+    if (!selectedStudent && !editingRegistration) {
       setFeedback('⚠️ الرجاء اختيار تلميذ(ة) أولاً.');
       return;
     }
 
-    const { student, className } = selectedStudent;
-    const registrationId = `${activeTab}_${className}_${student.numeroEleve}`;
+    const registrationId = editingRegistration ? editingRegistration.id : `${activeTab}_${selectedStudent!.className}_${selectedStudent!.student.numeroEleve}`;
+    const className = editingRegistration ? editingRegistration.className : selectedStudent!.className;
+    const numeroEleve = editingRegistration ? editingRegistration.numeroEleve : selectedStudent!.student.numeroEleve;
+    const nomEleve = editingRegistration ? editingRegistration.nomEleve : selectedStudent!.student.nomEleve;
+    const sexe = editingRegistration ? editingRegistration.sexe : selectedStudent!.student.sexe;
+    const photoUrl = editingRegistration ? editingRegistration.photoUrl : selectedStudent!.student.photoUrl;
 
     const newReg: ChampionshipRegistration = {
       id: registrationId,
       className,
-      numeroEleve: student.numeroEleve,
-      nomEleve: student.nomEleve,
-      sexe: student.sexe || 'M',
+      numeroEleve,
+      nomEleve,
+      sexe: sexe || 'M',
       dateNaissance: birthDate || undefined,
       championshipType: activeTab,
       sportCollectifRole: sportRole || undefined,
       note: note || undefined,
-      createdAt: new Date().toISOString()
+      photoUrl: photoUrl || undefined,
+      createdAt: editingRegistration ? editingRegistration.createdAt : new Date().toISOString()
     };
 
     await saveChampionshipRegistration(newReg);
 
-    setFeedback('🎉 تم توجيه وتعيين التلميذ(ة) للمشاركة بنجاح!');
+    setFeedback(editingRegistration ? '✏️ تم تحديث بيانات المشاركة بنجاح!' : '🎉 تم توجيه وتعيين التلميذ(ة) للمشاركة بنجاح!');
     setSelectedStudent(null);
+    setEditingRegistration(null);
     setSportRole('');
     setNote('');
     setBirthDate('');
@@ -271,9 +287,17 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
   };
 
   const handleDelete = async (regId: string) => {
-    if (window.confirm('هل أنت متأكد من إلغاء مشاركة هذا التلميذ في البطولة؟')) {
-      await deleteChampionshipRegistration(regId);
-      loadAllData();
+    if (window.confirm('هل أنت متأكد من إلغاء وحذف مشاركة هذا التلميذ نهائياً من البطولة؟')) {
+      try {
+        await deleteChampionshipRegistration(regId);
+        setFeedback('🗑️ تم إلغاء مشاركة التلميذ وحذفها بنجاح.');
+        setTimeout(() => setFeedback(null), 3500);
+        await loadAllData();
+      } catch (err) {
+        console.error('Error deleting championship registration:', err);
+        setFeedback('❌ حدث خطأ أثناء محاولة الحذف.');
+        setTimeout(() => setFeedback(null), 3500);
+      }
     }
   };
 
@@ -666,6 +690,25 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
               </div>
             )}
 
+            {/* Editing Registration indicator */}
+            {editingRegistration && (
+              <div className="p-3 bg-indigo-50 dark:bg-indigo-950/30 rounded-2xl border border-indigo-200/50 dark:border-indigo-800/40 text-xs font-bold text-indigo-900 dark:text-indigo-300 flex items-center justify-between animate-fade-in">
+                <span>✏️ تعديل مشاركة: #{editingRegistration.numeroEleve} - {editingRegistration.nomEleve} ({editingRegistration.className})</span>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setEditingRegistration(null);
+                    setBirthDate('');
+                    setSportRole('');
+                    setNote('');
+                  }}
+                  className="text-indigo-600 dark:text-indigo-400 hover:text-red-500 text-xs font-black cursor-pointer"
+                >
+                  إلغاء التعديل
+                </button>
+              </div>
+            )}
+
             {/* Registration details form */}
             <form onSubmit={handleRegister} className="space-y-4 pt-3 border-t border-gray-100 dark:border-gray-700">
               
@@ -725,11 +768,11 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={!selectedStudent}
+                disabled={!selectedStudent && !editingRegistration}
                 className="w-full py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white rounded-xl text-xs font-black shadow-lg hover:shadow-amber-500/20 transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 disabled:cursor-not-allowed"
               >
                 <PlusIcon className="w-4 h-4" />
-                <span>توجيه وتعيين التلميذ(ة) المختار 🏆</span>
+                <span>{editingRegistration ? '✏️ حفظ وتعديل بيانات المشاركة' : 'توجيه وتعيين التلميذ(ة) المختار 🏆'}</span>
               </button>
             </form>
           </div>
@@ -782,44 +825,57 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
                     {femaleList.map(r => (
                       <div 
                         key={r.id} 
-                        className="p-3 bg-white dark:bg-gray-900 rounded-xl border border-pink-100/80 dark:border-gray-700 shadow-2xs flex items-center justify-between gap-2 transition-colors hover:border-pink-300"
+                        className="p-3 bg-white dark:bg-gray-900 rounded-xl border border-pink-100/80 dark:border-gray-700 shadow-2xs flex items-center justify-between gap-3 transition-colors hover:border-pink-300"
                       >
-                        <div className="overflow-hidden space-y-1">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] font-mono px-1 rounded bg-pink-50 dark:bg-pink-950 text-pink-700 dark:text-pink-300 border border-pink-200/40 font-bold">
-                              #{r.numeroEleve}
-                            </span>
-                            <span className="font-bold text-xs text-gray-900 dark:text-white truncate">
-                              {r.nomEleve}
-                            </span>
-                            <span className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.1 rounded-sm border border-indigo-100 dark:border-indigo-900">
-                              {r.className}
-                            </span>
-                          </div>
-                          <div className="text-[10px] text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-bold">
-                            {r.dateNaissance && (
-                              <span className="flex items-center gap-0.5 font-mono font-black">
-                                <CalendarDaysIcon className="w-3 h-3 text-pink-500" />
-                                <span>{r.dateNaissance}</span>
+                        <div className="flex items-center gap-2.5 overflow-hidden">
+                          <StudentAvatar photoUrl={r.photoUrl} nomEleve={r.nomEleve} sexe={r.sexe} size="sm" />
+                          <div className="overflow-hidden space-y-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] font-mono px-1 rounded bg-pink-50 dark:bg-pink-950 text-pink-700 dark:text-pink-300 border border-pink-200/40 font-bold">
+                                #{r.numeroEleve}
                               </span>
-                            )}
-                            {r.sportCollectifRole && (
-                              <span className="text-pink-600 dark:text-pink-400 bg-pink-100/40 dark:bg-pink-950/20 px-1 py-0.2 rounded font-black text-[9px]">
-                                {r.sportCollectifRole}
+                              <span className="font-bold text-xs text-gray-900 dark:text-white truncate">
+                                {r.nomEleve}
                               </span>
-                            )}
+                              <span className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.1 rounded-sm border border-indigo-100 dark:border-indigo-900">
+                                {r.className}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-bold">
+                              {r.dateNaissance && (
+                                <span className="flex items-center gap-0.5 font-mono font-black">
+                                  <CalendarDaysIcon className="w-3 h-3 text-pink-500" />
+                                  <span>{r.dateNaissance}</span>
+                                </span>
+                              )}
+                              {r.sportCollectifRole && (
+                                <span className="text-pink-600 dark:text-pink-400 bg-pink-100/40 dark:bg-pink-950/20 px-1 py-0.2 rounded font-black text-[9px]">
+                                  {r.sportCollectifRole}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
-                        {/* Remove participant */}
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(r.id)}
-                          className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg transition active:scale-90 cursor-pointer"
-                          title="إلغاء التسجيل"
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
+                        {/* Action buttons (Edit & Remove) */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleStartEdit(r)}
+                            className="p-1.5 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 rounded-lg transition active:scale-90 cursor-pointer"
+                            title="تعديل بيانات المشاركة"
+                          >
+                            <span className="text-xs">✏️</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(r.id)}
+                            className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg transition active:scale-90 cursor-pointer"
+                            title="إلغاء التسجيل"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -847,44 +903,57 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
                     {maleList.map(r => (
                       <div 
                         key={r.id} 
-                        className="p-3 bg-white dark:bg-gray-900 rounded-xl border border-blue-100/80 dark:border-gray-700 shadow-2xs flex items-center justify-between gap-2 transition-colors hover:border-blue-300"
+                        className="p-3 bg-white dark:bg-gray-900 rounded-xl border border-blue-100/80 dark:border-gray-700 shadow-2xs flex items-center justify-between gap-3 transition-colors hover:border-blue-300"
                       >
-                        <div className="overflow-hidden space-y-1">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] font-mono px-1 rounded bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200/40 font-bold">
-                              #{r.numeroEleve}
-                            </span>
-                            <span className="font-bold text-xs text-gray-900 dark:text-white truncate">
-                              {r.nomEleve}
-                            </span>
-                            <span className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.1 rounded-sm border border-indigo-100 dark:border-indigo-900">
-                              {r.className}
-                            </span>
-                          </div>
-                          <div className="text-[10px] text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-bold">
-                            {r.dateNaissance && (
-                              <span className="flex items-center gap-0.5 font-mono font-black">
-                                <CalendarDaysIcon className="w-3 h-3 text-blue-500" />
-                                <span>{r.dateNaissance}</span>
+                        <div className="flex items-center gap-2.5 overflow-hidden">
+                          <StudentAvatar photoUrl={r.photoUrl} nomEleve={r.nomEleve} sexe={r.sexe} size="sm" />
+                          <div className="overflow-hidden space-y-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] font-mono px-1 rounded bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200/40 font-bold">
+                                #{r.numeroEleve}
                               </span>
-                            )}
-                            {r.sportCollectifRole && (
-                              <span className="text-blue-600 dark:text-blue-400 bg-blue-100/40 dark:bg-blue-950/20 px-1 py-0.2 rounded font-black text-[9px]">
-                                {r.sportCollectifRole}
+                              <span className="font-bold text-xs text-gray-900 dark:text-white truncate">
+                                {r.nomEleve}
                               </span>
-                            )}
+                              <span className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.1 rounded-sm border border-indigo-100 dark:border-indigo-900">
+                                {r.className}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-bold">
+                              {r.dateNaissance && (
+                                <span className="flex items-center gap-0.5 font-mono font-black">
+                                  <CalendarDaysIcon className="w-3 h-3 text-blue-500" />
+                                  <span>{r.dateNaissance}</span>
+                                </span>
+                              )}
+                              {r.sportCollectifRole && (
+                                <span className="text-blue-600 dark:text-blue-400 bg-blue-100/40 dark:bg-blue-950/20 px-1 py-0.2 rounded font-black text-[9px]">
+                                  {r.sportCollectifRole}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
-                        {/* Remove participant */}
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(r.id)}
-                          className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg transition active:scale-90 cursor-pointer"
-                          title="إلغاء التسجيل"
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
+                        {/* Action buttons (Edit & Remove) */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleStartEdit(r)}
+                            className="p-1.5 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 rounded-lg transition active:scale-90 cursor-pointer"
+                            title="تعديل بيانات المشاركة"
+                          >
+                            <span className="text-xs">✏️</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(r.id)}
+                            className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg transition active:scale-90 cursor-pointer"
+                            title="إلغاء التسجيل"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
