@@ -280,10 +280,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               type="button"
               onClick={() => setIsAuthModalOpen(true)}
-              className="w-full p-2 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-750 border border-gray-200 dark:border-gray-700/80 transition text-right flex items-center gap-2.5"
+              className="w-full p-2 rounded-xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-750 border border-gray-200 dark:border-gray-700/80 transition text-right flex items-center gap-2.5 cursor-pointer"
             >
               <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0">
-                {currentUser && !currentUser.isAnonymous && currentUser.email ? (
+                {localStorage.getItem('eps_passkey_auth') === 'Hamani2026' ? (
+                  '🔑'
+                ) : currentUser && !currentUser.isAnonymous && currentUser.email ? (
                   (currentUser.displayName?.[0] || currentUser.email?.[0] || 'U').toUpperCase()
                 ) : (
                   <UserCircleIcon className="w-5 h-5 text-white" />
@@ -291,15 +293,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1">
-                  <span className={`w-1.5 h-1.5 rounded-full ${currentUser && !currentUser.isAnonymous ? 'bg-emerald-500' : 'bg-gray-400'}`}></span>
+                  <span className={`w-1.5 h-1.5 rounded-full ${localStorage.getItem('eps_passkey_auth') === 'Hamani2026' ? 'bg-amber-500' : currentUser && !currentUser.isAnonymous ? 'bg-emerald-500' : 'bg-gray-400'}`}></span>
                   <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400">
-                    {currentUser && !currentUser.isAnonymous ? 'حساب متصل' : 'دخول بالبريد'}
+                    {localStorage.getItem('eps_passkey_auth') === 'Hamani2026' ? 'أستاذ المادة' : currentUser && !currentUser.isAnonymous ? 'حساب متصل' : 'دخول بالبريد'}
                   </span>
                 </div>
                 <div className="text-xs font-bold text-gray-900 dark:text-white truncate">
-                  {currentUser && !currentUser.isAnonymous && currentUser.email 
-                    ? currentUser.email 
-                    : (language === 'ar' ? 'تسجيل الدخول' : 'Connexion')}
+                  {localStorage.getItem('eps_passkey_auth') === 'Hamani2026' 
+                    ? 'Hamani2026'
+                    : currentUser && !currentUser.isAnonymous && currentUser.email 
+                      ? currentUser.email 
+                      : (language === 'ar' ? 'تسجيل الدخول' : 'Connexion')}
                 </div>
               </div>
             </button>

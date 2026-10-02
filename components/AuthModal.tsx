@@ -138,10 +138,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const handleSignOut = async () => {
     setLoading(true);
     try {
+      localStorage.removeItem('eps_passkey_auth');
       await signOutTeacher();
       setSuccessMsg(language === 'ar' ? 'تم تسجيل الخروج بنجاح.' : 'Déconnexion réussie.');
       setTimeout(() => {
         onClose();
+        window.location.reload();
       }, 1000);
     } catch (err: any) {
       setErrorMsg(err.message || 'تعذر تسجيل الخروج.');
@@ -238,7 +240,53 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           )}
 
           {/* Already logged in view */}
-          {isRealUser ? (
+          {localStorage.getItem('eps_passkey_auth') === 'Hamani2026' ? (
+            <div className="space-y-4 py-2">
+              <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900/60 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white font-black text-lg flex items-center justify-center shadow-md shadow-amber-500/20">
+                  <span>🔑</span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
+                      {language === 'ar' ? 'متصل بقن المادة' : 'Connecté via Passkey'}
+                    </span>
+                  </div>
+                  <h4 className="font-black text-sm text-gray-900 dark:text-white truncate">
+                    {language === 'ar' ? 'أستاذ المادة الرياضية' : 'Enseignant EPS'}
+                  </h4>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate">
+                    Passkey: Hamani2026
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-gray-850 border border-gray-100 dark:border-gray-700/60 text-xs text-gray-600 dark:text-gray-300 space-y-1 leading-relaxed">
+                <p className="font-bold text-gray-800 dark:text-gray-200">
+                  {language === 'ar' ? '💡 وضعية أستاذ المادة:' : '💡 Mode Enseignant principal :'}
+                </p>
+                <p>
+                  {language === 'ar'
+                    ? 'أنت تعمل حالياً بالهوية المشتركة لأساتذة المادة. يتم حفظ ومزامنة البيانات مع المؤسسة.'
+                    : 'Vous travaillez avec l\'identité des enseignants EPS.'}
+                </p>
+              </div>
+
+              <div className="pt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    localStorage.removeItem('eps_passkey_auth');
+                    window.location.reload();
+                  }}
+                  className="w-full py-2.5 px-4 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 hover:bg-rose-100 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <span>{language === 'ar' ? 'تسجيل الخروج من المنصة' : 'Se déconnecter'}</span>
+                </button>
+              </div>
+            </div>
+          ) : isRealUser ? (
             <div className="space-y-4 py-2">
               <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/60 flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white font-black text-lg flex items-center justify-center shadow-md shadow-indigo-600/20">

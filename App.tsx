@@ -14,8 +14,9 @@ import { SettingsScreen } from './screens/SettingsScreen';
 import { ChampionshipsScreen } from './screens/ChampionshipsScreen';
 import { LanguageProvider, useLanguage } from './utils/i18n';
 import { getAllClasses } from './utils/db';
-import { syncCloudToLocalDB, syncLocalToCloudDB, listenToCloudClasses } from './utils/firebase';
+import { syncCloudToLocalDB, syncLocalToCloudDB, listenToCloudClasses, subscribeToAuthChanges } from './utils/firebase';
 import { OfflineIndicator } from './components/OfflineIndicator';
+import { LoginScreen } from './components/LoginScreen';
 
 const MainLayout: React.FC = () => {
   const [activeScreen, setActiveScreen] = useState<ActiveScreen>('classes');
@@ -241,6 +242,47 @@ const MainLayout: React.FC = () => {
 };
 
 const App: React.FC = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    const passkey = localStorage.getItem('eps_passkey_auth');
+    return passkey === 'Hamani2026';
+  });
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToAuthChanges((user) => {
+      const passkey = localStorage.getItem('eps_passkey_auth');
+      if (passkey === 'Hamani2026') {
+        setIsAuthenticated(true);
+      } else if (user && !user.isAnonymous && user.email) {
+        setIsAuthenticated(true);
+      } else {
+        setIsAuthenticated(false);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 transition-colors">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin"></div>
+          <span className="text-xs font-black text-gray-500 dark:text-gray-400">جاري تحميل المنصة...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <LanguageProvider>
+        <LoginScreen onLoginSuccess={() => setIsAuthenticated(true)} />
+      </LanguageProvider>
+    );
+  }
+
   return (
     <LanguageProvider>
       <MainLayout />

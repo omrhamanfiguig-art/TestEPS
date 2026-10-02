@@ -347,57 +347,63 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
       </div>
 
       {/* Bulk Scoring & Filter Bar */}
-      <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 flex flex-col lg:flex-row items-center justify-between gap-4">
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 flex flex-col xl:flex-row items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
                 <div className="relative w-full sm:w-64">
                     <input 
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="بحث باسم التلميذ..."
-                        className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
+                        className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-xs focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
                     />
-                    <MagnifyingGlassIcon className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                    <MagnifyingGlassIcon className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
                 </div>
-                <div className="hidden sm:flex items-center gap-4 text-[10px] font-bold text-gray-400 uppercase">
-                    <div className="flex items-center gap-1"><RunningManIcon className="w-3 h-3 text-indigo-500"/> ألعاب قوى</div>
-                    <div className="flex items-center gap-1"><UserGroupIcon className="w-3 h-3 text-orange-500"/> رياضة جماعية</div>
+                <div className="flex items-center gap-4 text-[10px] font-bold text-gray-400 uppercase w-full justify-center sm:justify-start">
+                    <div className="flex items-center gap-1"><RunningManIcon className="w-3.5 h-3.5 text-indigo-500"/> ألعاب قوى</div>
+                    <div className="flex items-center gap-1"><UserGroupIcon className="w-3.5 h-3.5 text-orange-500"/> رياضة جماعية</div>
                 </div>
             </div>
 
-            {/* Bulk Action UI */}
-            <div className="flex items-center gap-2 bg-indigo-50/50 dark:bg-indigo-900/10 p-2 rounded-2xl border border-indigo-100 dark:border-indigo-800/40 w-full lg:w-auto">
-                <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 whitespace-nowrap px-1">نقطة موحدة:</span>
-                <select 
-                    value={bulkComponent}
-                    onChange={(e) => setBulkComponent(e.target.value as any)}
-                    className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1 text-[10px] font-bold focus:ring-1 focus:ring-indigo-500"
-                >
-                    <option value="motrice">حركي</option>
-                    <option value="comportement">سلوكي</option>
-                    <option value="cognitive">معرفي</option>
-                </select>
-                <input 
-                    type="number"
-                    step="0.25"
-                    placeholder="نقطة"
-                    value={bulkValue}
-                    onChange={(e) => setBulkValue(e.target.value)}
-                    className="w-16 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1 text-[10px] font-bold focus:ring-1 focus:ring-indigo-500"
-                />
-                <button 
-                    onClick={handleApplyBulkScore}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-lg text-[10px] font-black shadow-sm transition-all active:scale-95"
-                >
-                    تطبيق على الكل
-                </button>
-                <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
+            {/* Bulk Action UI - Responsive layout */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-indigo-50/50 dark:bg-indigo-900/10 p-2 rounded-2xl border border-indigo-100 dark:border-indigo-800/40 w-full xl:w-auto">
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-between w-full sm:w-auto">
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 whitespace-nowrap">نقطة موحدة:</span>
+                        <select 
+                            value={bulkComponent}
+                            onChange={(e) => setBulkComponent(e.target.value as any)}
+                            className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1 text-[10px] font-bold focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                        >
+                            <option value="motrice">حركي</option>
+                            <option value="comportement">سلوكي</option>
+                            <option value="cognitive">معرفي</option>
+                        </select>
+                        <input 
+                            type="number"
+                            step="0.25"
+                            placeholder="نقطة"
+                            value={bulkValue}
+                            onChange={(e) => setBulkValue(e.target.value)}
+                            className="w-16 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1 text-[10px] font-bold focus:ring-1 focus:ring-indigo-500"
+                        />
+                    </div>
+                    <button 
+                        onClick={handleApplyBulkScore}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-lg text-[10px] font-black shadow-sm transition-all active:scale-95 shrink-0 whitespace-nowrap cursor-pointer"
+                    >
+                        تطبيق على الكل
+                    </button>
+                </div>
+
+                <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1 shrink-0"></div>
+
                 <button 
                     onClick={handleAutoCalculateBehavior}
-                    className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1 rounded-lg text-[10px] font-black shadow-sm transition-all active:scale-95 flex items-center gap-1.5"
+                    className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 sm:py-1.5 rounded-lg text-[10px] font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer"
                     title="حساب نقط السلوك تلقائياً من سجل الغياب"
                 >
-                    <SparklesIcon className="w-3 h-3" />
+                    <SparklesIcon className="w-3.5 h-3.5 shrink-0" />
                     <span>حساب السلوك آلياً</span>
                 </button>
             </div>
