@@ -32,6 +32,11 @@ import {
   exportClassAttendanceCumulativeToExcel,
   exportAllSessionsSportsActivityToExcel
 } from '../utils/excelHelper';
+import { 
+  getTeacherProfiles, 
+  getTeacherForClass, 
+  TeacherProfile 
+} from '../utils/teacherHelper';
 import { useSportsList } from '../utils/SportsConstants';
 import { useLanguage } from '../utils/i18n';
 
@@ -42,14 +47,31 @@ interface AttendanceScreenProps {
 }
 
 const COMMON_TIME_SLOTS = [
+  "08:00 - 09:00",
+  "09:00 - 10:00",
+  "10:00 - 11:00",
+  "11:00 - 12:00",
+  "14:00 - 15:00",
+  "15:00 - 16:00",
+  "16:00 - 17:00",
+  "17:00 - 18:00",
   "08:30 - 10:30",
   "10:30 - 12:30",
   "14:30 - 16:30",
-  "16:30 - 18:30",
-  "08:00 - 10:00",
-  "10:00 - 12:00",
-  "14:00 - 16:00",
-  "16:00 - 18:00"
+  "16:30 - 18:30"
+];
+
+const SESSIONS_10 = [
+  "الحصة 1",
+  "الحصة 2",
+  "الحصة 3",
+  "الحصة 4",
+  "الحصة 5",
+  "الحصة 6",
+  "الحصة 7",
+  "الحصة 8",
+  "الحصة 9",
+  "الحصة 10"
 ];
 
 const COMMON_TOPICS = [
@@ -81,7 +103,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
   // Current Session Config
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   const [date, setDate] = useState<string>(initialDate || todayStr);
-  const [timeSlot, setTimeSlot] = useState<string>("08:30 - 10:30");
+  const [timeSlot, setTimeSlot] = useState<string>("08:00 - 09:00");
   const [topic, setTopic] = useState<string>("ألعاب القوى والتربية البدنية");
   const [sessionNumber, setSessionNumber] = useState<string>("الحصة 1");
   const [sessionId, setSessionId] = useState<string>(() => `${Date.now()}`);
@@ -109,7 +131,21 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | AttendanceStatus>('all');
   const [levelFilter, setLevelFilter] = useState<string>('ALL');
-  
+  const [teacherFilter, setTeacherFilter] = useState<string>('ALL');
+  const [teacherProfiles, setTeacherProfiles] = useState<TeacherProfile[]>(() => getTeacherProfiles());
+
+  useEffect(() => {
+    const handleTeachersUpdate = () => {
+      setTeacherProfiles(getTeacherProfiles());
+    };
+    window.addEventListener('teachersUpdated', handleTeachersUpdate);
+    window.addEventListener('dbUpdated', handleTeachersUpdate);
+    return () => {
+      window.removeEventListener('teachersUpdated', handleTeachersUpdate);
+      window.removeEventListener('dbUpdated', handleTeachersUpdate);
+    };
+  }, []);
+
   // Student Add / Edit Modal State
   const [isAddEditStudentOpen, setIsAddEditStudentOpen] = useState(false);
   const [studentToEdit, setStudentToEdit] = useState<StudentIdentity | null>(null);
@@ -129,9 +165,26 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
   }, [classList]);
 
   const filteredClassList = useMemo(() => {
-    if (levelFilter === 'ALL') return classList;
-    return classList.filter(c => c.className.toUpperCase().startsWith(levelFilter));
-  }, [classList, levelFilter]);
+    return classList.filter(c => {
+      if (levelFilter !== 'ALL' && !c.className.toUpperCase().startsWith(levelFilter)) {
+        return false;
+      }
+      if (teacherFilter !== 'ALL') {
+        const assignedTeacher = getTeacherForClass(c.className);
+        if (assignedTeacher !== teacherFilter) return false;
+      }
+      return true;
+    });
+  }, [classList, levelFilter, teacherFilter]);
+
+  useEffect(() => {
+    if (filteredClassList.length > 0) {
+      const isCurrentInFiltered = filteredClassList.some(c => c.className === selectedClass);
+      if (!isCurrentInFiltered) {
+        setSelectedClass(filteredClassList[0].className);
+      }
+    }
+  }, [filteredClassList, selectedClass, setSelectedClass]);
 
   const handleDeleteStudent = async (studentNum: string, studentName: string) => {
     if (confirm(`هل أنت متأكد من مسح التلميذ(ة) «${studentName}» من لائحة هذا القسم؟`)) {
@@ -182,9 +235,9 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
     const existing = sessions.find(s => s.date === date && s.className === className);
     if (existing) {
       setSessionId(existing.id);
-      setTimeSlot(existing.timeSlot || "08:30 - 10:30");
+      setTimeSlot(existing.timeSlot || "08:00 - 09:00");
       setTopic(existing.topic || "ألعاب القوى والتربية البدنية");
-      setSessionNumber(existing.sessionNumber || `الحصة ${sessions.length + 1}`);
+      setSessionNumber(existing.sessionNumber || "الحصة 1");
       const recMap: Record<string, AttendanceRecord> = {};
       (existing.records || []).forEach(r => {
         recMap[r.studentNumber] = r;
@@ -200,7 +253,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
       // New session: default all students to present
       const freshId = `sess_${className.replace(/\s+/g, '_')}_${date}_${Date.now()}`;
       setSessionId(freshId);
-      setSessionNumber(`الحصة ${sessions.length + 1}`);
+      if (!sessionNumber) setSessionNumber("الحصة 1");
       const freshMap: Record<string, AttendanceRecord> = {};
       stds.forEach(s => {
         freshMap[s.numeroEleve] = { studentNumber: s.numeroEleve, status: 'present' };
@@ -217,7 +270,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
       setSessionId(existing.id);
       setTimeSlot(existing.timeSlot);
       setTopic(existing.topic || '');
-      setSessionNumber(existing.sessionNumber || `الحصة ${previousSessions.length + 1}`);
+      setSessionNumber(existing.sessionNumber || "الحصة 1");
       const recMap: Record<string, AttendanceRecord> = {};
       existing.records.forEach(r => { recMap[r.studentNumber] = r; });
       students.forEach(s => {
@@ -229,12 +282,36 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
     } else {
       const freshId = `sess_${selectedClass.replace(/\s+/g, '_')}_${newDate}_${Date.now()}`;
       setSessionId(freshId);
-      setSessionNumber(`الحصة ${previousSessions.length + 1}`);
       const freshMap: Record<string, AttendanceRecord> = {};
       students.forEach(s => {
         freshMap[s.numeroEleve] = { studentNumber: s.numeroEleve, status: 'present' };
       });
       setRecords(freshMap);
+    }
+  };
+
+  // Change Session Number Handler
+  const handleSessionNumberChange = (newSessionNumber: string) => {
+    setSessionNumber(newSessionNumber);
+    const existing = previousSessions.find(
+      s => s.className === selectedClass && s.sessionNumber === newSessionNumber
+    );
+    if (existing) {
+      setSessionId(existing.id);
+      setDate(existing.date);
+      setTimeSlot(existing.timeSlot || "08:00 - 09:00");
+      if (existing.topic) setTopic(existing.topic);
+      const recMap: Record<string, AttendanceRecord> = {};
+      (existing.records || []).forEach(r => { recMap[r.studentNumber] = r; });
+      students.forEach(s => {
+        if (!recMap[s.numeroEleve]) {
+          recMap[s.numeroEleve] = { studentNumber: s.numeroEleve, status: 'present' };
+        }
+      });
+      setRecords(recMap);
+    } else {
+      const freshId = `sess_${selectedClass.replace(/\s+/g, '_')}_${newSessionNumber.replace(/\s+/g, '_')}_${date}_${Date.now()}`;
+      setSessionId(freshId);
     }
   };
 
@@ -378,13 +455,13 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
     }
   };
 
-  // Auto-save logic
+  // Auto-save logic (runs automatically 1s after any change)
   useEffect(() => {
-    if (Object.keys(records).length === 0) return;
+    if (Object.keys(records).length === 0 || !selectedClass) return;
     
     const timer = setTimeout(() => {
       handleSaveSession(true);
-    }, 3000);
+    }, 1000);
 
     return () => clearTimeout(timer);
   }, [records, date, timeSlot, topic, sessionNumber, selectedClass]);
@@ -523,8 +600,25 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
           </div>
         </div>
 
-        {/* Top Controls: Level, Class Select & Actions */}
-        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full lg:w-auto">
+        {/* Top Controls: Teacher, Level, Class Select & Side-by-Side Actions */}
+        <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5 w-full lg:w-auto">
+          {/* Teacher Filter Dropdown */}
+          {teacherProfiles.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600">
+              <span className="text-xs font-bold text-gray-500 dark:text-gray-400 ps-1.5">الأستاذ:</span>
+              <select
+                value={teacherFilter}
+                onChange={(e) => setTeacherFilter(e.target.value)}
+                className="bg-white dark:bg-gray-800 border-none font-bold text-xs text-gray-900 dark:text-white rounded-xl px-2.5 py-1.5 focus:ring-0 shadow-xs cursor-pointer w-full sm:w-auto"
+              >
+                <option value="ALL">جميع الأساتذة</option>
+                {teacherProfiles.map(tp => (
+                  <option key={tp.id} value={tp.name}>{tp.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Level Filter Dropdown */}
           {academicLevels.length > 0 && (
             <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600">
@@ -540,7 +634,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                     setSelectedClass(matchingClasses[0].className);
                   }
                 }}
-                className="bg-white dark:bg-gray-800 border-none font-bold text-xs text-gray-900 dark:text-white rounded-xl px-2.5 py-1.5 focus:ring-0 shadow-xs cursor-pointer"
+                className="bg-white dark:bg-gray-800 border-none font-bold text-xs text-gray-900 dark:text-white rounded-xl px-2.5 py-1.5 focus:ring-0 shadow-xs cursor-pointer w-full sm:w-auto"
               >
                 <option value="ALL">جميع المستويات</option>
                 {academicLevels.map(lvl => (
@@ -556,7 +650,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
             <select
               value={selectedClass}
               onChange={(e) => setSelectedClass(e.target.value)}
-              className="bg-white dark:bg-gray-800 border-none font-bold text-xs text-gray-900 dark:text-white rounded-xl px-2.5 py-1.5 focus:ring-0 shadow-xs cursor-pointer"
+              className="bg-white dark:bg-gray-800 border-none font-bold text-xs text-gray-900 dark:text-white rounded-xl px-2.5 py-1.5 focus:ring-0 shadow-xs cursor-pointer w-full sm:w-auto"
             >
               {filteredClassList.map(cls => (
                 <option key={cls.className} value={cls.className}>
@@ -566,40 +660,37 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
             </select>
           </div>
 
-          {/* Add Student Button */}
-          <button
-            type="button"
-            onClick={() => {
-              setStudentToEdit(null);
-              setIsAddEditStudentOpen(true);
-            }}
-            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs active:scale-95 transition cursor-pointer"
-            title="إضافة تلميذ جديد للقسم الحالية"
-          >
-            <UserPlusIcon className="w-4 h-4 shrink-0" />
-            <span>إضافة تلميذ</span>
-          </button>
+          {/* Side-by-side Action Buttons: Add Student & Roll Call */}
+          <div className="grid grid-cols-2 gap-2.5 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setStudentToEdit(null);
+                setIsAddEditStudentOpen(true);
+              }}
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-2xl text-xs font-black text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md shadow-emerald-600/20 active:scale-95 transition cursor-pointer"
+              title="إضافة تلميذ جديد للقسم الحالية"
+            >
+              <UserPlusIcon className="w-4 h-4 shrink-0" />
+              <span>إضافة تلميذ</span>
+            </button>
 
-          {/* Roll Call Launcher Button */}
-          <button
-            type="button"
-            onClick={startRollCall}
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-extrabold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-xs active:scale-95 transition cursor-pointer"
-            title="بدء المناداة السريعة تلميذاً تلو الآخر"
-          >
-            <span>📢</span>
-            <span>بدء المناداة</span>
-          </button>
+            <button
+              type="button"
+              onClick={startRollCall}
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-2xl text-xs font-black text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-md shadow-indigo-600/20 active:scale-95 transition cursor-pointer"
+              title="بدء المناداة السريعة تلميذاً تلو الآخر"
+            >
+              <span>📢</span>
+              <span>بدء المناداة</span>
+            </button>
+          </div>
 
-          {/* Save Button */}
-          <button
-            type="button"
-            onClick={() => handleSaveSession()}
-            className="col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-extrabold text-white bg-indigo-700 hover:bg-indigo-800 shadow-xs active:scale-95 transition cursor-pointer"
-          >
-            <CheckCircleIcon className="w-4 h-4 shrink-0" />
-            <span>حفظ الحصة</span>
-          </button>
+          {/* Auto-Save Indicator Badge (No Save Button) */}
+          <div className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 shadow-2xs w-full sm:w-auto text-center">
+            <CheckCircleIcon className={`w-4 h-4 text-emerald-500 ${isSaving ? 'animate-spin text-amber-500' : ''}`} />
+            <span>{isSaving ? 'جاري الحفظ...' : 'حفظ تلقائي مفعّل ✓'}</span>
+          </div>
         </div>
       </div>
 
@@ -612,13 +703,20 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
               <span>🔢</span>
               <span>رقم الحصة:</span>
             </label>
-            <input
-              type="text"
+            <select
               value={sessionNumber}
-              onChange={(e) => setSessionNumber(e.target.value)}
-              placeholder="مثال: الحصة 1"
-              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
-            />
+              onChange={(e) => handleSessionNumberChange(e.target.value)}
+              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+            >
+              {SESSIONS_10.map(sNum => (
+                <option key={sNum} value={sNum}>
+                  {sNum}
+                </option>
+              ))}
+              {!SESSIONS_10.includes(sessionNumber) && sessionNumber && (
+                <option value={sessionNumber}>{sessionNumber}</option>
+              )}
+            </select>
           </div>
 
           {/* Date Picker */}
@@ -641,21 +739,20 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
               <ClockIcon className="w-4 h-4 text-indigo-500" />
               <span>توقيت الحصة:</span>
             </label>
-            <div className="relative">
-              <input
-                type="text"
-                list="time-slots-list"
-                value={timeSlot}
-                onChange={(e) => setTimeSlot(e.target.value)}
-                placeholder="مثال: 08:30 - 10:30"
-                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
-              />
-              <datalist id="time-slots-list">
-                {COMMON_TIME_SLOTS.map(slot => (
-                  <option key={slot} value={slot} />
-                ))}
-              </datalist>
-            </div>
+            <select
+              value={timeSlot}
+              onChange={(e) => setTimeSlot(e.target.value)}
+              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+            >
+              {COMMON_TIME_SLOTS.map(slot => (
+                <option key={slot} value={slot}>
+                  {slot}
+                </option>
+              ))}
+              {!COMMON_TIME_SLOTS.includes(timeSlot) && timeSlot && (
+                <option value={timeSlot}>{timeSlot}</option>
+              )}
+            </select>
           </div>
 
           {/* Session Topic / Sport activity with manage button */}
@@ -1593,10 +1690,25 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
           className={selectedClass}
           studentToEdit={studentToEdit}
           existingStudentsCount={students.length}
-          onSuccess={() => {
-            loadClassData(selectedClass);
+          onSuccess={async (newStudent) => {
+            const freshStudents = await getStudentList(selectedClass);
+            setStudents(freshStudents);
+            
+            // Ensure newly added student gets default present status in records map
+            setRecords(prev => {
+              const updatedRecords = { ...prev };
+              freshStudents.forEach(s => {
+                if (!updatedRecords[s.numeroEleve]) {
+                  updatedRecords[s.numeroEleve] = { studentNumber: s.numeroEleve, status: 'present' };
+                }
+              });
+              return updatedRecords;
+            });
+
             setNotification({
-              message: studentToEdit ? `تم تحديث بيانات التلميذ بنجاح.` : `تمت إضافة التلميذ بنجاح.`,
+              message: studentToEdit 
+                ? `تم تحديث بيانات التلميذ بنجاح.` 
+                : `تمت إضافة التلميذ ${newStudent?.nomEleve || ''} للائحة بنجاح!`,
               type: 'success'
             });
           }}
