@@ -9,7 +9,8 @@ import {
   collection, 
   Firestore,
   onSnapshot,
-  Unsubscribe
+  Unsubscribe,
+  enableIndexedDbPersistence
 } from 'firebase/firestore';
 import { 
   getAuth, 
@@ -35,6 +36,11 @@ import {
   getVmaResults,
   wipeAllLocalData
 } from './db';
+import { 
+  mergePhysicalTests,
+  mergeStudentResults,
+  mergeStudentLists
+} from './mergeHelpers';
 
 // Initialize Firebase App
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -43,6 +49,19 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const db: Firestore = firebaseConfig.firestoreDatabaseId
   ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
   : getFirestore(app);
+
+// Enable offline persistence in Firestore
+try {
+  enableIndexedDbPersistence(db).catch((err) => {
+    if (err.code === 'failed-precondition') {
+      console.warn('Multiple tabs open, offline persistence enabled in main tab.');
+    } else if (err.code === 'unimplemented') {
+      console.warn('Current browser does not support offline persistence.');
+    }
+  });
+} catch (e) {
+  // Silent catch
+}
 
 // Initialize Auth with anonymous fallback
 export const auth = getAuth(app);
@@ -133,10 +152,24 @@ export const saveClassToCloud = async (
       return item;
     });
 
+    // Merge with existing remote roster if available
+    let remoteStudents: StudentIdentity[] = [];
+    try {
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const d = snap.data();
+        if (Array.isArray(d.students)) remoteStudents = d.students;
+      }
+    } catch {
+      // offline fallback
+    }
+
+    const mergedStudents = mergeStudentLists(remoteStudents, rawStudents as StudentIdentity[]);
+
     const data = sanitizeForFirestore({
       className: className.trim(),
-      studentCount: rawStudents.length,
-      students: rawStudents,
+      studentCount: mergedStudents.length,
+      students: mergedStudents,
       ownerEmail: authorEmail,
       ownerUid: authorUid,
       updatedAt: new Date().toISOString(),
@@ -147,10 +180,9 @@ export const saveClassToCloud = async (
     await setDoc(docRef, data, { merge: true });
     return { success: true };
   } catch (err: any) {
-    // Check if offline/unavailable
     if (err?.code === 'unavailable' || err?.message?.includes('offline') || err?.message?.includes('unavailable')) {
       console.info('Firestore is operating in offline mode. Changes will sync when network is restored.');
-      return { success: true }; // Queued in offline cache
+      return { success: true };
     }
     console.error('Error saving class to cloud:', err);
     return { success: false, error: err.message || 'حدث خطأ أثناء الحفظ في قاعدة البيانات السحابية.' };
@@ -172,20 +204,34 @@ export const savePhysicalTestsToCloud = async (
     const user = auth.currentUser;
     const authorEmail = user?.email || null;
 
+    // Fetch existing remote results if available to merge across devices
+    let remoteResults: PhysicalTests[] = [];
+    try {
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const d = snap.data();
+        if (Array.isArray(d.results)) remoteResults = d.results;
+      }
+    } catch {
+      // offline fallback
+    }
+
+    const mergedResults = mergePhysicalTests(remoteResults, results || []);
+
     const payload = sanitizeForFirestore({
       className: className.trim(),
-      results: results || [],
+      results: mergedResults,
       ownerEmail: authorEmail,
       updatedAt: new Date().toISOString()
     });
 
     await setDoc(docRef, payload, { merge: true });
 
-    // Also update class master document with physical tests & measurements
+    // Also update class master document with physical tests
     const classDocRef = doc(db, 'classes', docId);
     await setDoc(classDocRef, {
       className: className.trim(),
-      physicalTests: sanitizeForFirestore(results || []),
+      physicalTests: sanitizeForFirestore(mergedResults),
       ownerEmail: authorEmail,
       updatedAt: new Date().toISOString()
     }, { merge: true }).catch(() => {});
@@ -215,9 +261,23 @@ export const saveVmaResultsToCloud = async (
     const user = auth.currentUser;
     const authorEmail = user?.email || null;
 
+    // Fetch existing remote results if available to merge across devices
+    let remoteResults: StudentResult[] = [];
+    try {
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const d = snap.data();
+        if (Array.isArray(d.results)) remoteResults = d.results;
+      }
+    } catch {
+      // offline fallback
+    }
+
+    const mergedResults = mergeStudentResults(remoteResults, results || []);
+
     const payload = sanitizeForFirestore({
       className: className.trim(),
-      results: results || [],
+      results: mergedResults,
       ownerEmail: authorEmail,
       updatedAt: new Date().toISOString()
     });
@@ -228,7 +288,7 @@ export const saveVmaResultsToCloud = async (
     const classDocRef = doc(db, 'classes', docId);
     await setDoc(classDocRef, {
       className: className.trim(),
-      vmaResults: sanitizeForFirestore(results || []),
+      vmaResults: sanitizeForFirestore(mergedResults),
       ownerEmail: authorEmail,
       updatedAt: new Date().toISOString()
     }, { merge: true }).catch(() => {});
@@ -298,7 +358,7 @@ export const syncCloudToLocalDB = async (): Promise<{ success: boolean; classCou
     let totalStudents = 0;
     for (const c of cloudClasses) {
       if (c.className && Array.isArray(c.students)) {
-        await saveStudentList(c.className, c.students, { skipCloudSync: true });
+        await saveStudentList(c.className, c.students, { skipCloudSync: true, preserveExisting: true });
         totalStudents += c.students.length;
       }
     }
@@ -309,7 +369,7 @@ export const syncCloudToLocalDB = async (): Promise<{ success: boolean; classCou
       for (const docSnap of ptSnap.docs) {
         const data = docSnap.data();
         if (data && data.className && Array.isArray(data.results)) {
-          await savePhysicalTests(data.className, data.results, { skipCloudSync: true });
+          await savePhysicalTests(data.className, data.results, { skipCloudSync: true, preserveExisting: true });
         }
       }
     } catch (e) {
@@ -322,7 +382,7 @@ export const syncCloudToLocalDB = async (): Promise<{ success: boolean; classCou
       for (const docSnap of vmaSnap.docs) {
         const data = docSnap.data();
         if (data && data.className && Array.isArray(data.results)) {
-          await saveVmaResults(data.className, data.results, { skipCloudSync: true });
+          await saveVmaResults(data.className, data.results, { skipCloudSync: true, preserveExisting: true });
         }
       }
     } catch (e) {
@@ -425,15 +485,15 @@ export const listenToCloudClasses = (onClassUpdate?: () => void): Unsubscribe =>
           const data = change.doc.data() as any;
           if (data && data.className) {
             if (Array.isArray(data.students)) {
-              await saveStudentList(data.className, data.students, { skipCloudSync: true });
+              await saveStudentList(data.className, data.students, { skipCloudSync: true, preserveExisting: true });
               hasChanges = true;
             }
             if (Array.isArray(data.physicalTests)) {
-              await savePhysicalTests(data.className, data.physicalTests, { skipCloudSync: true });
+              await savePhysicalTests(data.className, data.physicalTests, { skipCloudSync: true, preserveExisting: true });
               hasChanges = true;
             }
             if (Array.isArray(data.vmaResults)) {
-              await saveVmaResults(data.className, data.vmaResults, { skipCloudSync: true });
+              await saveVmaResults(data.className, data.vmaResults, { skipCloudSync: true, preserveExisting: true });
               hasChanges = true;
             }
           }

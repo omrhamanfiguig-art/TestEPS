@@ -3,6 +3,11 @@
 import type { StudentIdentity, StudentResult, EnduranceResult, PhysicalTests, AttendanceSession } from '../types';
 import { isForbiddenStudentName } from './excelHelper';
 import { 
+  mergePhysicalTests,
+  mergeStudentResults,
+  mergeStudentLists
+} from './mergeHelpers';
+import { 
   saveClassToCloud, 
   savePhysicalTestsToCloud, 
   saveVmaResultsToCloud, 
@@ -11,6 +16,8 @@ import {
   deleteAttendanceSessionFromCloud,
   fetchAttendanceSessionsFromCloud
 } from './firebase';
+
+export { mergePhysicalTests, mergeStudentResults, mergeStudentLists };
 
 const DB_NAME = 'epsAppDB';
 const DB_VERSION = 3; // Incremented version for attendance store
@@ -130,13 +137,20 @@ const getData = async <T>(storeName: string, className: string): Promise<T[]> =>
 export const saveStudentList = async (
   className: string, 
   students: StudentIdentity[], 
-  options?: { skipCloudSync?: boolean }
+  options?: { skipCloudSync?: boolean; preserveExisting?: boolean }
 ) => {
     const db = await initDB();
     const cleanStudents = (students || []).filter(s => s && s.nomEleve && !isForbiddenStudentName(s.nomEleve) && !isForbiddenStudentName(s.numeroEleve));
+    
+    let finalStudents = cleanStudents;
+    if (options?.preserveExisting) {
+      const existing = await getStudentList(className);
+      finalStudents = mergeStudentLists(existing, cleanStudents);
+    }
+
     const tx = db.transaction(STUDENTS_STORE, 'readwrite');
     const store = tx.objectStore(STUDENTS_STORE);
-    store.put({ className, students: cleanStudents });
+    store.put({ className, students: finalStudents });
 
     await new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve();
@@ -145,7 +159,7 @@ export const saveStudentList = async (
 
     // Automatically sync to cloud database so all teachers have access
     if (!options?.skipCloudSync) {
-      await saveClassToCloud(className, cleanStudents).catch(err => {
+      await saveClassToCloud(className, finalStudents).catch(err => {
         console.warn('Background cloud sync notice:', err);
       });
     }
@@ -162,7 +176,7 @@ export const getStudentList = async (className: string): Promise<StudentIdentity
           const rawStudents: StudentIdentity[] = request.result?.students || [];
           const cleanStudents = rawStudents.filter(s => s && s.nomEleve && !isForbiddenStudentName(s.nomEleve) && !isForbiddenStudentName(s.numeroEleve));
           if (rawStudents.length !== cleanStudents.length) {
-            saveStudentList(className, cleanStudents).catch(() => {});
+            saveStudentList(className, cleanStudents, { skipCloudSync: true }).catch(() => {});
           }
           resolve(cleanStudents);
         };
@@ -177,11 +191,16 @@ export const getStudentList = async (className: string): Promise<StudentIdentity
 export const saveVmaResults = async (
   className: string, 
   results: StudentResult[], 
-  options?: { skipCloudSync?: boolean }
+  options?: { skipCloudSync?: boolean; preserveExisting?: boolean }
 ) => {
-    await saveData(VMA_STORE, className, results);
+    let finalResults = results || [];
+    if (options?.preserveExisting && results && results.length > 0) {
+      const existing = await getVmaResults(className);
+      finalResults = mergeStudentResults(existing, results);
+    }
+    await saveData(VMA_STORE, className, finalResults);
     if (!options?.skipCloudSync) {
-      await saveVmaResultsToCloud(className, results || []).catch(() => {});
+      await saveVmaResultsToCloud(className, finalResults).catch(() => {});
     }
 };
 export const getVmaResults = async (className: string): Promise<StudentResult[]> => {
@@ -201,11 +220,16 @@ export const getEnduranceResults = (className: string): Promise<EnduranceResult[
 export const savePhysicalTests = async (
   className: string, 
   results: PhysicalTests[], 
-  options?: { skipCloudSync?: boolean }
+  options?: { skipCloudSync?: boolean; preserveExisting?: boolean }
 ) => {
-    await saveData(PHYSICAL_TESTS_STORE, className, results);
+    let finalResults = results || [];
+    if (options?.preserveExisting && results && results.length > 0) {
+      const existing = await getPhysicalTests(className);
+      finalResults = mergePhysicalTests(existing, results);
+    }
+    await saveData(PHYSICAL_TESTS_STORE, className, finalResults);
     if (!options?.skipCloudSync) {
-      await savePhysicalTestsToCloud(className, results || []).catch(() => {});
+      await savePhysicalTestsToCloud(className, finalResults).catch(() => {});
     }
 };
 export const getPhysicalTests = async (className: string): Promise<PhysicalTests[]> => {

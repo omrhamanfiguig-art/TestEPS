@@ -15,6 +15,7 @@ export interface StudentIdentity {
   nomEleve: string;
   sexe?: 'M' | 'F';
   photoUrl?: string; // base64 or URL
+  orderIndex?: number;
 }
 
 export interface StudentResult {

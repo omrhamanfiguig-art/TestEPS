@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar, ActiveScreen } from './components/Sidebar';
 import { TopHeader } from './components/TopHeader';
 import { PhysicalTestsScreen } from './screens/PhysicalTestsScreen';
@@ -18,7 +18,29 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 
 const MainLayout: React.FC = () => {
   const [activeScreen, setActiveScreen] = useState<ActiveScreen>('classes');
-  const [selectedClass, setSelectedClass] = useState<string>('Classe 1');
+  
+  // Persist selectedClass in localStorage so the user's choice is remembered across refreshes and syncs
+  const [selectedClass, setSelectedClassState] = useState<string>(() => {
+    return localStorage.getItem('eps_selected_class') || '';
+  });
+
+  const selectedClassRef = useRef<string>(selectedClass);
+
+  const setSelectedClass = (clsName: string) => {
+    setSelectedClassState(clsName);
+    selectedClassRef.current = clsName;
+    if (clsName) {
+      localStorage.setItem('eps_selected_class', clsName);
+    }
+  };
+
+  useEffect(() => {
+    selectedClassRef.current = selectedClass;
+    if (selectedClass) {
+      localStorage.setItem('eps_selected_class', selectedClass);
+    }
+  }, [selectedClass]);
+
   const [groupSize, setGroupSize] = useState<number>(8); // For affinity groups
   const [sessionDate, setSessionDate] = useState<string>(''); // Empty string means "now"
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
@@ -26,44 +48,51 @@ const MainLayout: React.FC = () => {
   const { t } = useLanguage();
 
   useEffect(() => {
-    const initClass = async () => {
+    // Helper to ensure current selected class is valid without overwriting if it exists
+    const ensureValidClassSelection = async () => {
       try {
-        // 1. Initial local load
         const classes = await getAllClasses();
-        if (classes.length > 0 && selectedClass === 'Classe 1') {
+        if (classes.length === 0) return;
+
+        const currentSelected = selectedClassRef.current;
+        const exists = classes.some(c => c.className === currentSelected);
+
+        // Only select default if there is no selected class or the selected class no longer exists
+        if (!currentSelected || !exists) {
           setSelectedClass(classes[0].className);
         }
-
-        // 2. Background sync from cloud to get rosters imported by any teacher
-        syncCloudToLocalDB().then(async (res) => {
-          if (res.success && res.classCount > 0) {
-            const updatedClasses = await getAllClasses();
-            if (updatedClasses.length > 0 && selectedClass === 'Classe 1') {
-              setSelectedClass(updatedClasses[0].className);
-            }
-          } else if (classes.length > 0) {
-            // Push local to cloud if cloud was empty
-            syncLocalToCloudDB().catch(() => {});
-          }
-        }).catch((err) => {
-          console.warn('Initial cloud sync notice:', err);
-        });
       } catch (err) {
-        console.error('Failed to init class', err);
+        console.error('Failed to ensure valid class selection:', err);
       }
     };
-    initClass();
+
+    // 1. Initial local load
+    ensureValidClassSelection();
+
+    // 2. Background sync from cloud to get rosters imported by any teacher
+    syncCloudToLocalDB().then(async (res) => {
+      if (res.success && res.classCount > 0) {
+        await ensureValidClassSelection();
+      } else {
+        const classes = await getAllClasses();
+        if (classes.length > 0) {
+          // Push local to cloud if cloud was empty
+          syncLocalToCloudDB().catch(() => {});
+        }
+      }
+    }).catch((err) => {
+      console.warn('Initial cloud sync notice:', err);
+    });
 
     // 3. Listen for real-time cloud updates from other teachers
     const unsubscribe = listenToCloudClasses(async () => {
-      const classes = await getAllClasses();
-      if (classes.length > 0 && selectedClass === 'Classe 1') {
-        setSelectedClass(classes[0].className);
-      }
+      await ensureValidClassSelection();
     });
 
     const handleOnline = () => {
-      syncCloudToLocalDB().catch(() => {});
+      syncCloudToLocalDB().then(() => {
+        ensureValidClassSelection();
+      }).catch(() => {});
     };
     window.addEventListener('online', handleOnline);
 
