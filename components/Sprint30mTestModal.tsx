@@ -22,6 +22,7 @@ import {
   SPEED_SCALE_80M,
   ENDURANCE_SCALE_1000M
 } from '../utils/ScoringConstants';
+import { startBluetoothKeepAlive, stopBluetoothKeepAlive } from '../utils/audioHelper';
 
 export type RaceTestType = 'speed' | 'speed-60' | 'speed-80' | 'endurance';
 
@@ -147,7 +148,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
         if (AudioCtx) audioCtxRef.current = new AudioCtx();
       }
-      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+      if (audioCtxRef.current && audioCtxRef.current.state !== 'running') {
         audioCtxRef.current.resume();
       }
       if (!audioCtxRef.current) return;
@@ -158,7 +159,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
 
       osc.type = type;
       osc.frequency.setValueAtTime(freq, ctx.currentTime);
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.setValueAtTime(0.9, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
 
       osc.connect(gain);
@@ -374,6 +375,67 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
     });
   };
 
+  // Helper for rank labels (الأول، الثاني، الثالث...)
+  const getArabicRankName = (index: number) => {
+    const ranks = [
+      'الأول 🥇',
+      'الثاني 🥈',
+      'الثالث 🥉',
+      'الرابع 🎖️',
+      'الخامس 🏅',
+      'السادس',
+      'السابع',
+      'الثامن',
+      'التاسع',
+      'العاشر'
+    ];
+    return ranks[index] || `المركز ${index + 1}`;
+  };
+
+  // Index of the next unfinished runner slot
+  const nextUnfinishedIndex = useMemo(() => {
+    return selectedRunners.findIndex(r => !r.isFinished);
+  }, [selectedRunners]);
+
+  // Single-button finisher recording logic (تسجيل الوصول المتتالي للسباق بضغطة زر واحدة)
+  const recordNextFinisher = async () => {
+    if (testState === 'idle') {
+      startTimer();
+      return;
+    }
+
+    let targetIdx = selectedRunners.findIndex(r => !r.isFinished);
+    const timeInSec = Number((elapsedTime / 1000).toFixed(2));
+    playBeep(1318.5, 0.15, 'sine');
+
+    if (targetIdx === -1) {
+      // Auto expand lanes if more finishers arrive than pre-allocated slots
+      const newLaneIndex = selectedRunners.length + 1;
+      const newRunner: SelectedRunner = {
+        laneIndex: newLaneIndex,
+        studentNumber: '',
+        recordedTime: timeInSec,
+        isFinished: true
+      };
+      setSelectedRunners(prev => [...prev, newRunner]);
+      setLaneCount(prev => Math.max(prev, newLaneIndex));
+    } else {
+      const runner = selectedRunners[targetIdx];
+      const updated = selectedRunners.map((r, idx) =>
+        idx === targetIdx ? { ...r, recordedTime: timeInSec, isFinished: true } : r
+      );
+      setSelectedRunners(updated);
+
+      if (runner.studentNumber) {
+        await saveRaceTime(String(runner.studentNumber), timeInSec);
+      }
+
+      if (updated.every(r => r.isFinished)) {
+        setTestState('paused');
+      }
+    }
+  };
+
   // Clear lane runners so teacher can run first and assign after the race
   const clearLaneStudents = () => {
     setSelectedRunners(prev => prev.map(r => ({
@@ -386,6 +448,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
 
   // Start timer
   const startTimer = () => {
+    startBluetoothKeepAlive(audioCtxRef.current);
     playBeep(1046.5, 0.3, 'square');
     startTimeRef.current = Date.now() - elapsedTime;
     setTestState('running');
@@ -399,6 +462,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
 
   // Reset timer
   const resetTimer = () => {
+    stopBluetoothKeepAlive();
     setTestState('idle');
     setElapsedTime(0);
     setSelectedRunners(prev => prev.map(r => ({ ...r, recordedTime: undefined, isFinished: false })));
@@ -630,13 +694,6 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
               {testState === 'idle' && (
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
-                    onClick={autoPopulateNextBatch}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 dark:hover:bg-amber-900/60 rounded-xl border border-amber-300 dark:border-amber-800 transition cursor-pointer"
-                  >
-                    <SparklesIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                    <span>تعبئة الفوج التالي تلقائياً</span>
-                  </button>
-                  <button
                     onClick={clearLaneStudents}
                     className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl border border-gray-300 dark:border-gray-600 transition cursor-pointer shadow-2xs"
                     title="إفراغ الممرات للبدء مباشرة وتحديد المتسابقين بعد خط الوصول"
@@ -666,9 +723,9 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                 </select>
               </div>
 
-              {/* Race Size Selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-gray-700 dark:text-gray-300">عدد المتسابقين في الفوج:</span>
+              {/* Race Size Selector & Clear Names Button */}
+              <div className="flex items-center gap-2 flex-wrap justify-center">
+                <span className="text-xs font-bold text-gray-700 dark:text-gray-300">عدد منافذ/ممرات السباق:</span>
                 <div className="flex bg-white dark:bg-gray-800 p-1 rounded-xl border border-gray-300 dark:border-gray-600 gap-0.5">
                   {([2, 3, 4, 6, 8] as const).map(num => (
                     <button
@@ -685,6 +742,14 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                     </button>
                   ))}
                 </div>
+                <button
+                  type="button"
+                  onClick={clearLaneStudents}
+                  className="px-3 py-1 text-xs font-bold text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-xl border border-gray-300 dark:border-gray-600 transition cursor-pointer"
+                  title="تفريغ أسماء المتسابقين للبدء بتسجيل الوصول المباشر بالترتيب (الأول، الثاني، الثالث...)"
+                >
+                  🧹 تفريغ الأسماء
+                </button>
               </div>
             </div>
           </div>
@@ -711,12 +776,45 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
               </div>
             )}
 
+            {/* SINGLE FINISH BUTTON (الزر الفريد لتسجيل الوصول المتتالي: الأول، الثاني، الثالث...) */}
+            <div className="w-full max-w-2xl mx-auto my-3 px-1">
+              <button
+                type="button"
+                onClick={recordNextFinisher}
+                className="w-full inline-flex items-center justify-between p-4 sm:p-5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 text-gray-950 font-black rounded-3xl shadow-2xl shadow-amber-500/40 border-2 border-amber-200 transition-all transform active:scale-95 cursor-pointer text-base sm:text-xl"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl sm:text-4xl animate-bounce">⏱️</span>
+                  <div className="text-right">
+                    <div className="text-[11px] font-black text-amber-950/80 uppercase tracking-wide">
+                      زر تسجيل الوصول المتتالي:
+                    </div>
+                    <div className="text-sm sm:text-xl font-black text-gray-950 mt-0.5">
+                      {testState === 'idle'
+                        ? 'انقر هنا للبدء والانطلاق 🚀'
+                        : nextUnfinishedIndex !== -1
+                        ? `تسجيل وصول المتسابق: ${getArabicRankName(nextUnfinishedIndex)}`
+                        : `تسجيل وصول متسابق جديد (#${selectedRunners.length + 1})`}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="bg-gray-950 text-amber-300 px-3 py-1.5 rounded-2xl text-xs sm:text-sm font-mono font-black border border-amber-400/50 shadow-inner">
+                    {formattedSeconds}ث
+                  </span>
+                  <span className="text-[11px] sm:text-xs font-black bg-amber-950 text-amber-100 px-2.5 py-1.5 rounded-xl shadow-xs">
+                    تسجيل ⚡
+                  </span>
+                </div>
+              </button>
+            </div>
+
             {/* Selected Runners / Lanes inside Live Timer Window */}
             {selectedRunners.length > 0 && (
               <div className="w-full max-w-3xl my-3 p-3 sm:p-4 bg-white/10 backdrop-blur-md rounded-2xl border border-white/10">
-                <div className="text-xs font-bold text-amber-300 text-center mb-2.5 flex items-center justify-center gap-1.5">
+                <div className="text-xs font-bold text-amber-300 text-center mb-2.5 flex items-center justify-center gap-1.5 flex-wrap">
                   <UserGroupIcon className="w-4 h-4 text-amber-400" />
-                  <span>المتسابقون / الممرات (اضغط على ممر التلميذ لتسجيل توقيته فور الوصول ⏱️):</span>
+                  <span>نتائج ممارسي/متسابقي السباق (الوصول بالترتيب: الأول، الثاني، الثالث...):</span>
                 </div>
                 <div className={`grid grid-cols-2 ${selectedRunners.length >= 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} ${selectedRunners.length === 4 ? 'md:grid-cols-4' : ''} gap-3`}>
                   {selectedRunners.map((runner) => {
@@ -725,6 +823,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                     return (
                       <div key={runner.laneIndex} className="relative group">
                         <button
+                          type="button"
                           onClick={() => {
                             if (testState === 'idle') {
                               startTimer();
@@ -741,9 +840,11 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                           }`}
                         >
                           <div className="flex items-center justify-between w-full text-[11px] font-mono font-bold text-amber-300 mb-1">
-                            <span>الممر #{runner.laneIndex}</span>
+                            <span className="font-black text-amber-200 truncate">
+                              {getArabicRankName(runner.laneIndex - 1)}
+                            </span>
                             {student?.orderIndex && (
-                              <span className="px-1.5 py-0.5 rounded bg-white/10 text-[10px]">#{student.orderIndex}</span>
+                              <span className="px-1.5 py-0.5 rounded bg-white/10 text-[10px] shrink-0">#{student.orderIndex}</span>
                             )}
                           </div>
 
@@ -757,7 +858,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                               />
                             )}
                             <div className="text-sm font-black text-white truncate max-w-[120px]">
-                              {student ? student.nomEleve : `المتسابق #${runner.laneIndex}`}
+                              {student ? student.nomEleve : `المتسابق (${getArabicRankName(runner.laneIndex - 1)})`}
                             </div>
                           </div>
 
@@ -767,7 +868,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                               <select
                                 value={runner.studentNumber}
                                 onChange={(e) => handleAssignStudentToLane(runner.laneIndex, e.target.value)}
-                                className={`w-full text-[11px] font-bold py-1 px-1 rounded-lg text-center cursor-pointer focus:outline-none transition-all ${
+                                className={`w-full text-[11px] font-bold py-1.5 px-1 rounded-xl text-center cursor-pointer focus:outline-none transition-all ${
                                   runner.studentNumber
                                     ? 'bg-gray-900/90 text-amber-200 border border-amber-500/40'
                                     : runner.isFinished
@@ -776,15 +877,16 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                                 }`}
                               >
                                 <option value="">
-                                  {runner.isFinished ? '👉 اختر تلميذ هذا الممر' : '-- اختر تلميذاً --'}
+                                  {runner.isFinished ? `👉 اختر التلميذ (${getArabicRankName(runner.laneIndex - 1)})` : '-- اختر تلميذاً --'}
                                 </option>
                                 {untestedStudents.length > 0 && (
                                   <optgroup label={`⭐ لم يختبروا بعد (${untestedStudents.length})`}>
                                     {untestedStudents.map(s => {
                                       const isAssigned = selectedRunners.some(r => r.laneIndex !== runner.laneIndex && String(r.studentNumber) === String(s.numeroEleve));
+                                      const numDisplay = s.orderIndex || (students.findIndex(st => String(st.numeroEleve) === String(s.numeroEleve)) + 1);
                                       return (
                                         <option key={s.numeroEleve} value={s.numeroEleve} disabled={isAssigned}>
-                                          #{s.orderIndex || s.numeroEleve} - {s.nomEleve} {isAssigned ? '(بممر آخر)' : ''}
+                                          #{numDisplay} - {s.nomEleve} {isAssigned ? '(مسند لمركز آخر)' : ''}
                                         </option>
                                       );
                                     })}
@@ -794,9 +896,10 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                                   <optgroup label={`🔄 سبق اختبارهم (${testedStudents.length})`}>
                                     {testedStudents.map(({ student: s, prevTime }) => {
                                       const isAssigned = selectedRunners.some(r => r.laneIndex !== runner.laneIndex && String(r.studentNumber) === String(s.numeroEleve));
+                                      const numDisplay = s.orderIndex || (students.findIndex(st => String(st.numeroEleve) === String(s.numeroEleve)) + 1);
                                       return (
                                         <option key={s.numeroEleve} value={s.numeroEleve} disabled={isAssigned}>
-                                          #{s.orderIndex || s.numeroEleve} - {s.nomEleve} ({raceConfig.isMinutes ? `${formatSecondsToMinSec(prevTime)} د` : `${prevTime}ث`}) {isAssigned ? '(بممر آخر)' : ''}
+                                          #{numDisplay} - {s.nomEleve} ({raceConfig.isMinutes ? `${formatSecondsToMinSec(prevTime)} د` : `${prevTime}ث`}) {isAssigned ? '(مسند لمركز آخر)' : ''}
                                         </option>
                                       );
                                     })}

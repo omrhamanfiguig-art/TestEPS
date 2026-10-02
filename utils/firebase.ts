@@ -1,6 +1,9 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getFirestore, 
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   doc, 
   setDoc, 
   getDoc, 
@@ -9,8 +12,7 @@ import {
   collection, 
   Firestore,
   onSnapshot,
-  Unsubscribe,
-  enableIndexedDbPersistence
+  Unsubscribe
 } from 'firebase/firestore';
 import { 
   getAuth, 
@@ -45,23 +47,20 @@ import {
 // Initialize Firebase App
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-// Initialize Firestore with custom databaseId if configured
+// Initialize Firestore with robust long-polling and modern persistent local cache to bypass WebSocket blocks
 export const db: Firestore = firebaseConfig.firestoreDatabaseId
-  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-  : getFirestore(app);
-
-// Enable offline persistence in Firestore
-try {
-  enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code === 'failed-precondition') {
-      console.warn('Multiple tabs open, offline persistence enabled in main tab.');
-    } else if (err.code === 'unimplemented') {
-      console.warn('Current browser does not support offline persistence.');
-    }
-  });
-} catch (e) {
-  // Silent catch
-}
+  ? initializeFirestore(app, { 
+      experimentalForceLongPolling: true,
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+      })
+    }, firebaseConfig.firestoreDatabaseId)
+  : initializeFirestore(app, { 
+      experimentalForceLongPolling: true,
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+      })
+    });
 
 // Initialize Auth with anonymous fallback
 export const auth = getAuth(app);

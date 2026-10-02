@@ -243,14 +243,14 @@ export const AddEditStudentModal: React.FC<AddEditStudentModalProps> = ({
             />
           </div>
 
-          {/* Student Number / Massar */}
+          {/* Student Number */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
-                {language === 'ar' ? 'رقم التلميذ أو رقم مسار' : 'N° Élève ou Code Massar'} <span className="text-rose-500">*</span>
+                {language === 'ar' ? 'رقم التلميذ في اللائحة' : 'N° Élève'} <span className="text-rose-500">*</span>
               </label>
               <span className="text-[10px] text-gray-400 font-medium">
-                {language === 'ar' ? 'رقم ترتيبي أو رمز مسار' : 'N° d’ordre ou code'}
+                {language === 'ar' ? 'رقم ترتيبي (مثلاً: 1، 2...)' : 'N° d’ordre'}
               </span>
             </div>
             <input
@@ -258,7 +258,7 @@ export const AddEditStudentModal: React.FC<AddEditStudentModalProps> = ({
               required
               value={numeroEleve}
               onChange={(e) => setNumeroEleve(e.target.value)}
-              placeholder={language === 'ar' ? 'مثال: 12 أو K1340982' : 'Ex: 12 ou K1340982'}
+              placeholder={language === 'ar' ? 'مثال: 12' : 'Ex: 12'}
               className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>

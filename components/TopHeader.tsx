@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { User } from 'firebase/auth';
-import { Bars3Icon, GlobeAltIcon, InformationCircleIcon, UserCircleIcon } from './Icons';
+import { Bars3Icon, GlobeAltIcon, InformationCircleIcon, UserCircleIcon, SunIcon, MoonIcon } from './Icons';
 import { useLanguage } from '../utils/i18n';
 import type { ActiveScreen } from './Sidebar';
 import { AboutModal } from './AboutModal';
@@ -13,6 +13,8 @@ interface TopHeaderProps {
   selectedClass: string;
   setSelectedClass: (val: string) => void;
   onOpenMobileMenu: () => void;
+  darkMode: boolean;
+  setDarkMode: (val: boolean) => void;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
@@ -20,7 +22,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   setActiveScreen,
   selectedClass,
   setSelectedClass,
-  onOpenMobileMenu
+  onOpenMobileMenu,
+  darkMode,
+  setDarkMode
 }) => {
   const { language, setLanguage, t } = useLanguage();
   const [isAboutOpen, setIsAboutOpen] = useState(false);
@@ -129,6 +133,20 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           >
             <GlobeAltIcon className="w-3.5 h-3.5 shrink-0" />
             <span>{language === 'ar' ? 'FR' : 'عربي'}</span>
+          </button>
+
+          {/* Dark Mode Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setDarkMode(!darkMode)}
+            className="p-2 text-[10px] sm:text-xs font-bold rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition flex items-center justify-center active:scale-95 cursor-pointer"
+            title={darkMode ? (language === 'ar' ? 'الوضع الفاتح' : 'Mode Clair') : (language === 'ar' ? 'الوضع الداكن' : 'Mode Sombre')}
+          >
+            {darkMode ? (
+              <SunIcon className="w-4 h-4 text-amber-500 shrink-0" />
+            ) : (
+              <MoonIcon className="w-4 h-4 text-indigo-600 shrink-0" />
+            )}
           </button>
         </div>
       </header>

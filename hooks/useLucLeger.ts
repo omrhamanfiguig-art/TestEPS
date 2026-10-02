@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LUC_LEGER_DATA, SHUTTLE_TIMELINE } from '../constants';
 import type { TestState, StudentResult, LucLegerLevel, StudentIdentity, PhysicalTests } from '../types';
-import { playBeep, playLevelUpChime, announcePalier, resetPalierAnnouncement } from '../utils/audioHelper';
+import { playBeep, playLevelUpChime, announcePalier, resetPalierAnnouncement, startBluetoothKeepAlive, stopBluetoothKeepAlive } from '../utils/audioHelper';
 import { getVmaResults, saveVmaResults, clearVmaResults, getPhysicalTests, savePhysicalTests } from '../utils/db';
 
 export const useLucLeger = (
@@ -50,6 +50,7 @@ export const useLucLeger = (
       timerRef.current = null;
     }
     startTimeRef.current = null;
+    stopBluetoothKeepAlive();
   }, []);
 
   useEffect(() => {
@@ -76,7 +77,7 @@ export const useLucLeger = (
             if (nextPalierNumber !== lastAnnouncedPalierRef.current && LUC_LEGER_DATA[nextPalierNumber - 1]) {
                 lastAnnouncedPalierRef.current = nextPalierNumber;
                 playLevelUpChime(audioContextRef.current);
-                announcePalier(nextPalierNumber, language);
+                announcePalier(nextPalierNumber, language, audioContextRef.current);
             }
         }
 
@@ -122,6 +123,9 @@ export const useLucLeger = (
         window.speechSynthesis.resume();
     }
     
+    // Activate continuous Bluetooth keep-alive channel
+    startBluetoothKeepAlive(audioContextRef.current);
+    
     resetPalierAnnouncement();
     lastAnnouncedPalierRef.current = 1;
     lastBeepSegmentIndexRef.current = -1;
@@ -132,7 +136,7 @@ export const useLucLeger = (
     // Play initial start beep & announcement
     playBeep(audioContextRef.current);
     lastBeepSegmentIndexRef.current = 0;
-    announcePalier(1, language);
+    announcePalier(1, language, audioContextRef.current);
 
     setTestState('running');
   }, [language]);

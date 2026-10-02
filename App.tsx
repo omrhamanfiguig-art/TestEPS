@@ -47,6 +47,20 @@ const MainLayout: React.FC = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
   const { t } = useLanguage();
 
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    return localStorage.getItem('eps_theme') === 'dark';
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('eps_theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('eps_theme', 'light');
+    }
+  }, [darkMode]);
+
   useEffect(() => {
     // Helper to ensure current selected class is valid without overwriting if it exists
     const ensureValidClassSelection = async () => {
@@ -124,6 +138,8 @@ const MainLayout: React.FC = () => {
           selectedClass={selectedClass}
           setSelectedClass={setSelectedClass}
           onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
+          darkMode={darkMode}
+          setDarkMode={setDarkMode}
         />
 
         <main className="flex-grow">
@@ -203,6 +219,8 @@ const MainLayout: React.FC = () => {
               setGroupSize={setGroupSize}
               sessionDate={sessionDate}
               setSessionDate={setSessionDate}
+              darkMode={darkMode}
+              setDarkMode={setDarkMode}
             />
           )}
         </main>

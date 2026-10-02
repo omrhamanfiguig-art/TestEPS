@@ -28,9 +28,14 @@ interface SettingsScreenProps {
   setGroupSize?: (val: number) => void;
   sessionDate?: string;
   setSessionDate?: (val: string) => void;
+  darkMode?: boolean;
+  setDarkMode?: (val: boolean) => void;
 }
 
-export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
+export const SettingsScreen: React.FC<SettingsScreenProps> = ({
+  darkMode,
+  setDarkMode
+}) => {
   const { language, setLanguage, t } = useLanguage();
   const { isStandalone, isIOS } = usePWAInstall();
   const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
@@ -173,6 +178,76 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
           </button>
         </div>
       </section>
+
+      {/* Theme Selection Section */}
+      {setDarkMode && (
+        <section className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 space-y-4 border border-gray-100 dark:border-gray-700/60">
+          <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-3">
+            <span>✨</span>
+            <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">
+              {language === 'ar' ? 'مظهر التطبيق (الوضع الداكن والفاتح)' : 'Thème de l’application'}
+            </h2>
+          </div>
+
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {language === 'ar' 
+              ? 'تفعيل الوضع الداكن لإراحة العين أثناء الاستخدام الطويل للتطبيق في الملاعب أو الفصول الدراسية.' 
+              : 'Activez le mode sombre pour un meilleur confort visuel lors d’une utilisation prolongée.'}
+          </p>
+
+          <div className="grid grid-cols-2 gap-4 pt-2">
+            {/* Light Mode */}
+            <button
+              type="button"
+              onClick={() => setDarkMode(false)}
+              className={`p-4 rounded-xl border-2 text-right transition-all flex items-center justify-between ${
+                !darkMode
+                  ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40 dark:border-indigo-500 shadow-sm'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+              }`}
+            >
+              <div>
+                <div className="font-bold text-base text-gray-900 dark:text-white flex items-center gap-2">
+                  <span>☀️ {language === 'ar' ? 'الوضع الفاتح' : 'Mode Clair'}</span>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {language === 'ar' ? 'خلفية بيضاء ساطعة' : 'Arrière-plan clair'}
+                </p>
+              </div>
+              {!darkMode && (
+                <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs">
+                  <CheckIcon />
+                </div>
+              )}
+            </button>
+
+            {/* Dark Mode */}
+            <button
+              type="button"
+              onClick={() => setDarkMode(true)}
+              className={`p-4 rounded-xl border-2 text-right transition-all flex items-center justify-between ${
+                darkMode
+                  ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/40 dark:border-indigo-500 shadow-sm'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+              }`}
+            >
+              <div>
+                <div className="font-bold text-base text-gray-900 dark:text-white flex items-center gap-2">
+                  <span>🌙 {language === 'ar' ? 'الوضع الداكن' : 'Mode Sombre'}</span>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {language === 'ar' ? 'مريح للعينين في الإضاءة الخافتة' : 'Confortable pour les yeux'}
+                </p>
+              </div>
+              {darkMode && (
+                <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs">
+                  <CheckIcon />
+                </div>
+              )}
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* Teacher Account & Email Sync Section */}
       <section className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 space-y-4 border border-gray-100 dark:border-gray-700/60">

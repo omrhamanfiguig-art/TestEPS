@@ -204,19 +204,6 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
                 className="w-16 bg-white dark:bg-gray-800 border border-gray-300 rounded-xl px-3 py-1.5 text-sm font-bold text-center"
               />
             </div>
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={() => {
-                  const untested = students.filter(s => !physicalResults.some(r => r.numeroEleve === s.numeroEleve && r.equilibreStatique)).slice(0, participantCount);
-                  const updated = [...participants];
-                  untested.forEach((s, i) => { if(i < updated.length) updated[i].studentNumber = s.numeroEleve; });
-                  setParticipants(updated);
-                }}
-                className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200"
-              >
-                تعبئة التلقائية للأسماء
-              </button>
-            </div>
           </div>
 
           {/* Stopwatch Display */}
