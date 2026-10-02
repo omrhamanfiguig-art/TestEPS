@@ -352,8 +352,14 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
                         type="number"
                         step="0.01"
                         placeholder="الأداء (م)"
-                        defaultValue={val || ''}
-                        onBlur={(e) => saveResult(s.numeroEleve, parseFloat(e.target.value))}
+                        defaultValue={val !== undefined && val !== null && !isNaN(Number(val)) ? val : ''}
+                        key={`athletic-${testType}-${s.numeroEleve}-${val}`}
+                        onBlur={(e) => {
+                          const parsed = parseFloat(e.target.value);
+                          if (!isNaN(parsed)) {
+                            saveResult(s.numeroEleve, parsed);
+                          }
+                        }}
                         className="flex-1 bg-gray-50 dark:bg-gray-800 border border-gray-300 rounded-xl px-3 py-2 text-sm font-bold text-center"
                       />
                       <div className={`px-3 py-2 rounded-xl text-sm font-black ${score >= 10 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>

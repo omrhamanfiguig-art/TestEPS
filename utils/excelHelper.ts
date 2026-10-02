@@ -1503,4 +1503,90 @@ export const exportTalentAnalysisToExcel = (
   return true;
 };
 
+/**
+ * Export filtered student rosters by Teacher and Level to Excel
+ */
+export interface FilteredStudentExportItem {
+  rank: number;
+  numeroEleve: string;
+  nomEleve: string;
+  className: string;
+  level: string;
+  teacher: string;
+  sexe?: string;
+  isPhysicalDone: boolean;
+  isVmaDone: boolean;
+  vmaVal?: number | string;
+  isMeasurementsDone: boolean;
+  imcVal?: string;
+}
+
+export const exportFilteredStudentsRosterToExcel = (
+  title: string,
+  students: FilteredStudentExportItem[]
+): boolean => {
+  const XLSX = (window as any).XLSX;
+  if (!XLSX) {
+    alert("لم يتم تحميل مكتبة Excel.");
+    return false;
+  }
+
+  const headers = [
+    "الترتيب",
+    "رقم مسار",
+    "الاسم الكامل للتلميذ",
+    "القسم",
+    "المستوى الدراسي",
+    "الأستاذ المكلف",
+    "الجنس",
+    "الاختبارات البدنية",
+    "VMA (كم/س)",
+    "القياسات ومؤشر الكتلة IMC"
+  ];
+
+  const rows: any[][] = [
+    [title || "لوائح التلاميذ مفلترة حسب الأستاذ والمستوى"],
+    ["تاريخ التصدير: " + new Date().toLocaleDateString('ar-MA') + " | إجمالي التلاميذ: " + students.length],
+    [],
+    headers
+  ];
+
+  students.forEach((item, idx) => {
+    rows.push([
+      idx + 1,
+      item.numeroEleve || '-',
+      item.nomEleve || '-',
+      item.className || '-',
+      item.level || '-',
+      item.teacher || 'غير محدد',
+      item.sexe === 'F' ? 'أنثى' : 'ذكر',
+      item.isPhysicalDone ? 'منجز' : 'غير منجز',
+      item.vmaVal ? `${item.vmaVal} كم/س` : (item.isVmaDone ? 'منجز' : '-'),
+      item.imcVal ? `IMC: ${item.imcVal}` : (item.isMeasurementsDone ? 'مسجل' : '-')
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  ws['!cols'] = [
+    { wch: 8 },
+    { wch: 14 },
+    { wch: 28 },
+    { wch: 16 },
+    { wch: 20 },
+    { wch: 22 },
+    { wch: 10 },
+    { wch: 18 },
+    { wch: 14 },
+    { wch: 22 }
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "لوائح التلاميذ");
+  const safeTitle = (title || 'لوائح_التلاميذ').replace(/[/\\?%*:|"<>]/g, '_').substring(0, 40);
+  const fileName = `${safeTitle}_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  return true;
+};
+
 

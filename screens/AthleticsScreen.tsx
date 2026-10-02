@@ -14,6 +14,7 @@ import {
 import { StudentAvatar } from '../components/StudentAvatar';
 import { AthleticsTestModal } from '../components/AthleticsTestModal';
 import { BaremeSettingsModal } from '../components/BaremeSettingsModal';
+import { Sprint30mTestModal, RaceTestType } from '../components/Sprint30mTestModal';
 import { 
     calculateScore, 
     getCustomScale,
@@ -37,6 +38,8 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
     const [results, setResults] = useState<PhysicalTests[]>([]);
     const [isAthleticsModalOpen, setIsAthleticsModalOpen] = useState(false);
     const [athleticsTestType, setAthleticsTestType] = useState<'speed' | 'speed-60' | 'speed-80' | 'endurance' | 'long-jump' | 'shot-put'>('speed');
+    const [isRaceStopwatchOpen, setIsRaceStopwatchOpen] = useState(false);
+    const [raceStopwatchType, setRaceStopwatchType] = useState<RaceTestType>('speed');
     const [isBaremeModalOpen, setIsBaremeModalOpen] = useState(false);
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -168,12 +171,17 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                         <div className="pt-2">
                             <button
                                 onClick={() => {
-                                    setAthleticsTestType(test.testKey as any);
-                                    setIsAthleticsModalOpen(true);
+                                    if (test.testKey === 'speed' || test.testKey === 'speed-60' || test.testKey === 'speed-80' || test.testKey === 'endurance') {
+                                        setRaceStopwatchType(test.testKey as RaceTestType);
+                                        setIsRaceStopwatchOpen(true);
+                                    } else {
+                                        setAthleticsTestType(test.testKey as any);
+                                        setIsAthleticsModalOpen(true);
+                                    }
                                 }}
-                                className={`w-full py-3 rounded-2xl ${test.color} text-white font-bold text-sm shadow-md hover:opacity-90 active:scale-[0.98] transition flex items-center justify-center gap-2`}
+                                className={`w-full py-3 rounded-2xl ${test.color} text-white font-bold text-sm shadow-md hover:opacity-90 active:scale-[0.98] transition flex items-center justify-center gap-2 cursor-pointer`}
                             >
-                                <span>ابدأ الاختبار</span>
+                                <span>{test.testKey === 'speed' || test.testKey === 'speed-60' || test.testKey === 'speed-80' || test.testKey === 'endurance' ? '⏱️ تشغيل الميقاتي والسباق' : 'ابدأ الاختبار'}</span>
                                 <ChevronDownIcon className="-rotate-90 w-4 h-4" />
                             </button>
                         </div>
@@ -196,12 +204,12 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                         <thead className="bg-gray-50 dark:bg-gray-700/50 sticky top-0 z-10">
                             <tr>
                                 <th className="p-3 font-bold text-right">الاسم والنسب</th>
-                                <th className="p-3 font-bold">30 م</th>
-                                <th className="p-3 font-bold">60 م</th>
-                                <th className="p-3 font-bold">80 م</th>
-                                <th className="p-3 font-bold">التحمل</th>
-                                <th className="p-3 font-bold">القفز الطولي</th>
-                                <th className="p-3 font-bold">دفع الجلة</th>
+                                <th className="p-3 font-bold">30 م (ث)</th>
+                                <th className="p-3 font-bold">60 م (ث)</th>
+                                <th className="p-3 font-bold">80 م (ث)</th>
+                                <th className="p-3 font-bold">السرعة المتوسطة (د:ث)</th>
+                                <th className="p-3 font-bold">القفز الطولي (م)</th>
+                                <th className="p-3 font-bold">دفع الجلة (م)</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -215,12 +223,12 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                                                 <span>{s.nomEleve}</span>
                                             </div>
                                         </td>
-                                        <td className="p-3 font-mono">{r?.vitesse30m || '-'}</td>
-                                        <td className="p-3 font-mono">{(r as any)?.vitesse60m || '-'}</td>
-                                        <td className="p-3 font-mono">{(r as any)?.vitesse80m || '-'}</td>
-                                        <td className="p-3 font-mono">{r?.enduranceTemps ? formatSecondsToMinSec(r.enduranceTemps) : '-'}</td>
-                                        <td className="p-3 font-mono">{r?.sautLong || '-'}</td>
-                                        <td className="p-3 font-mono">{r?.lancerPoids || '-'}</td>
+                                        <td className="p-3 font-mono">{r?.vitesse30m ? `${r.vitesse30m} ث` : '-'}</td>
+                                        <td className="p-3 font-mono">{(r as any)?.vitesse60m ? `${(r as any).vitesse60m} ث` : '-'}</td>
+                                        <td className="p-3 font-mono">{(r as any)?.vitesse80m ? `${(r as any).vitesse80m} ث` : '-'}</td>
+                                        <td className="p-3 font-mono text-red-600 dark:text-red-400 font-bold">{r?.enduranceTemps ? `${formatSecondsToMinSec(r.enduranceTemps)} د` : '-'}</td>
+                                        <td className="p-3 font-mono">{r?.sautLong ? `${r.sautLong} م` : '-'}</td>
+                                        <td className="p-3 font-mono">{r?.lancerPoids ? `${r.lancerPoids} م` : '-'}</td>
                                     </tr>
                                 );
                             })}
@@ -235,6 +243,17 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
             </div>
 
             {/* Modals */}
+            {isRaceStopwatchOpen && (
+                <Sprint30mTestModal
+                    isOpen={isRaceStopwatchOpen}
+                    onClose={() => setIsRaceStopwatchOpen(false)}
+                    initialClass={selectedClass || (classList.length > 0 ? classList[0].className : '')}
+                    classList={classList.map(c => c.className)}
+                    testType={raceStopwatchType}
+                    onDataSaved={() => loadClassData(selectedClass)}
+                />
+            )}
+
             {isAthleticsModalOpen && (
                 <AthleticsTestModal
                     isOpen={isAthleticsModalOpen}

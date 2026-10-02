@@ -14,6 +14,16 @@ import {
   SparklesIcon
 } from './Icons';
 import { StudentAvatar } from './StudentAvatar';
+import { 
+  calculateScore, 
+  formatSecondsToMinSec,
+  SPEED_SCALE_30M,
+  SPEED_SCALE_60M,
+  SPEED_SCALE_80M,
+  ENDURANCE_SCALE_1000M
+} from '../utils/ScoringConstants';
+
+export type RaceTestType = 'speed' | 'speed-60' | 'speed-80' | 'endurance';
 
 interface Sprint30mTestModalProps {
   isOpen: boolean;
@@ -21,12 +31,13 @@ interface Sprint30mTestModalProps {
   initialClass: string;
   classList?: (string | any)[];
   onDataSaved?: () => void;
+  testType?: RaceTestType;
 }
 
 interface SelectedRunner {
-  laneIndex: number; // 1, 2, 3, 4
+  laneIndex: number; // 1..8
   studentNumber: string;
-  recordedTime?: number; // seconds with 2 decimal places e.g. 4.35
+  recordedTime?: number; // seconds with 2 decimal places e.g. 4.35, or seconds for endurance e.g. 205.4
   isFinished: boolean;
 }
 
@@ -45,12 +56,75 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
   initialClass,
   classList = [],
   onDataSaved,
+  testType = 'speed'
 }) => {
+  const [currentTestType, setCurrentTestType] = useState<RaceTestType>(testType);
   const [selectedClass, setSelectedClass] = useState<string>(initialClass);
   const [classes, setClasses] = useState<string[]>(() => normalizeClassNames(classList));
-  const [laneCount, setLaneCount] = useState<2 | 3 | 4>(3);
+  const [laneCount, setLaneCount] = useState<number>(() => (testType === 'endurance' ? 4 : 3));
   const [students, setStudents] = useState<StudentIdentity[]>([]);
   const [physicalResults, setPhysicalResults] = useState<PhysicalTests[]>([]);
+
+  useEffect(() => {
+    if (testType) {
+      setCurrentTestType(testType);
+    }
+  }, [testType]);
+
+  // Race metadata config
+  const raceConfig = useMemo(() => {
+    switch (currentTestType) {
+      case 'speed-60':
+        return {
+          title: 'اختبار الجري السريع (60 م)',
+          subtitle: 'تحديد توقيت كل متسابق وحساب النقطة آلياً',
+          counterLabel: 'عداد وقت سباق السرعة 60م (ثواني)',
+          unitLabel: 'ثانية',
+          field: 'vitesse60m' as const,
+          distanceMeters: 60,
+          scale: SPEED_SCALE_60M,
+          scoreField: 'scoreVitesse' as const,
+          isMinutes: false
+        };
+      case 'speed-80':
+        return {
+          title: 'اختبار الجري السريع (80 م)',
+          subtitle: 'تحديد توقيت كل متسابق وحساب النقطة آلياً',
+          counterLabel: 'عداد وقت سباق السرعة 80م (ثواني)',
+          unitLabel: 'ثانية',
+          field: 'vitesse80m' as const,
+          distanceMeters: 80,
+          scale: SPEED_SCALE_80M,
+          scoreField: 'scoreVitesse' as const,
+          isMinutes: false
+        };
+      case 'endurance':
+        return {
+          title: 'اختبار سباق السرعة المتوسطة (التحمل 1000م / 600م)',
+          subtitle: 'تحديد توقيت كل متسابق بالدقائق والثواني وحساب النقطة آلياً',
+          counterLabel: 'عداد وقت سباق السرعة المتوسطة (دقائق : ثواني)',
+          unitLabel: 'دقيقة',
+          field: 'enduranceTemps' as const,
+          distanceMeters: 1000,
+          scale: ENDURANCE_SCALE_1000M,
+          scoreField: 'scoreEndurance' as const,
+          isMinutes: true
+        };
+      case 'speed':
+      default:
+        return {
+          title: 'اختبار الجري السريع (30 م)',
+          subtitle: 'تسجيل التوقيت لكل متسابق والتقويم التلقائي',
+          counterLabel: 'عداد وقت سباق السرعة (ثواني)',
+          unitLabel: 'ثانية',
+          field: 'vitesse30m' as const,
+          distanceMeters: 30,
+          scale: SPEED_SCALE_30M,
+          scoreField: 'scoreVitesse' as const,
+          isMinutes: false
+        };
+    }
+  }, [currentTestType]);
   
   // Selected Runners for current race (array of length laneCount)
   const [selectedRunners, setSelectedRunners] = useState<SelectedRunner[]>([
@@ -144,7 +218,8 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
       setSelectedRunners(prev => {
         const untested = normalizedStudents.filter(s => {
           const res = normalizedPhys.find(r => String(r.numeroEleve) === String(s.numeroEleve));
-          return res?.vitesse30m === undefined || res.vitesse30m === null;
+          const val = (res as any)?.[raceConfig.field];
+          return val === undefined || val === null || val <= 0;
         });
         const pool = untested.length > 0 ? untested : normalizedStudents;
 
@@ -163,7 +238,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
         });
       });
     } catch (err) {
-      console.error('Error loading class data for 30m test:', err);
+      console.error('Error loading class data for race test:', err);
     }
   };
 
@@ -201,7 +276,8 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
       const newRunners: SelectedRunner[] = [];
       const untested = students.filter(s => {
         const res = physicalResults.find(r => String(r.numeroEleve) === String(s.numeroEleve));
-        return res?.vitesse30m === undefined || res.vitesse30m === null;
+        const val = (res as any)?.[raceConfig.field];
+        return val === undefined || val === null || val <= 0;
       });
       const pool = untested.length > 0 ? untested : students;
 
@@ -221,7 +297,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
       }
       return newRunners;
     });
-  }, [laneCount, students]);
+  }, [laneCount, students, raceConfig.field]);
 
   // Stopwatch timer loop
   useEffect(() => {
@@ -242,15 +318,16 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
 
     students.forEach(s => {
       const res = physicalResults.find(p => String(p.numeroEleve) === String(s.numeroEleve));
-      if (res?.vitesse30m !== undefined && res.vitesse30m > 0) {
-        tested.push({ student: s, prevTime: res.vitesse30m });
+      const val = (res as any)?.[raceConfig.field];
+      if (val !== undefined && val > 0) {
+        tested.push({ student: s, prevTime: val });
       } else {
         untested.push(s);
       }
     });
 
     return { untestedStudents: untested, testedStudents: tested };
-  }, [students, physicalResults]);
+  }, [students, physicalResults, raceConfig.field]);
 
   // Toggle student selection in the grid (during idle mode)
   const handleToggleStudentSelection = (studentNum: string) => {
@@ -276,10 +353,10 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
 
   // Auto populate next untested batch of students
   const autoPopulateNextBatch = () => {
-    // Find students who don't have a 30m time yet
     const untested = students.filter(s => {
       const res = physicalResults.find(r => String(r.numeroEleve) === String(s.numeroEleve));
-      return res?.vitesse30m === undefined || res.vitesse30m === null;
+      const val = (res as any)?.[raceConfig.field];
+      return val === undefined || val === null || val <= 0;
     });
 
     const pool = untested.length > 0 ? untested : students;
@@ -335,7 +412,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
     if (!runner) return;
 
     if (!runner.isFinished) {
-      // Record time
+      // Record time in seconds (with 2 decimal places)
       const timeInSec = Number((elapsedTime / 1000).toFixed(2));
       playBeep(1318.5, 0.15, 'sine');
 
@@ -343,7 +420,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
       setSelectedRunners(updated);
 
       if (runner.studentNumber) {
-        await saveStudent30mTime(String(runner.studentNumber), timeInSec);
+        await saveRaceTime(String(runner.studentNumber), timeInSec);
       }
 
       // If all lanes have finished, pause automatically
@@ -384,25 +461,28 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
         await handleDeleteResult(String(oldStudentNumber));
       }
       if (studentNumber) {
-        await saveStudent30mTime(String(studentNumber), runner.recordedTime);
+        await saveRaceTime(String(studentNumber), runner.recordedTime);
       }
     }
   };
 
-  // Save student 30m time to IndexedDB
-  const saveStudent30mTime = async (numeroEleve: string, timeSec: number) => {
+  // Save student race time to IndexedDB and compute mark
+  const saveRaceTime = async (numeroEleve: string, timeSec: number) => {
     const studentObj = students.find(s => String(s.numeroEleve) === String(numeroEleve));
     if (!studentObj) return;
 
     const currentPhys = [...physicalResults];
     const existingIdx = currentPhys.findIndex(p => String(p.numeroEleve) === String(numeroEleve));
 
-    const updatedItem: PhysicalTests = {
+    const mark = calculateScore(timeSec, raceConfig.scale, studentObj.sexe || 'M', true);
+
+    const updatedItem: any = {
       ...(existingIdx >= 0 ? currentPhys[existingIdx] : {}),
       numeroEleve: String(numeroEleve),
       nomEleve: studentObj.nomEleve,
       sexe: studentObj.sexe,
-      vitesse30m: timeSec,
+      [raceConfig.field]: timeSec,
+      [raceConfig.scoreField]: mark,
       date: new Date().toISOString()
     };
 
@@ -424,12 +504,13 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
     autoPopulateNextBatch();
   };
 
-  // Delete student 30m result from DB
+  // Delete student race result from DB
   const handleDeleteResult = async (numeroEleve: string) => {
     const updatedPhys = physicalResults.map(p => {
       if (String(p.numeroEleve) === String(numeroEleve)) {
-        const { vitesse30m, ...rest } = p;
-        return rest as PhysicalTests;
+        const copy: any = { ...p };
+        delete copy[raceConfig.field];
+        return copy as PhysicalTests;
       }
       return p;
     });
@@ -444,14 +525,17 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
     return students
       .map(s => {
         const res = physicalResults.find(r => String(r.numeroEleve) === String(s.numeroEleve));
+        const val = (res as any)?.[raceConfig.field];
+        const score = (res as any)?.[raceConfig.scoreField];
         return {
           student: s,
-          timeSec: res?.vitesse30m
+          timeSec: val as number | undefined,
+          score: score as number | undefined
         };
       })
       .filter(item => item.timeSec !== undefined && item.timeSec > 0)
       .sort((a, b) => (a.timeSec || 0) - (b.timeSec || 0));
-  }, [students, physicalResults]);
+  }, [students, physicalResults, raceConfig.field, raceConfig.scoreField]);
 
   if (!isOpen) return null;
 
@@ -469,8 +553,8 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
               <TrophyIcon className="w-6 h-6 text-amber-200" />
             </div>
             <div>
-              <h2 className="text-lg sm:text-xl font-black">اختبار 30 م سرعة (سباق السرعة)</h2>
-              <p className="text-xs text-amber-100/90 font-medium">اختيار التلاميذ والضغط على بطاقاتهم لتسجيل زمن الوصول مباشرة</p>
+              <h2 className="text-lg sm:text-xl font-black">{raceConfig.title}</h2>
+              <p className="text-xs text-amber-100/90 font-medium">{raceConfig.subtitle}</p>
             </div>
           </div>
 
@@ -486,75 +570,146 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
         <div className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-grow custom-scrollbar">
           
           {/* Top Options Bar */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-4 bg-gray-50 dark:bg-gray-700/40 rounded-2xl border border-gray-200/80 dark:border-gray-700">
-            {/* Class Selector */}
-            <div className="flex items-center gap-2">
-              <label className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 shrink-0">
-                القسم:
-              </label>
-              <select
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-                disabled={testState !== 'idle'}
-                className="px-3 py-2 text-xs sm:text-sm font-bold bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-amber-500 disabled:opacity-60"
-              >
-                {classes.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Race Size Selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-gray-700 dark:text-gray-300">عدد التلاميذ في السباق:</span>
-              <div className="flex bg-white dark:bg-gray-800 p-1 rounded-xl border border-gray-300 dark:border-gray-600">
-                {([2, 3, 4] as const).map(num => (
+          <div className="flex flex-col gap-3 p-4 bg-gray-50 dark:bg-gray-700/40 rounded-2xl border border-gray-200/80 dark:border-gray-700">
+            {/* Row 1: Race Type Selector */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-gray-200/60 dark:border-gray-700/60">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-gray-700 dark:text-gray-300">نوع السباق:</span>
+                <div className="flex bg-white dark:bg-gray-800 p-1 rounded-xl border border-gray-300 dark:border-gray-600 gap-1 flex-wrap">
                   <button
-                    key={num}
+                    type="button"
                     disabled={testState !== 'idle'}
-                    onClick={() => setLaneCount(num)}
-                    className={`px-3 py-1 text-xs font-black rounded-lg transition-all ${
-                      laneCount === num
-                        ? 'bg-amber-600 text-white shadow-xs'
+                    onClick={() => setCurrentTestType('speed')}
+                    className={`px-3 py-1 text-xs font-black rounded-lg transition cursor-pointer ${
+                      currentTestType === 'speed'
+                        ? 'bg-orange-500 text-white shadow-xs'
                         : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50'
                     }`}
                   >
-                    {num} تلاميذ
+                    ⚡ 30 م (سرعة)
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    disabled={testState !== 'idle'}
+                    onClick={() => setCurrentTestType('speed-60')}
+                    className={`px-3 py-1 text-xs font-black rounded-lg transition cursor-pointer ${
+                      currentTestType === 'speed-60'
+                        ? 'bg-orange-600 text-white shadow-xs'
+                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50'
+                    }`}
+                  >
+                    ⚡ 60 م (سرعة)
+                  </button>
+                  <button
+                    type="button"
+                    disabled={testState !== 'idle'}
+                    onClick={() => setCurrentTestType('speed-80')}
+                    className={`px-3 py-1 text-xs font-black rounded-lg transition cursor-pointer ${
+                      currentTestType === 'speed-80'
+                        ? 'bg-orange-700 text-white shadow-xs'
+                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50'
+                    }`}
+                  >
+                    ⚡ 80 م (سرعة)
+                  </button>
+                  <button
+                    type="button"
+                    disabled={testState !== 'idle'}
+                    onClick={() => setCurrentTestType('endurance')}
+                    className={`px-3 py-1 text-xs font-black rounded-lg transition cursor-pointer ${
+                      currentTestType === 'endurance'
+                        ? 'bg-red-600 text-white shadow-xs'
+                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50'
+                    }`}
+                  >
+                    🏃‍♂️ السرعة المتوسطة (التحمل بالدقائق ⏱️)
+                  </button>
+                </div>
               </div>
+
+              {testState === 'idle' && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={autoPopulateNextBatch}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 dark:hover:bg-amber-900/60 rounded-xl border border-amber-300 dark:border-amber-800 transition cursor-pointer"
+                  >
+                    <SparklesIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    <span>تعبئة الفوج التالي تلقائياً</span>
+                  </button>
+                  <button
+                    onClick={clearLaneStudents}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl border border-gray-300 dark:border-gray-600 transition cursor-pointer shadow-2xs"
+                    title="إفراغ الممرات للبدء مباشرة وتحديد المتسابقين بعد خط الوصول"
+                  >
+                    <span>🧹 ممرات فارغة</span>
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Action buttons in idle mode */}
-            {testState === 'idle' && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={autoPopulateNextBatch}
-                  className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950/60 hover:bg-amber-200 dark:hover:bg-amber-900/60 rounded-xl border border-amber-300 dark:border-amber-800 transition cursor-pointer"
+            {/* Row 2: Class & Lane Size Selectors */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+              {/* Class Selector */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs sm:text-sm font-bold text-gray-700 dark:text-gray-300 shrink-0">
+                  القسم:
+                </label>
+                <select
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  disabled={testState !== 'idle'}
+                  className="px-3 py-2 text-xs sm:text-sm font-bold bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-amber-500 disabled:opacity-60"
                 >
-                  <SparklesIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                  <span>تعبئة الدفعة التالية تلقائياً</span>
-                </button>
-                <button
-                  onClick={clearLaneStudents}
-                  className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl border border-gray-300 dark:border-gray-600 transition cursor-pointer shadow-2xs"
-                  title="إفراغ الممرات للبدء مباشرة وتحديد المتسابقين بعد خط الوصول"
-                >
-                  <span>🧹 ممرات فارغة (تحديد بعد الوصول)</span>
-                </button>
+                  {classes.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
               </div>
-            )}
+
+              {/* Race Size Selector */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-gray-700 dark:text-gray-300">عدد المتسابقين في الفوج:</span>
+                <div className="flex bg-white dark:bg-gray-800 p-1 rounded-xl border border-gray-300 dark:border-gray-600 gap-0.5">
+                  {([2, 3, 4, 6, 8] as const).map(num => (
+                    <button
+                      key={num}
+                      disabled={testState !== 'idle'}
+                      onClick={() => setLaneCount(num)}
+                      className={`px-2.5 py-1 text-xs font-black rounded-lg transition-all ${
+                        laneCount === num
+                          ? 'bg-amber-600 text-white shadow-xs'
+                          : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50'
+                      }`}
+                    >
+                      {num}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Main Stopwatch Header */}
           <div className="flex flex-col items-center justify-center p-5 sm:p-6 bg-gradient-to-br from-gray-900 via-gray-800 to-slate-900 text-white rounded-3xl shadow-xl border border-gray-700 relative overflow-hidden">
             <div className="text-xs font-bold text-amber-400 uppercase tracking-widest mb-1">
-              عداد الوقت المباشر (30 م سرعة)
+              {raceConfig.counterLabel}
             </div>
 
-            <div className="text-5xl sm:text-7xl font-mono font-black tracking-wider text-amber-400 drop-shadow-md my-2">
-              {formattedSeconds} <span className="text-2xl font-bold text-gray-400">ثانية</span>
-            </div>
+            {raceConfig.isMinutes ? (
+              <div className="flex items-baseline justify-center font-mono font-black text-amber-400 drop-shadow-md my-2">
+                <span className="text-5xl sm:text-7xl tracking-wider">
+                  {Math.floor(elapsedTime / 60000).toString().padStart(2, '0')}:{Math.floor((elapsedTime % 60000) / 1000).toString().padStart(2, '0')}
+                </span>
+                <span className="text-2xl sm:text-3xl text-amber-200/80 ms-1 font-mono">
+                  .{Math.floor((elapsedTime % 1000) / 10).toString().padStart(2, '0')}
+                </span>
+                <span className="text-xl sm:text-2xl text-amber-100 font-sans font-bold ms-3">دقيقة</span>
+              </div>
+            ) : (
+              <div className="text-5xl sm:text-7xl font-mono font-black tracking-wider text-amber-400 drop-shadow-md my-2">
+                {formattedSeconds} <span className="text-2xl font-bold text-gray-400">ثانية</span>
+              </div>
+            )}
 
             {/* Selected Runners / Lanes inside Live Timer Window */}
             {selectedRunners.length > 0 && (
@@ -641,7 +796,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                                       const isAssigned = selectedRunners.some(r => r.laneIndex !== runner.laneIndex && String(r.studentNumber) === String(s.numeroEleve));
                                       return (
                                         <option key={s.numeroEleve} value={s.numeroEleve} disabled={isAssigned}>
-                                          #{s.orderIndex || s.numeroEleve} - {s.nomEleve} ({prevTime}ث) {isAssigned ? '(بممر آخر)' : ''}
+                                          #{s.orderIndex || s.numeroEleve} - {s.nomEleve} ({raceConfig.isMinutes ? `${formatSecondsToMinSec(prevTime)} د` : `${prevTime}ث`}) {isAssigned ? '(بممر آخر)' : ''}
                                         </option>
                                       );
                                     })}
@@ -654,7 +809,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                           <div className="mt-1 pt-1 border-t border-white/20 w-full text-center">
                             {runner.isFinished ? (
                               <div className="text-base font-mono font-black text-white">
-                                ⚡ {runner.recordedTime?.toFixed(2)} ث
+                                ⚡ {raceConfig.isMinutes ? `${formatSecondsToMinSec(runner.recordedTime)} د` : `${runner.recordedTime?.toFixed(2)} ث`}
                               </div>
                             ) : testState === 'running' ? (
                               <div className="text-xs font-bold text-amber-300 flex items-center justify-center gap-1">
@@ -673,7 +828,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                         {/* Tooltip on hover */}
                         <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 text-xs font-black bg-gray-900 text-white px-3 py-1 rounded-xl shadow-xl whitespace-nowrap z-50 border border-gray-700">
                           {runner.isFinished 
-                            ? `الزمن: ${runner.recordedTime}ث (اضغط للإلغاء)` 
+                            ? `الزمن: ${raceConfig.isMinutes ? `${formatSecondsToMinSec(runner.recordedTime)} د` : `${runner.recordedTime}ث`} (اضغط للإلغاء)` 
                             : testState === 'idle'
                             ? 'انقر لبدء السباق والانطلاق'
                             : `تسجيل توقيت ${student ? student.nomEleve : `الممر #${runner.laneIndex}`}`}
@@ -867,7 +1022,10 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                   <div className={`grid grid-cols-1 ${selectedRunners.length >= 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} ${selectedRunners.length === 4 ? 'lg:grid-cols-4' : ''} gap-4`}>
                     {selectedRunners.map(runner => {
                       const student = students.find(s => String(s.numeroEleve) === String(runner.studentNumber));
-                      const speedKmH = runner.recordedTime ? ((30 / runner.recordedTime) * 3.6).toFixed(1) : null;
+                      const speedKmH = runner.recordedTime ? ((raceConfig.distanceMeters / runner.recordedTime) * 3.6).toFixed(1) : null;
+                      const runnerScore = (student && runner.recordedTime !== undefined)
+                        ? calculateScore(runner.recordedTime, raceConfig.scale, student.sexe || 'M', true)
+                        : undefined;
 
                       return (
                         <div
@@ -920,8 +1078,13 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                                 <div>
                                   <div className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase">الزمن المسجل</div>
                                   <div className="text-2xl font-mono font-black text-emerald-800 dark:text-emerald-200">
-                                    ⚡ {runner.recordedTime?.toFixed(2)} ثانية
+                                    ⚡ {raceConfig.isMinutes ? `${formatSecondsToMinSec(runner.recordedTime)} دقيقة` : `${runner.recordedTime?.toFixed(2)} ثانية`}
                                   </div>
+                                  {runnerScore !== undefined && (
+                                    <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 mt-0.5">
+                                      النقطة المستحقة: <span className="font-black text-sm">{runnerScore} / 20</span>
+                                    </div>
+                                  )}
                                 </div>
                                 <div className="text-left flex flex-col items-end gap-1">
                                   <span className="text-xs font-bold font-mono text-emerald-700 dark:text-emerald-300 bg-white/70 dark:bg-emerald-900/60 px-2 py-0.5 rounded-lg">
@@ -1062,7 +1225,8 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                           const selectedIdx = selectedRunners.findIndex(r => String(r.studentNumber) === String(student.numeroEleve));
                           const isSelected = selectedIdx >= 0;
                           const prevResult = physicalResults.find(r => String(r.numeroEleve) === String(student.numeroEleve));
-                          const hasPrev30m = prevResult?.vitesse30m !== undefined && prevResult.vitesse30m > 0;
+                          const prevVal = (prevResult as any)?.[raceConfig.field];
+                          const hasPrevTime = prevVal !== undefined && prevVal > 0;
 
                           return (
                             <button
@@ -1097,9 +1261,9 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                               </div>
 
                               {/* Previous result tag */}
-                              {hasPrev30m && (
+                              {hasPrevTime && (
                                 <div className="mt-2 text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-md self-start border border-emerald-200 dark:border-emerald-800">
-                                  ⚡ {prevResult.vitesse30m?.toFixed(2)} ث
+                                  ⚡ {raceConfig.isMinutes ? `${formatSecondsToMinSec(prevVal)} د` : `${prevVal?.toFixed(2)} ث`}
                                 </div>
                               )}
                             </button>
@@ -1118,13 +1282,13 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
                 <TrophyIcon className="w-5 h-5 text-amber-500" />
-                <span>جدول نتائج 30 م سرعة بالقسم ({completedResults.length} تلميذ/ة):</span>
+                <span>جدول نتائج {raceConfig.title} بالقسم ({completedResults.length} تلميذ/ة):</span>
               </h3>
             </div>
 
             {completedResults.length === 0 ? (
               <div className="p-6 text-center text-xs text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-700/30 rounded-2xl border border-dashed">
-                لم يتم تسجيل أي زمن في اختبار 30 م سرعة لهذا القسم بعد.
+                لم يتم تسجيل أي زمن في {raceConfig.title} لهذا القسم بعد.
               </div>
             ) : (
               <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xs">
@@ -1134,14 +1298,15 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                       <th className="p-2.5 w-12">#</th>
                       <th className="p-2.5 text-right">الاسم والنسب</th>
                       <th className="p-2.5 w-16">الجنس</th>
-                      <th className="p-2.5 w-28">الزمن (ثانية)</th>
-                      <th className="p-2.5 w-28">السرعة (كم/س)</th>
+                      <th className="p-2.5 w-32">{raceConfig.isMinutes ? 'الزمن (دقيقة : ثانية)' : 'الزمن (ثانية)'}</th>
+                      <th className="p-2.5 w-24">السرعة (كم/س)</th>
+                      <th className="p-2.5 w-24">النقطة (/20)</th>
                       <th className="p-2.5 w-16">حذف</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800">
-                    {completedResults.map(({ student, timeSec }, idx) => {
-                      const speedKmH = timeSec ? ((30 / timeSec) * 3.6).toFixed(1) : '-';
+                    {completedResults.map(({ student, timeSec, score }, idx) => {
+                      const speedKmH = timeSec ? ((raceConfig.distanceMeters / timeSec) * 3.6).toFixed(1) : '-';
 
                       return (
                         <tr key={student.numeroEleve} className="hover:bg-amber-50/40 dark:hover:bg-amber-950/20 transition-colors">
@@ -1157,10 +1322,13 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                             </span>
                           </td>
                           <td className="p-2 font-mono font-black text-amber-700 dark:text-amber-400 text-sm">
-                            {timeSec?.toFixed(2)} ث
+                            {raceConfig.isMinutes ? `${formatSecondsToMinSec(timeSec || 0)} د` : `${timeSec?.toFixed(2)} ث`}
                           </td>
                           <td className="p-2 font-mono font-bold text-indigo-600 dark:text-indigo-400">
                             {speedKmH} كم/س
+                          </td>
+                          <td className="p-2 font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                            {score !== undefined ? `${score} / 20` : '-'}
                           </td>
                           <td className="p-2">
                             <button

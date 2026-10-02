@@ -219,9 +219,10 @@ export const BaremeSettingsModal: React.FC<BaremeSettingsModalProps> = ({
                         type="text"
                         defaultValue={
                           selectedTest === 'endurance'
-                            ? formatSecondsToMinSec(t.value)
-                            : t.value
+                            ? (t.value !== undefined && !isNaN(t.value) ? formatSecondsToMinSec(t.value) : '')
+                            : (t.value !== undefined && !isNaN(t.value) ? String(t.value) : '')
                         }
+                        key={`${selectedTest}-${activeGender}-${idx}-${t.value}`}
                         onBlur={(e) => handleThresholdChange(idx, e.target.value)}
                         placeholder={selectedTest === 'endurance' ? '3:20' : ''}
                         className="w-28 text-center font-mono font-bold text-sm px-2.5 py-1.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
@@ -234,7 +235,8 @@ export const BaremeSettingsModal: React.FC<BaremeSettingsModalProps> = ({
                         min="0"
                         max="20"
                         step="0.5"
-                        defaultValue={t.score}
+                        defaultValue={t.score !== undefined && !isNaN(t.score) ? t.score : ''}
+                        key={`${selectedTest}-${activeGender}-${idx}-score-${t.score}`}
                         onBlur={(e) => handleScoreChange(idx, e.target.value)}
                         className="w-20 text-center font-black font-mono text-sm px-2.5 py-1.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400"
                       />

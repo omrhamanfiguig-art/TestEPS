@@ -18,7 +18,10 @@ import {
   UserPlusIcon,
   CloudIcon,
   CloudArrowDownIcon,
-  CloudArrowUpIcon
+  CloudArrowUpIcon,
+  UserCircleIcon,
+  TableCellsIcon,
+  ChevronDownIcon
 } from '../components/Icons';
 import { syncAllData, syncCloudToLocalDB } from '../utils/firebase';
 import { StudentDataModal } from '../components/StudentDataModal';
@@ -26,24 +29,37 @@ import { AddEditStudentModal } from '../components/AddEditStudentModal';
 import { StudentAvatar } from '../components/StudentAvatar';
 import { useLanguage } from '../utils/i18n';
 import { 
+  getTeacherProfiles, 
+  getTeacherForClass, 
+  assignTeacherToClass, 
+  detectLevelFromClassName, 
+  saveClassLevel, 
+  EDUCATIONAL_LEVELS, 
+  LevelKey, 
+  TeacherProfile,
+  addTeacherProfile,
+  deleteTeacherProfile
+} from '../utils/teacherHelper';
+import { 
   getAllClasses, 
   ClassStats, 
   deleteClass, 
   getStudentList, 
   getPhysicalTests, 
-  getVmaResults,
-  saveStudentList,
-  deleteStudentFromClass,
-  searchStudentsGlobal,
-  GlobalStudentSearchResult,
-  normalizeArabicText
+  getVmaResults, 
+  saveStudentList, 
+  deleteStudentFromClass, 
+  searchStudentsGlobal, 
+  GlobalStudentSearchResult, 
+  normalizeArabicText 
 } from '../utils/db';
 import {
   exportClassPhysicalTestsToExcel,
   exportClassMeasurementsToExcel,
   exportClassVmaResultsToExcel,
   parseStudentExcel,
-  downloadStudentsTemplate
+  downloadStudentsTemplate,
+  exportFilteredStudentsRosterToExcel
 } from '../utils/excelHelper';
 import type { StudentIdentity, PhysicalTests, StudentResult } from '../types';
 import type { ActiveScreen } from '../components/Sidebar';
@@ -73,6 +89,13 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'tested' | 'untested'>('all');
+
+  // Teacher and Academic Level Filters
+  const [filterTeacher, setFilterTeacher] = useState<string>('ALL');
+  const [filterLevel, setFilterLevel] = useState<string>('ALL');
+  const [teacherProfiles, setTeacherProfiles] = useState<TeacherProfile[]>(() => getTeacherProfiles());
+  const [isTeacherModalOpen, setIsTeacherModalOpen] = useState(false);
+  const [newTeacherInput, setNewTeacherInput] = useState('');
 
   // Modal for Viewing Student Roster
   const [rosterClass, setRosterClass] = useState<string | null>(null);
@@ -116,8 +139,16 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
 
   useEffect(() => {
     fetchClassesData();
-    window.addEventListener('dbUpdated', fetchClassesData);
-    return () => window.removeEventListener('dbUpdated', fetchClassesData);
+    const handleDb = () => {
+      fetchClassesData();
+      setTeacherProfiles(getTeacherProfiles());
+    };
+    window.addEventListener('dbUpdated', handleDb);
+    window.addEventListener('teachersUpdated', handleDb);
+    return () => {
+      window.removeEventListener('dbUpdated', handleDb);
+      window.removeEventListener('teachersUpdated', handleDb);
+    };
   }, []);
 
   const showToast = (msg: string) => {
@@ -422,21 +453,105 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
   const vmaRate = totalStudents > 0 ? Math.round((totalVmaTested / totalStudents) * 100) : 0;
   const measurementsRate = totalStudents > 0 ? Math.round((totalMeasured / totalStudents) * 100) : 0;
 
-  // Filtered classes
+  // Filtered classes (by search, status, teacher, and level)
   const filteredClasses = useMemo(() => {
     return classes.filter(c => {
       const matchesSearch = c.className.toLowerCase().includes(searchQuery.toLowerCase().trim());
       if (!matchesSearch) return false;
 
       if (filterStatus === 'tested') {
-        return c.testedCount > 0 || c.vmaCount > 0;
+        if (c.testedCount === 0 && c.vmaCount === 0) return false;
       }
       if (filterStatus === 'untested') {
-        return c.testedCount === 0 && c.vmaCount === 0;
+        if (c.testedCount > 0 || c.vmaCount > 0) return false;
       }
+
+      // Filter by Teacher
+      if (filterTeacher !== 'ALL') {
+        const assignedTeacher = getTeacherForClass(c.className);
+        if (assignedTeacher !== filterTeacher) return false;
+      }
+
+      // Filter by Level
+      if (filterLevel !== 'ALL') {
+        const level = detectLevelFromClassName(c.className);
+        if (level.key !== filterLevel) return false;
+      }
+
       return true;
     });
-  }, [classes, searchQuery, filterStatus]);
+  }, [classes, searchQuery, filterStatus, filterTeacher, filterLevel]);
+
+  // Filtered students list across all classes (by teacher, level, and search)
+  const filteredStudentsList = useMemo(() => {
+    return globalStudents.filter(item => {
+      // Filter by Teacher
+      if (filterTeacher !== 'ALL') {
+        const teacher = getTeacherForClass(item.className);
+        if (teacher !== filterTeacher) return false;
+      }
+
+      // Filter by Level
+      if (filterLevel !== 'ALL') {
+        const level = detectLevelFromClassName(item.className);
+        if (level.key !== filterLevel) return false;
+      }
+
+      return true;
+    });
+  }, [globalStudents, filterTeacher, filterLevel]);
+
+  // Export filtered students list to Excel
+  const handleExportFilteredStudents = () => {
+    if (filteredStudentsList.length === 0) {
+      showToast(language === 'ar' ? 'لا توجد بيانات تلاميذ للتصدير.' : 'Aucun élève à exporter.');
+      return;
+    }
+
+    const teacherLabel = filterTeacher !== 'ALL' ? `الأستاذ: ${filterTeacher}` : 'كافة الأساتذة';
+    const levelObj = EDUCATIONAL_LEVELS.find(l => l.key === filterLevel);
+    const levelLabel = filterLevel !== 'ALL' && levelObj ? `المستوى: ${levelObj.label}` : 'كافة المستويات';
+    const title = `لوائح التلاميذ (${teacherLabel} - ${levelLabel})`;
+
+    const exportItems = filteredStudentsList.map((item, idx) => ({
+      rank: idx + 1,
+      numeroEleve: item.student.numeroEleve,
+      nomEleve: item.student.nomEleve,
+      className: item.className,
+      level: detectLevelFromClassName(item.className).shortLabel,
+      teacher: getTeacherForClass(item.className) || 'غير محدد',
+      sexe: item.student.sexe,
+      isPhysicalDone: item.isPhysicalDone,
+      isVmaDone: item.isVmaDone,
+      vmaVal: item.vmaVal,
+      isMeasurementsDone: item.isMeasurementsDone,
+      imcVal: item.imcVal ? String(item.imcVal) : undefined
+    }));
+
+    exportFilteredStudentsRosterToExcel(title, exportItems);
+    showToast(language === 'ar' ? `تم تصدير لائحة ${filteredStudentsList.length} تلميذ بنجاح إلى ملف Excel` : 'Export Excel réussi');
+  };
+
+  // Add teacher handler
+  const handleAddTeacher = () => {
+    const name = newTeacherInput.trim();
+    if (!name) return;
+    addTeacherProfile(name);
+    setNewTeacherInput('');
+    setTeacherProfiles(getTeacherProfiles());
+    showToast(language === 'ar' ? `تمت إضافة الأستاذ «${name}» بنجاح` : 'Enseignant ajouté');
+  };
+
+  // Delete teacher handler
+  const handleDeleteTeacher = (id: string, name: string) => {
+    if (!window.confirm(language === 'ar' ? `هل أنت متأكد من حذف الأستاذ «${name}»؟` : `Supprimer cet enseignant ?`)) return;
+    deleteTeacherProfile(id);
+    setTeacherProfiles(getTeacherProfiles());
+    if (filterTeacher === name) {
+      setFilterTeacher('ALL');
+    }
+    showToast(language === 'ar' ? `تم حذف الأستاذ «${name}»` : 'Enseignant supprimé');
+  };
 
   // Filtered roster students in modal (supports Arabic normalized search)
   const filteredRoster = useMemo(() => {
@@ -633,9 +748,9 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white dark:bg-gray-800 p-3.5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
-        {/* Search Mode Selector & Input */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1">
+      <div className="space-y-3 bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+        {/* Row 1: Search Mode Selector & Input */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           {/* Toggle between Classes and Students search */}
           <div className="flex items-center bg-gray-100 dark:bg-gray-900 p-1 rounded-xl shrink-0">
             <button
@@ -644,7 +759,7 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                 setSearchMode('classes');
                 setSearchQuery('');
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 searchMode === 'classes'
                   ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
@@ -660,14 +775,14 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                 setSearchMode('students');
                 setSearchQuery('');
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 searchMode === 'students'
                   ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
               }`}
             >
               <UsersIcon />
-              <span>{language === 'ar' ? 'بحث باسم التلميذ' : 'Recherche élèves'}</span>
+              <span>{language === 'ar' ? 'لوائح التلاميذ' : 'Listes des élèves'}</span>
             </button>
           </div>
 
@@ -682,7 +797,7 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={
                 searchMode === 'students'
-                  ? (language === 'ar' ? 'ابحث بالاسم الكامل للتلميذ أو رقم مسار في كل الأقسام...' : 'Recherche élève par nom ou Massar...')
+                  ? (language === 'ar' ? 'ابحث بالاسم الكامل للتلميذ أو رقم مسار في الأقسام...' : 'Recherche élève par nom ou Massar...')
                   : (language === 'ar' ? 'بحث عن قسم بالاسم...' : 'Rechercher une classe...')
               }
               className="w-full ps-9 pe-8 py-2 text-xs sm:text-sm rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -699,55 +814,146 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
           </div>
         </div>
 
-        {/* Filter Pills (when in classes mode) or Student count & Add button */}
-        {searchMode === 'classes' ? (
-          <div className="flex items-center gap-1.5 w-full md:w-auto overflow-x-auto shrink-0">
-            <button
-              onClick={() => setFilterStatus('all')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                filterStatus === 'all'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              {language === 'ar' ? 'الكل' : 'Toutes'} ({classes.length})
-            </button>
-            <button
-              onClick={() => setFilterStatus('tested')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                filterStatus === 'tested'
-                  ? 'bg-emerald-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              {language === 'ar' ? 'تم بدء الاختبارات' : 'En cours / Testées'}
-            </button>
-            <button
-              onClick={() => setFilterStatus('untested')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                filterStatus === 'untested'
-                  ? 'bg-rose-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              {language === 'ar' ? 'لم تُختبر بعد' : 'Non testées'}
-            </button>
+        {/* Row 2: Teacher & Academic Level Filter Controls */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pt-3 border-t border-gray-100 dark:border-gray-700/60">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Filter by Teacher */}
+            <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-900/60 px-2.5 py-1 rounded-xl border border-gray-200 dark:border-gray-700">
+              <span className="text-xs font-bold text-gray-500 dark:text-gray-400 shrink-0">
+                {language === 'ar' ? 'الأستاذ:' : 'Prof :'}
+              </span>
+              <select
+                value={filterTeacher}
+                onChange={(e) => setFilterTeacher(e.target.value)}
+                className="text-xs font-bold py-1 px-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+              >
+                <option value="ALL">{language === 'ar' ? '👨‍🏫 جميع الأساتذة' : 'Tous les professeurs'}</option>
+                {teacherProfiles.map(tp => {
+                  const assignedCount = classes.filter(c => getTeacherForClass(c.className) === tp.name).length;
+                  return (
+                    <option key={tp.id} value={tp.name}>
+                      👨‍🏫 {tp.name} ({assignedCount} {language === 'ar' ? 'قسم' : 'cl'})
+                    </option>
+                  );
+                })}
+              </select>
+              <button
+                type="button"
+                onClick={() => setIsTeacherModalOpen(true)}
+                title={language === 'ar' ? 'إدارة الأساتذة وإضافة أستاذ جديد' : 'Gérer les enseignants'}
+                className="p-1 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950 transition"
+              >
+                <UserCircleIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Filter by Level */}
+            <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-900/60 px-2.5 py-1 rounded-xl border border-gray-200 dark:border-gray-700">
+              <span className="text-xs font-bold text-gray-500 dark:text-gray-400 shrink-0">
+                {language === 'ar' ? 'المستوى:' : 'Niveau :'}
+              </span>
+              <select
+                value={filterLevel}
+                onChange={(e) => setFilterLevel(e.target.value)}
+                className="text-xs font-bold py-1 px-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+              >
+                <option value="ALL">{language === 'ar' ? '🎓 جميع المستويات' : 'Tous les niveaux'}</option>
+                {EDUCATIONAL_LEVELS.filter(l => l.key !== 'all').map(lvl => {
+                  const levelCount = classes.filter(c => detectLevelFromClassName(c.className).key === lvl.key).length;
+                  return (
+                    <option key={lvl.key} value={lvl.key}>
+                      {lvl.label} ({levelCount} {language === 'ar' ? 'قسم' : 'cl'})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Clear filters pill */}
+            {(filterTeacher !== 'ALL' || filterLevel !== 'ALL') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterTeacher('ALL');
+                  setFilterLevel('ALL');
+                }}
+                className="text-[11px] font-bold px-2 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 transition flex items-center gap-1"
+              >
+                <XMarkIcon className="w-3.5 h-3.5" />
+                <span>{language === 'ar' ? 'إلغاء التصفية' : 'Effacer'}</span>
+              </button>
+            )}
           </div>
-        ) : (
-          <div className="flex items-center justify-between sm:justify-end gap-2 w-full md:w-auto shrink-0">
-            <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
-              {language === 'ar' ? `المعروض: ${globalStudents.length} تلميذ` : `${globalStudents.length} élèves`}
-            </span>
-            <button
-              type="button"
-              onClick={() => handleOpenAddStudent(selectedClass || classes[0]?.className)}
-              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-emerald-600/20"
-            >
-              <UserPlusIcon className="w-3.5 h-3.5" />
-              <span>{language === 'ar' ? 'إضافة تلميذ' : 'Ajouter élève'}</span>
-            </button>
-          </div>
-        )}
+
+          {/* Right Action buttons depending on mode */}
+          {searchMode === 'classes' ? (
+            <div className="flex items-center gap-1.5 overflow-x-auto shrink-0">
+              <button
+                onClick={() => setFilterStatus('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                  filterStatus === 'all'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                {language === 'ar' ? 'الكل' : 'Toutes'} ({filteredClasses.length})
+              </button>
+              <button
+                onClick={() => setFilterStatus('tested')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                  filterStatus === 'tested'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                {language === 'ar' ? 'تم بدء الاختبارات' : 'En cours / Testées'}
+              </button>
+              <button
+                onClick={() => setFilterStatus('untested')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                  filterStatus === 'untested'
+                    ? 'bg-rose-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                {language === 'ar' ? 'لم تُختبر بعد' : 'Non testées'}
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+              {/* Export filtered students to Excel */}
+              <button
+                type="button"
+                onClick={handleExportFilteredStudents}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-emerald-600/20 transition cursor-pointer"
+                title={language === 'ar' ? 'تصدير لائحة التلاميذ المفلترة إلى Excel' : 'Exporter la liste vers Excel'}
+              >
+                <ExcelIcon className="w-3.5 h-3.5" />
+                <span>{language === 'ar' ? 'تصدير Excel' : 'Excel'}</span>
+              </button>
+
+              {/* Print Roster */}
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-3 py-1.5 rounded-xl border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                title={language === 'ar' ? 'طباعة لائحة التلاميذ' : 'Imprimer la liste'}
+              >
+                <span>🖨️ {language === 'ar' ? 'طباعة' : 'Imprimer'}</span>
+              </button>
+
+              {/* Add Student */}
+              <button
+                type="button"
+                onClick={() => handleOpenAddStudent(selectedClass || classes[0]?.className)}
+                className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-indigo-600/20 transition cursor-pointer"
+              >
+                <UserPlusIcon className="w-3.5 h-3.5" />
+                <span>{language === 'ar' ? 'إضافة تلميذ' : 'Ajouter élève'}</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Render Student Search Results OR Classes Grid */}
@@ -757,54 +963,91 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
             <div className="py-20 text-center space-y-3 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
               <div className="animate-spin inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full" />
               <p className="text-sm font-bold text-gray-500 dark:text-gray-400">
-                {language === 'ar' ? 'جاري البحث في لوائح التلاميذ...' : 'Recherche des élèves...'}
+                {language === 'ar' ? 'جاري تصفية وتحميل لوائح التلاميذ...' : 'Chargement des élèves...'}
               </p>
             </div>
-          ) : globalStudents.length === 0 ? (
+          ) : filteredStudentsList.length === 0 ? (
             <div className="py-16 px-6 text-center bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 space-y-4">
               <div className="inline-flex p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950 text-indigo-500">
                 <UsersIcon />
               </div>
               <div className="space-y-1">
                 <h3 className="text-base sm:text-lg font-bold text-gray-800 dark:text-gray-200">
-                  {searchQuery.trim()
-                    ? (language === 'ar' ? `لم يتم العثور على أي تلميذ يطابق «${searchQuery}»` : `Aucun élève correspondant à «${searchQuery}»`)
+                  {searchQuery.trim() || filterTeacher !== 'ALL' || filterLevel !== 'ALL'
+                    ? (language === 'ar' ? 'لا يوجد أي تلميذ يطابق معايير التصفية والبحث الحالية' : 'Aucun élève correspondant aux filtres')
                     : (language === 'ar' ? 'لا يوجد تلاميذ مسجلون حالياً' : 'Aucun élève enregistré')}
                 </h3>
                 <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-                  {searchQuery.trim()
-                    ? (language === 'ar' ? 'تأكد من كتابة الاسم أو رقم مسار بشكل صحيح، أو أضف تلميذاً جديداً.' : 'Vérifiez l’orthographe ou ajoutez un élève.')
-                    : (language === 'ar' ? 'قم باستيراد لائحة أو أضف تلميذاً يدوياً للبدء.' : 'Importez une liste ou ajoutez un élève manuellement.')}
+                  {filterTeacher !== 'ALL' || filterLevel !== 'ALL'
+                    ? (language === 'ar' ? 'جرب تغيير الأستاذ أو المستوى أو الضغط على «إلغاء التصفية» لعرض الجميع.' : 'Modifiez vos filtres pour afficher plus d’élèves.')
+                    : (language === 'ar' ? 'قم باستيراد لائحة أو أضف تلميذاً يدوياً للبدء.' : 'Importez une liste ou ajoutez un élève.')}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => handleOpenAddStudent(selectedClass || classes[0]?.className)}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold shadow-md shadow-emerald-600/20 transition"
-              >
-                <UserPlusIcon className="w-4 h-4" />
-                <span>{language === 'ar' ? 'إضافة تلميذ جديد الآن' : 'Ajouter un élève maintenant'}</span>
-              </button>
-            </div>
-          ) : (
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50/60 dark:bg-gray-850">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-black text-gray-900 dark:text-white">
-                    {language === 'ar' ? 'نتائج البحث عن التلاميذ' : 'Résultats de recherche'}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-black bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
-                    {globalStudents.length} {language === 'ar' ? 'تلميذ' : 'élèves'}
-                  </span>
-                </div>
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                {(filterTeacher !== 'ALL' || filterLevel !== 'ALL') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterTeacher('ALL');
+                      setFilterLevel('ALL');
+                    }}
+                    className="px-4 py-2 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-xs font-bold hover:bg-gray-300 transition"
+                  >
+                    {language === 'ar' ? 'إلغاء التصفية وعرض الجميع' : 'Effacer les filtres'}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => handleOpenAddStudent(selectedClass || classes[0]?.className)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs"
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition"
                 >
-                  <UserPlusIcon className="w-3.5 h-3.5" />
-                  <span>{language === 'ar' ? 'إضافة تلميذ' : 'Ajouter'}</span>
+                  <UserPlusIcon className="w-4 h-4" />
+                  <span>{language === 'ar' ? 'إضافة تلميذ جديد' : 'Ajouter élève'}</span>
                 </button>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex flex-wrap items-center justify-between gap-3 bg-gray-50/60 dark:bg-gray-850">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-black text-gray-900 dark:text-white">
+                    {language === 'ar' ? 'لوائح التلاميذ المفلترة' : 'Listes des élèves filtrées'}
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                    {filteredStudentsList.length} {language === 'ar' ? 'تلميذ/ة' : 'élèves'}
+                  </span>
+                  {filterTeacher !== 'ALL' && (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                      👨‍🏫 الأستاذ: {filterTeacher}
+                    </span>
+                  )}
+                  {filterLevel !== 'ALL' && (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
+                      🎓 المستوى: {EDUCATIONAL_LEVELS.find(l => l.key === filterLevel)?.shortLabel || filterLevel}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleExportFilteredStudents}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                    title={language === 'ar' ? 'تصدير لائحة التلاميذ الحالية إلى ملف Excel' : 'Exporter'}
+                  >
+                    <ExcelIcon className="w-3.5 h-3.5" />
+                    <span>{language === 'ar' ? 'تصدير اللائحة (Excel)' : 'Exporter (Excel)'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs font-bold transition shadow-xs cursor-pointer"
+                    title={language === 'ar' ? 'طباعة لائحة التلاميذ' : 'Imprimer'}
+                  >
+                    <span>🖨️ {language === 'ar' ? 'طباعة' : 'Imprimer'}</span>
+                  </button>
+                </div>
               </div>
 
               <div className="overflow-x-auto">
@@ -814,6 +1057,8 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                       <th className="py-3 px-3 text-start">#</th>
                       <th className="py-3 px-3 text-start">{t.studentName}</th>
                       <th className="py-3 px-3 text-start">{language === 'ar' ? 'القسم' : 'Classe'}</th>
+                      <th className="py-3 px-3 text-center">{language === 'ar' ? 'المستوى' : 'Niveau'}</th>
+                      <th className="py-3 px-3 text-center">{language === 'ar' ? 'الأستاذ المكلف' : 'Professeur'}</th>
                       <th className="py-3 px-3 text-center">{t.gender}</th>
                       <th className="py-3 px-3 text-center">{t.navPhysicalTests}</th>
                       <th className="py-3 px-3 text-center">{t.vmaTitle}</th>
@@ -822,123 +1067,138 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {globalStudents.map((item, idx) => (
-                      <tr key={`${item.className}-${item.student.numeroEleve}-${idx}`} className="hover:bg-gray-50/70 dark:hover:bg-gray-750 transition">
-                        <td className="py-2.5 px-3 text-gray-400 font-mono">{idx + 1}</td>
-                        <td className="py-2.5 px-3">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedClass(item.className);
-                              setModalStudentNumber(item.student.numeroEleve);
-                            }}
-                            className="font-bold text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition flex items-center gap-2.5 group/name text-start"
-                            title={language === 'ar' ? 'فتح بطاقة التلميذ' : 'Voir fiche élève'}
-                          >
-                            <StudentAvatar
-                              photoUrl={item.student.photoUrl}
-                              nomEleve={item.student.nomEleve}
-                              sexe={item.student.sexe}
-                              size="sm"
-                            />
-                            <div className="flex flex-col min-w-0">
-                              <span className="group-hover/name:underline truncate">{item.student.nomEleve}</span>
-                              <span className="text-[10px] font-mono text-gray-400 leading-none">
-                                {item.student.numeroEleve}
-                              </span>
-                            </div>
-                          </button>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenRoster(item.className)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/70 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-black text-xs border border-indigo-200/80 dark:border-indigo-800 transition"
-                            title={language === 'ar' ? 'فتح لائحة هذا القسم' : 'Ouvrir cette classe'}
-                          >
-                            <AcademicCapIcon className="w-3.5 h-3.5" />
-                            <span>{item.className}</span>
-                          </button>
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-black ${
-                            item.student.sexe === 'M'
-                              ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
-                              : 'bg-pink-50 text-pink-700 dark:bg-pink-950 dark:text-pink-300'
-                          }`}>
-                            {item.student.sexe === 'M' ? (language === 'ar' ? 'ذكر' : 'G') : (language === 'ar' ? 'أنثى' : 'F')}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          {item.isPhysicalDone ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 text-[10px] font-bold">
-                              <CheckIcon />
-                              <span>{language === 'ar' ? 'منجز' : 'Fait'}</span>
-                            </span>
-                          ) : (
-                            <span className="text-gray-400 text-[10px]">-</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          {item.isVmaDone && item.vmaVal ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 text-[10px] font-bold font-mono">
-                              <span>{item.vmaVal}</span>
-                              <span className="text-[9px]">km/h</span>
-                            </span>
-                          ) : (
-                            <span className="text-gray-400 text-[10px]">-</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          {item.imcVal ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 text-[10px] font-bold font-mono">
-                              <span>{item.imcVal}</span>
-                            </span>
-                          ) : item.isMeasurementsDone ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 text-[10px] font-bold">
-                              <CheckIcon />
-                              <span>{language === 'ar' ? 'مسجل' : 'Saisi'}</span>
-                            </span>
-                          ) : (
-                            <span className="text-gray-400 text-[10px]">-</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            {/* Edit Student */}
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditStudent(item.student, item.className)}
-                              className="p-1.5 rounded-lg text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition"
-                              title={language === 'ar' ? 'تعديل بيانات التلميذ' : 'Modifier'}
-                            >
-                              <PencilSquareIcon className="w-3.5 h-3.5" />
-                            </button>
-                            {/* Complete Data Modal */}
+                    {filteredStudentsList.map((item, idx) => {
+                      const levelInfo = detectLevelFromClassName(item.className);
+                      const teacherName = getTeacherForClass(item.className);
+
+                      return (
+                        <tr key={`${item.className}-${item.student.numeroEleve}-${idx}`} className="hover:bg-gray-50/70 dark:hover:bg-gray-750 transition">
+                          <td className="py-2.5 px-3 text-gray-400 font-mono">{idx + 1}</td>
+                          <td className="py-2.5 px-3">
                             <button
                               type="button"
                               onClick={() => {
                                 setSelectedClass(item.className);
                                 setModalStudentNumber(item.student.numeroEleve);
                               }}
-                              className="p-1.5 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition"
-                              title={language === 'ar' ? 'بطاقة التلميذ والاختبارات' : 'Fiche complète'}
+                              className="font-bold text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition flex items-center gap-2.5 group/name text-start"
+                              title={language === 'ar' ? 'فتح بطاقة التلميذ' : 'Voir fiche élève'}
                             >
-                              <EyeIcon className="w-3.5 h-3.5" />
+                              <StudentAvatar
+                                photoUrl={item.student.photoUrl}
+                                nomEleve={item.student.nomEleve}
+                                sexe={item.student.sexe}
+                                size="sm"
+                              />
+                              <div className="flex flex-col min-w-0">
+                                <span className="group-hover/name:underline truncate">{item.student.nomEleve}</span>
+                                <span className="text-[10px] font-mono text-gray-400 leading-none">
+                                  {item.student.numeroEleve}
+                                </span>
+                              </div>
                             </button>
-                            {/* Delete Student */}
+                          </td>
+                          <td className="py-2.5 px-3">
                             <button
                               type="button"
-                              onClick={() => setStudentToDelete({ student: item.student, className: item.className })}
-                              className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
-                              title={language === 'ar' ? 'حذف التلميذ' : 'Supprimer'}
+                              onClick={() => handleOpenRoster(item.className)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/70 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-black text-xs border border-indigo-200/80 dark:border-indigo-800 transition"
+                              title={language === 'ar' ? 'فتح لائحة هذا القسم' : 'Ouvrir cette classe'}
                             >
-                              <TrashIcon />
+                              <AcademicCapIcon className="w-3.5 h-3.5" />
+                              <span>{item.className}</span>
                             </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                              {levelInfo.shortLabel}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                              {teacherName ? `👨‍🏫 ${teacherName}` : (language === 'ar' ? 'غير محدد' : '-')}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-black ${
+                              item.student.sexe === 'M'
+                                ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                                : 'bg-pink-50 text-pink-700 dark:bg-pink-950 dark:text-pink-300'
+                            }`}>
+                              {item.student.sexe === 'M' ? (language === 'ar' ? 'ذكر' : 'G') : (language === 'ar' ? 'أنثى' : 'F')}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            {item.isPhysicalDone ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 text-[10px] font-bold">
+                                <CheckIcon />
+                                <span>{language === 'ar' ? 'منجز' : 'Fait'}</span>
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 text-[10px]">-</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            {item.isVmaDone && item.vmaVal ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 text-[10px] font-bold font-mono">
+                                <span>{item.vmaVal}</span>
+                                <span className="text-[9px]">km/h</span>
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 text-[10px]">-</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            {item.imcVal ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 text-[10px] font-bold font-mono">
+                                <span>{item.imcVal}</span>
+                              </span>
+                            ) : item.isMeasurementsDone ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 text-[10px] font-bold">
+                                <CheckIcon />
+                                <span>{language === 'ar' ? 'مسجل' : 'Saisi'}</span>
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 text-[10px]">-</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              {/* Edit Student */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditStudent(item.student, item.className)}
+                                className="p-1.5 rounded-lg text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition cursor-pointer"
+                                title={language === 'ar' ? 'تعديل بيانات التلميذ' : 'Modifier'}
+                              >
+                                <PencilSquareIcon className="w-3.5 h-3.5" />
+                              </button>
+                              {/* Complete Data Modal */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedClass(item.className);
+                                  setModalStudentNumber(item.student.numeroEleve);
+                                }}
+                                className="p-1.5 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition cursor-pointer"
+                                title={language === 'ar' ? 'بطاقة التلميذ والاختبارات' : 'Fiche complète'}
+                              >
+                                <EyeIcon className="w-3.5 h-3.5" />
+                              </button>
+                              {/* Delete Student */}
+                              <button
+                                type="button"
+                                onClick={() => setStudentToDelete({ student: item.student, className: item.className })}
+                                className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                                title={language === 'ar' ? 'حذف التلميذ' : 'Supprimer'}
+                              >
+                                <TrashIcon />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

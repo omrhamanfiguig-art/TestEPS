@@ -670,11 +670,11 @@ export interface GlobalStudentSearchResult {
 }
 
 /**
- * Searches students by name or Massar number across all registered classes
+ * Searches students by name or Massar number across all registered classes,
+ * or returns all students if query is empty.
  */
-export const searchStudentsGlobal = async (query: string): Promise<GlobalStudentSearchResult[]> => {
-  const q = normalizeArabicText(query);
-  if (!q) return [];
+export const searchStudentsGlobal = async (query: string = ''): Promise<GlobalStudentSearchResult[]> => {
+  const q = normalizeArabicText(query || '');
 
   const db = await initDB();
   const tx = db.transaction([STUDENTS_STORE, PHYSICAL_TESTS_STORE, VMA_STORE], 'readonly');
@@ -696,11 +696,15 @@ export const searchStudentsGlobal = async (query: string): Promise<GlobalStudent
         const students = classItem.students || [];
 
         students.forEach((s, idx) => {
+          if (!s || !s.nomEleve || isForbiddenStudentName(s.nomEleve)) return;
+
           const normName = normalizeArabicText(s.nomEleve);
           const normNum = String(s.numeroEleve || '').toLowerCase();
           const normOrder = String(idx + 1);
 
-          if (normName.includes(q) || normNum.includes(q) || normOrder === q) {
+          const matches = !q || normName.includes(q) || normNum.includes(q) || normOrder === q || cls.toLowerCase().includes(q);
+
+          if (matches) {
             // Find corresponding physical & VMA
             const p = allPhysical.find(item => item.className === cls && String(item.numeroEleve) === String(s.numeroEleve));
             const v = allVma.find(item => item.className === cls && String(item.numeroEleve) === String(s.numeroEleve));
@@ -708,6 +712,8 @@ export const searchStudentsGlobal = async (query: string): Promise<GlobalStudent
             const isPhysicalDone = !!(
               p && (
                 p.vitesse30m !== undefined ||
+                p.vitesse60m !== undefined ||
+                p.vitesse80m !== undefined ||
                 p.sautHorizontal !== undefined ||
                 p.sautVertical !== undefined ||
                 p.lancerMedball !== undefined ||
@@ -751,6 +757,10 @@ export const searchStudentsGlobal = async (query: string): Promise<GlobalStudent
       resolve([]);
     };
   });
+};
+
+export const getAllStudentsGlobal = async (): Promise<GlobalStudentSearchResult[]> => {
+  return searchStudentsGlobal('');
 };
 
 // -------------------------------------------------------------

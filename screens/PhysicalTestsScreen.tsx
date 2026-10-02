@@ -22,7 +22,7 @@ import {
 import { StudentDataModal } from '../components/StudentDataModal';
 import { AddEditStudentModal } from '../components/AddEditStudentModal';
 import { StudentAvatar } from '../components/StudentAvatar';
-import { Sprint30mTestModal } from '../components/Sprint30mTestModal';
+import { Sprint30mTestModal, RaceTestType } from '../components/Sprint30mTestModal';
 import { AthleticsTestModal } from '../components/AthleticsTestModal';
 import { StaticBalanceTestModal } from '../components/StaticBalanceTestModal';
 import { BaremeSettingsModal } from '../components/BaremeSettingsModal';
@@ -85,6 +85,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
     const [studentToEdit, setStudentToEdit] = useState<StudentIdentity | null>(null);
     const [isLucLegerModalOpen, setIsLucLegerModalOpen] = useState(false);
     const [isSprintModalOpen, setIsSprintModalOpen] = useState(false);
+    const [sprintTestType, setSprintTestType] = useState<RaceTestType>('speed');
     const [isAthleticsModalOpen, setIsAthleticsModalOpen] = useState(false);
     const [athleticsTestType, setAthleticsTestType] = useState<'speed' | 'endurance' | 'long-jump' | 'shot-put'>('speed');
     const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
@@ -138,10 +139,28 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
             setStudentList(normalizedList);
         });
         getPhysicalTests(className).then(res => {
-            setResults(res || []);
+            const sanitized = (res || []).map(item => {
+                const cleaned: any = { ...item };
+                Object.keys(cleaned).forEach(k => {
+                    if (typeof cleaned[k] === 'number' && isNaN(cleaned[k])) {
+                        delete cleaned[k];
+                    }
+                });
+                return cleaned as PhysicalTests;
+            });
+            setResults(sanitized);
         });
         getVmaResults(className).then(vmaList => {
-            setVmaResults(vmaList || []);
+            const sanitizedVma = (vmaList || []).map(item => {
+                const cleaned: any = { ...item };
+                Object.keys(cleaned).forEach(k => {
+                    if (typeof cleaned[k] === 'number' && isNaN(cleaned[k])) {
+                        delete cleaned[k];
+                    }
+                });
+                return cleaned as StudentResult;
+            });
+            setVmaResults(sanitizedVma);
         });
     };
 
@@ -161,14 +180,16 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
             setFormData({
                 ...existingResult,
                 // If existing physical test does not have vma set, fill from vmaResults if available
-                vma: existingResult.vma !== undefined ? existingResult.vma : existingVmaResult?.vma
+                vma: existingResult.vma !== undefined && !isNaN(existingResult.vma) 
+                    ? existingResult.vma 
+                    : (existingVmaResult?.vma !== undefined && !isNaN(existingVmaResult.vma) ? existingVmaResult.vma : undefined)
             });
         } else {
             setFormData({
                 numeroEleve: student.numeroEleve,
                 nomEleve: student.nomEleve,
                 sexe: student.sexe,
-                vma: existingVmaResult?.vma,
+                vma: existingVmaResult?.vma !== undefined && !isNaN(existingVmaResult.vma) ? existingVmaResult.vma : undefined,
                 date: sessionDate || new Date().toISOString()
             });
         }
@@ -179,7 +200,13 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
         if (field === 'enduranceTemps') {
             numVal = parseMinSecToSeconds(value);
         } else {
-            numVal = value === '' ? undefined : Number(value);
+            const trimmed = String(value ?? '').trim();
+            if (trimmed === '') {
+                numVal = undefined;
+            } else {
+                const parsed = Number(trimmed);
+                numVal = isNaN(parsed) ? undefined : parsed;
+            }
         }
 
         setFormData(prev => {
@@ -197,6 +224,12 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                 } else if (field === 'enduranceTemps') {
                     next.scoreEndurance = calculateScore(numVal, getCustomScale('endurance'), selectedStudent.sexe || 'M', true);
                 }
+            } else {
+                delete next[field];
+                if (field === 'vitesse30m') delete next.scoreVitesse;
+                else if (field === 'sautLong') delete next.scoreSautLong;
+                else if (field === 'lancerPoids') delete next.scoreLancerPoids;
+                else if (field === 'enduranceTemps') delete next.scoreEndurance;
             }
             return next;
         });
@@ -259,13 +292,34 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
         });
     };
 
+    // Helper functions to prevent React "Received NaN for the defaultValue attribute" error
+    const toSafeDefaultValue = (val: any): string | number => {
+        if (val === undefined || val === null || val === '') return '';
+        const num = typeof val === 'number' ? val : Number(val);
+        if (isNaN(num)) return '';
+        return num;
+    };
+
+    const toSafeEnduranceDefault = (val: any): string => {
+        if (val === undefined || val === null || val === '') return '';
+        const num = typeof val === 'number' ? val : Number(val);
+        if (isNaN(num) || num <= 0) return '';
+        return formatSecondsToMinSec(num);
+    };
+
     // Quick table inline field change handler
     const handleTableFieldChange = async (student: StudentIdentity, field: PhysicalTestField, rawVal: string) => {
         let numVal: number | undefined;
         if (field === 'enduranceTemps') {
             numVal = parseMinSecToSeconds(rawVal);
         } else {
-            numVal = rawVal === '' ? undefined : Number(rawVal);
+            const trimmed = String(rawVal ?? '').trim();
+            if (trimmed === '') {
+                numVal = undefined;
+            } else {
+                const parsed = Number(trimmed);
+                numVal = isNaN(parsed) ? undefined : parsed;
+            }
         }
 
         const existingResult = results.find(r => r.numeroEleve === student.numeroEleve);
@@ -275,12 +329,12 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
             numeroEleve: student.numeroEleve,
             nomEleve: student.nomEleve,
             sexe: student.sexe,
-            [field]: numVal,
             date: existingResult?.date || sessionDate || new Date().toISOString()
         };
 
         // Automatic score calculation for relevant fields
         if (numVal !== undefined && !isNaN(numVal)) {
+            updatedItem[field] = numVal;
             if (field === 'vitesse30m') {
                 updatedItem.scoreVitesse = calculateScore(numVal, getCustomScale('speed'), student.sexe || 'M', true);
             } else if (field === 'sautLong') {
@@ -290,6 +344,12 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
             } else if (field === 'enduranceTemps') {
                 updatedItem.scoreEndurance = calculateScore(numVal, getCustomScale('endurance'), student.sexe || 'M', true);
             }
+        } else {
+            delete updatedItem[field];
+            if (field === 'vitesse30m') delete updatedItem.scoreVitesse;
+            else if (field === 'sautLong') delete updatedItem.scoreSautLong;
+            else if (field === 'lancerPoids') delete updatedItem.scoreLancerPoids;
+            else if (field === 'enduranceTemps') delete updatedItem.scoreEndurance;
         }
 
         const updatedResults = [...results];
@@ -668,6 +728,28 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                         </button>
 
                         <button
+                            onClick={() => {
+                                setSprintTestType('speed');
+                                setIsSprintModalOpen(true);
+                            }}
+                            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs text-white bg-orange-600 hover:bg-orange-700 transition active:scale-95 cursor-pointer"
+                            title="تشغيل الميقاتي الميداني للسرعة 30م"
+                        >
+                            <span>⏱️ ميقاتي 30م</span>
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                setSprintTestType('endurance');
+                                setIsSprintModalOpen(true);
+                            }}
+                            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs text-white bg-red-600 hover:bg-red-700 transition active:scale-95 cursor-pointer"
+                            title="تشغيل ميقاتي سباق السرعة المتوسطة (التحمل بالدقائق والثواني)"
+                        >
+                            <span>⏱️ ميقاتي السرعة المتوسطة</span>
+                        </button>
+
+                        <button
                             onClick={handleExport}
                             disabled={!hasEnteredValues}
                             className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs transition active:scale-95 ${
@@ -756,7 +838,10 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                     <th className="p-2.5 font-bold min-w-[105px] bg-orange-50/50 dark:bg-orange-950/20">
                                         <button
                                             type="button"
-                                            onClick={() => setIsSprintModalOpen(true)}
+                                            onClick={() => {
+                                                setSprintTestType('speed');
+                                                setIsSprintModalOpen(true);
+                                            }}
                                             className="inline-flex items-center gap-1 hover:text-orange-600 transition cursor-pointer group"
                                             title="اضغط هنا لتشغيل اختبار وسباق 30 م سرعة بالعداد التلقائي"
                                         >
@@ -789,9 +874,20 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                         <div>توازن ثابت</div>
                                         <div className="text-[10px] font-normal text-gray-400">ثانية</div>
                                     </th>
-                                    <th className="p-2.5 font-bold min-w-[110px] bg-red-50/50 dark:bg-red-950/20 text-red-950 dark:text-red-300 border-x border-red-200/50 dark:border-red-900/50">
-                                        <div>جري التحمل</div>
-                                        <div className="text-[10px] font-normal text-red-600 dark:text-red-400">دقائق:ثواني (د:ث)</div>
+                                    <th className="p-2.5 font-bold min-w-[115px] bg-red-50/50 dark:bg-red-950/20 text-red-950 dark:text-red-300 border-x border-red-200/50 dark:border-red-900/50">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSprintTestType('endurance');
+                                                setIsSprintModalOpen(true);
+                                            }}
+                                            className="inline-flex items-center gap-1 hover:text-red-600 dark:hover:text-red-400 transition cursor-pointer group"
+                                            title="اضغط هنا لتشغيل ميقاتي سباق السرعة المتوسطة (التحمل بالدقائق والثواني)"
+                                        >
+                                            <span>السرعة المتوسطة (التحمل)</span>
+                                            <span className="text-[10px] px-1 py-0.5 rounded bg-red-600 text-white font-mono group-hover:bg-red-700">⏱️</span>
+                                        </button>
+                                        <div className="text-[10px] font-normal text-red-600 dark:text-red-400">دقائق : ثواني (د:ث)</div>
                                     </th>
                                     <th className="p-2.5 font-bold min-w-[95px]">
                                         <div>قفز طولي</div>
@@ -869,8 +965,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                     min="5"
                                                     max="25"
                                                     placeholder=""
-                                                    defaultValue={finalVma !== undefined ? finalVma : ''}
-                                                    key={`vma-${student.numeroEleve}-${finalVma}`}
+                                                    defaultValue={toSafeDefaultValue(finalVma)}
+                                                    key={`vma-${student.numeroEleve}-${toSafeDefaultValue(finalVma)}`}
                                                     onBlur={(e) => handleTableFieldChange(student, 'vma', e.target.value)}
                                                     className="w-full text-center py-1.5 px-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-800 text-amber-700 dark:text-amber-300 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none"
                                                 />
@@ -882,8 +978,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                     type="number"
                                                     step="0.01"
                                                     placeholder=""
-                                                    defaultValue={res?.vitesse30m !== undefined ? res.vitesse30m : ''}
-                                                    key={`vitesse-${student.numeroEleve}-${res?.vitesse30m}`}
+                                                    defaultValue={toSafeDefaultValue(res?.vitesse30m)}
+                                                    key={`vitesse-${student.numeroEleve}-${toSafeDefaultValue(res?.vitesse30m)}`}
                                                     onBlur={(e) => handleTableFieldChange(student, 'vitesse30m', e.target.value)}
                                                     className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                                                 />
@@ -895,8 +991,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                     type="number"
                                                     step="1"
                                                     placeholder=""
-                                                    defaultValue={res?.sautHorizontal !== undefined ? res.sautHorizontal : ''}
-                                                    key={`sautH-${student.numeroEleve}-${res?.sautHorizontal}`}
+                                                    defaultValue={toSafeDefaultValue(res?.sautHorizontal)}
+                                                    key={`sautH-${student.numeroEleve}-${toSafeDefaultValue(res?.sautHorizontal)}`}
                                                     onBlur={(e) => handleTableFieldChange(student, 'sautHorizontal', e.target.value)}
                                                     className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                                                 />
@@ -908,8 +1004,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                     type="number"
                                                     step="1"
                                                     placeholder=""
-                                                    defaultValue={res?.sautVertical !== undefined ? res.sautVertical : ''}
-                                                    key={`sautV-${student.numeroEleve}-${res?.sautVertical}`}
+                                                    defaultValue={toSafeDefaultValue(res?.sautVertical)}
+                                                    key={`sautV-${student.numeroEleve}-${toSafeDefaultValue(res?.sautVertical)}`}
                                                     onBlur={(e) => handleTableFieldChange(student, 'sautVertical', e.target.value)}
                                                     className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                                                 />
@@ -921,8 +1017,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                     type="number"
                                                     step="0.1"
                                                     placeholder=""
-                                                    defaultValue={res?.lancerMedball !== undefined ? res.lancerMedball : ''}
-                                                    key={`medball-${student.numeroEleve}-${res?.lancerMedball}`}
+                                                    defaultValue={toSafeDefaultValue(res?.lancerMedball)}
+                                                    key={`medball-${student.numeroEleve}-${toSafeDefaultValue(res?.lancerMedball)}`}
                                                     onBlur={(e) => handleTableFieldChange(student, 'lancerMedball', e.target.value)}
                                                     className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                                                 />
@@ -934,8 +1030,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                     type="number"
                                                     step="0.5"
                                                     placeholder=""
-                                                    defaultValue={res?.souplesseAssis !== undefined ? res.souplesseAssis : ''}
-                                                    key={`souplesseA-${student.numeroEleve}-${res?.souplesseAssis}`}
+                                                    defaultValue={toSafeDefaultValue(res?.souplesseAssis)}
+                                                    key={`souplesseA-${student.numeroEleve}-${toSafeDefaultValue(res?.souplesseAssis)}`}
                                                     onBlur={(e) => handleTableFieldChange(student, 'souplesseAssis', e.target.value)}
                                                     className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                                                 />
@@ -947,8 +1043,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                     type="number"
                                                     step="0.5"
                                                     placeholder=""
-                                                    defaultValue={res?.souplesseDebout !== undefined ? res.souplesseDebout : ''}
-                                                    key={`souplesseD-${student.numeroEleve}-${res?.souplesseDebout}`}
+                                                    defaultValue={toSafeDefaultValue(res?.souplesseDebout)}
+                                                    key={`souplesseD-${student.numeroEleve}-${toSafeDefaultValue(res?.souplesseDebout)}`}
                                                     onBlur={(e) => handleTableFieldChange(student, 'souplesseDebout', e.target.value)}
                                                     className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                                                 />
@@ -960,8 +1056,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                     type="number"
                                                     step="0.5"
                                                     placeholder=""
-                                                    defaultValue={res?.equilibreStatique !== undefined ? res.equilibreStatique : ''}
-                                                    key={`equilibre-${student.numeroEleve}-${res?.equilibreStatique}`}
+                                                    defaultValue={toSafeDefaultValue(res?.equilibreStatique)}
+                                                    key={`equilibre-${student.numeroEleve}-${toSafeDefaultValue(res?.equilibreStatique)}`}
                                                     onBlur={(e) => handleTableFieldChange(student, 'equilibreStatique', e.target.value)}
                                                     className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                                                 />
@@ -972,8 +1068,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                 <input
                                                     type="text"
                                                     placeholder="3:20"
-                                                    defaultValue={res?.enduranceTemps !== undefined ? formatSecondsToMinSec(res.enduranceTemps) : ''}
-                                                    key={`endurance-${student.numeroEleve}-${res?.enduranceTemps}`}
+                                                    defaultValue={toSafeEnduranceDefault(res?.enduranceTemps)}
+                                                    key={`endurance-${student.numeroEleve}-${toSafeEnduranceDefault(res?.enduranceTemps)}`}
                                                     onBlur={(e) => handleTableFieldChange(student, 'enduranceTemps', e.target.value)}
                                                     className="w-full text-center py-1.5 px-1 rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-gray-800 text-red-800 dark:text-red-300 font-bold focus:ring-1 focus:ring-red-500 focus:outline-none font-mono"
                                                     title="أدخل التوقيت بالدقائق والثواني (مثال 3:25 أو 03:25)"
@@ -986,8 +1082,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                     type="number"
                                                     step="0.01"
                                                     placeholder=""
-                                                    defaultValue={res?.sautLong !== undefined ? res.sautLong : ''}
-                                                    key={`sautLong-${student.numeroEleve}-${res?.sautLong}`}
+                                                    defaultValue={toSafeDefaultValue(res?.sautLong)}
+                                                    key={`sautLong-${student.numeroEleve}-${toSafeDefaultValue(res?.sautLong)}`}
                                                     onBlur={(e) => handleTableFieldChange(student, 'sautLong', e.target.value)}
                                                     className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                                                 />
@@ -999,8 +1095,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                     type="number"
                                                     step="0.01"
                                                     placeholder=""
-                                                    defaultValue={res?.lancerPoids !== undefined ? res.lancerPoids : ''}
-                                                    key={`lancerPoids-${student.numeroEleve}-${res?.lancerPoids}`}
+                                                    defaultValue={toSafeDefaultValue(res?.lancerPoids)}
+                                                    key={`lancerPoids-${student.numeroEleve}-${toSafeDefaultValue(res?.lancerPoids)}`}
                                                     onBlur={(e) => handleTableFieldChange(student, 'lancerPoids', e.target.value)}
                                                     className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                                                 />
@@ -1654,6 +1750,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                     onClose={() => setIsSprintModalOpen(false)}
                     initialClass={selectedClass || (classList.length > 0 ? classList[0].className : '')}
                     classList={classList.map(c => c.className)}
+                    testType={sprintTestType}
                     onDataSaved={() => loadClassData(selectedClass)}
                 />
             )}
