@@ -1,6 +1,6 @@
 // utils/db.ts
 
-import type { StudentIdentity, StudentResult, EnduranceResult, PhysicalTests, AttendanceSession } from '../types';
+import type { StudentIdentity, StudentResult, EnduranceResult, PhysicalTests, AttendanceSession, ChampionshipRegistration } from '../types';
 import { isForbiddenStudentName } from './excelHelper';
 import { 
   mergePhysicalTests,
@@ -20,12 +20,13 @@ import {
 export { mergePhysicalTests, mergeStudentResults, mergeStudentLists };
 
 const DB_NAME = 'epsAppDB';
-const DB_VERSION = 3; // Incremented version for attendance store
+const DB_VERSION = 4; // Incremented version for championships store
 const VMA_STORE = 'vmaResults';
 const ENDURANCE_STORE = 'enduranceResults';
 const STUDENTS_STORE = 'studentLists';
 const PHYSICAL_TESTS_STORE = 'physicalTestsResults';
 const ATTENDANCE_STORE = 'attendanceSessions';
+const CHAMPIONSHIPS_STORE = 'championships';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -73,6 +74,12 @@ const initDB = (): Promise<IDBDatabase> => {
         const attStore = dbInstance.createObjectStore(ATTENDANCE_STORE, { keyPath: 'id' });
         attStore.createIndex('className', 'className', { unique: false });
         attStore.createIndex('date', 'date', { unique: false });
+      }
+
+      if (!dbInstance.objectStoreNames.contains(CHAMPIONSHIPS_STORE)) {
+        const champStore = dbInstance.createObjectStore(CHAMPIONSHIPS_STORE, { keyPath: 'id' });
+        champStore.createIndex('className', 'className', { unique: false });
+        champStore.createIndex('championshipType', 'championshipType', { unique: false });
       }
     };
   });
@@ -922,6 +929,96 @@ export const getAllAttendanceSessions = async (): Promise<AttendanceSession[]> =
     const db = await initDB();
     const tx = db.transaction(ATTENDANCE_STORE, 'readonly');
     const store = tx.objectStore(ATTENDANCE_STORE);
+    const req = store.getAll();
+
+    return new Promise((resolve) => {
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * Save a single championship registration to local storage
+ */
+export const saveChampionshipRegistration = async (reg: ChampionshipRegistration): Promise<void> => {
+  try {
+    const db = await initDB();
+    const tx = db.transaction(CHAMPIONSHIPS_STORE, 'readwrite');
+    const store = tx.objectStore(CHAMPIONSHIPS_STORE);
+    store.put(reg);
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    // Dispatch dbUpdated to refresh UI
+    window.dispatchEvent(new CustomEvent('dbUpdated'));
+    
+    // Save to Cloud in background
+    try {
+      const { saveChampionshipToCloud } = await import('./firebase');
+      saveChampionshipToCloud(reg).catch(() => {});
+    } catch (_) {}
+  } catch (err) {
+    console.error("Failed to save championship registration:", err);
+  }
+};
+
+/**
+ * Get championship registrations for a specific class
+ */
+export const getChampionshipRegistrations = async (className: string): Promise<ChampionshipRegistration[]> => {
+  try {
+    const db = await initDB();
+    const tx = db.transaction(CHAMPIONSHIPS_STORE, 'readonly');
+    const store = tx.objectStore(CHAMPIONSHIPS_STORE);
+    const index = store.index('className');
+    const req = index.getAll(IDBKeyRange.only(className));
+
+    return new Promise((resolve) => {
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+};
+
+/**
+ * Delete a championship registration
+ */
+export const deleteChampionshipRegistration = async (id: string): Promise<void> => {
+  try {
+    const db = await initDB();
+    const tx = db.transaction(CHAMPIONSHIPS_STORE, 'readwrite');
+    const store = tx.objectStore(CHAMPIONSHIPS_STORE);
+    store.delete(id);
+    await new Promise<void>((resolve) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    });
+    window.dispatchEvent(new CustomEvent('dbUpdated'));
+
+    // Delete from Cloud in background
+    try {
+      const { deleteChampionshipFromCloud } = await import('./firebase');
+      deleteChampionshipFromCloud(id).catch(() => {});
+    } catch (_) {}
+  } catch (err) {
+    console.error("Failed to delete championship registration:", err);
+  }
+};
+
+/**
+ * Get all championship registrations across all classes
+ */
+export const getAllChampionshipRegistrations = async (): Promise<ChampionshipRegistration[]> => {
+  try {
+    const db = await initDB();
+    const tx = db.transaction(CHAMPIONSHIPS_STORE, 'readonly');
+    const store = tx.objectStore(CHAMPIONSHIPS_STORE);
     const req = store.getAll();
 
     return new Promise((resolve) => {

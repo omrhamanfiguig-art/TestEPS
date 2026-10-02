@@ -148,3 +148,16 @@ export interface TextbookSession {
   updatedAt: string;
 }
 
+export interface ChampionshipRegistration {
+  id: string; // Unique ID (e.g., championshipType_className_numeroEleve)
+  className: string;
+  numeroEleve: string;
+  nomEleve: string;
+  sexe: 'M' | 'F';
+  dateNaissance?: string; // Date of birth
+  championshipType: 'cross_country' | 'athletics' | 'football'; // نوع البطولة
+  sportCollectifRole?: string; // e.g. "مدافع", "حارس مرمى", "مهاجم" for football or "100m", "دفع الجلة" for athletics
+  note?: string;
+  createdAt: string;
+}
+

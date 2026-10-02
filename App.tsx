@@ -11,6 +11,7 @@ import { BiometricMeasurementsScreen } from './screens/BiometricMeasurementsScre
 import { ClassesScreen } from './screens/ClassesScreen';
 import { AttendanceScreen } from './screens/AttendanceScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
+import { ChampionshipsScreen } from './screens/ChampionshipsScreen';
 import { LanguageProvider, useLanguage } from './utils/i18n';
 import { getAllClasses } from './utils/db';
 import { syncCloudToLocalDB, syncLocalToCloudDB, listenToCloudClasses } from './utils/firebase';
@@ -208,6 +209,13 @@ const MainLayout: React.FC = () => {
               selectedClass={selectedClass}
               setSelectedClass={setSelectedClass}
               sessionDate={sessionDate}
+            />
+          )}
+
+          {activeScreen === 'championships' && (
+            <ChampionshipsScreen
+              selectedClass={selectedClass}
+              setSelectedClass={setSelectedClass}
             />
           )}
 

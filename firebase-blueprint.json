@@ -117,6 +117,27 @@
         "updatedAt": { "type": "string", "description": "ISO timestamp of the last modification" }
       },
       "required": ["id", "name", "assignedClasses", "timetable", "updatedAt"]
+    },
+    "championships": {
+      "title": "Championship Registrations",
+      "description": "Student registrations in school sports championships (cross country, athletics, football)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique registration ID (championshipType_className_numeroEleve)" },
+        "className": { "type": "string", "description": "Name of the class" },
+        "numeroEleve": { "type": "string", "description": "Student order number" },
+        "nomEleve": { "type": "string", "description": "Student display name" },
+        "sexe": { "type": "string", "enum": ["M", "F"], "description": "Gender" },
+        "dateNaissance": { "type": "string", "description": "Student date of birth" },
+        "championshipType": { "type": "string", "enum": ["cross_country", "athletics", "football"], "description": "Type of sports championship" },
+        "sportCollectifRole": { "type": "string", "description": "Specific role, discipline or position of the student" },
+        "note": { "type": "string", "description": "Any additional teacher remarks" },
+        "ownerUid": { "type": "string", "description": "UID of the registering teacher" },
+        "ownerEmail": { "type": "string", "description": "Email of the registering teacher" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of last update" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of creation" }
+      },
+      "required": ["id", "className", "numeroEleve", "nomEleve", "sexe", "championshipType", "createdAt"]
     }
   },
   "firestore": {
@@ -151,6 +172,10 @@
     "/teachers/{teacherId}": {
       "schema": "teachers",
       "description": "Profiles and timetables of the teachers"
+    },
+    "/championships/{registrationId}": {
+      "schema": "championships",
+      "description": "Student registrations in school sports championships"
     }
   }
 }

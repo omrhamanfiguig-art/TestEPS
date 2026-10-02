@@ -35,6 +35,7 @@ export type ActiveScreen =
   | 'talent'
   | 'attendance'
   | 'measurements' 
+  | 'championships'
   | 'settings';
 
 interface SidebarProps {
@@ -134,6 +135,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: t.navMeasurements,
       icon: <RulerIcon className="w-5 h-5" />,
       badge: 'IMC'
+    },
+    {
+      id: 'championships' as ActiveScreen,
+      label: language === 'ar' ? 'البطولات المدرسية' : 'Championnats',
+      icon: <TrophyIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />,
+      badge: language === 'ar' ? 'مشاركة' : 'Inscr'
     },
     {
       id: 'settings' as ActiveScreen,

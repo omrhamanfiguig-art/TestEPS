@@ -26,7 +26,7 @@ import {
   signInWithPopup,
   User
 } from 'firebase/auth';
-import type { StudentIdentity, PhysicalTests, StudentResult, ArchiveRecord, AttendanceSession } from '../types';
+import type { StudentIdentity, PhysicalTests, StudentResult, ArchiveRecord, AttendanceSession, ChampionshipRegistration } from '../types';
 import firebaseConfig from '../firebase-applet-config.json';
 import { 
   saveStudentList, 
@@ -388,6 +388,31 @@ export const syncCloudToLocalDB = async (): Promise<{ success: boolean; classCou
       console.warn('VMA cloud sync notice:', e);
     }
 
+    // Try also to sync Championships from cloud
+    try {
+      const champSnap = await getDocs(collection(db, 'championships'));
+      const { saveChampionshipRegistration } = await import('./db');
+      for (const docSnap of champSnap.docs) {
+        const data = docSnap.data();
+        if (data && data.id) {
+          // Put in local store without triggering infinite loop back to cloud
+          const localDb = await new Promise<IDBDatabase>((resolve, reject) => {
+            const req = indexedDB.open('epsAppDB');
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+          });
+          const tx = localDb.transaction('championships', 'readwrite');
+          tx.objectStore('championships').put(data);
+          await new Promise<void>((resolve) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => resolve();
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Championships cloud sync notice:', e);
+    }
+
     window.dispatchEvent(new CustomEvent('dbUpdated'));
     return { success: true, classCount: cloudClasses.length, studentCount: totalStudents };
   } catch (err: any) {
@@ -424,6 +449,17 @@ export const syncLocalToCloudDB = async (): Promise<{ success: boolean; classCou
       if (vmaResults.length > 0) {
         await saveVmaResultsToCloud(cls.className, vmaResults);
       }
+    }
+
+    // Also push championships if any
+    try {
+      const { getAllChampionshipRegistrations } = await import('./db');
+      const localChamps = await getAllChampionshipRegistrations();
+      for (const champ of localChamps) {
+        await saveChampionshipToCloud(champ);
+      }
+    } catch (e) {
+      console.warn('Championships cloud upload sync notice:', e);
     }
 
     return { success: true, classCount: localClasses.length, studentCount: totalStudents };
@@ -1126,6 +1162,65 @@ export const fetchTeacherProfilesFromCloud = async (): Promise<any[]> => {
     return profiles;
   } catch (err) {
     console.error('Error fetching teacher profiles from cloud:', err);
+    return [];
+  }
+};
+
+/**
+ * Save a single championship registration to Firestore Cloud
+ */
+export const saveChampionshipToCloud = async (reg: ChampionshipRegistration): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const docId = reg.id;
+    const docRef = doc(db, 'championships', docId);
+
+    const user = auth.currentUser;
+    const payload = sanitizeForFirestore({
+      ...reg,
+      ownerUid: user?.uid || null,
+      ownerEmail: user?.email || null,
+      updatedAt: new Date().toISOString()
+    });
+
+    await setDoc(docRef, payload, { merge: true });
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error saving championship registration to cloud:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Delete a championship registration from Firestore Cloud
+ */
+export const deleteChampionshipFromCloud = async (id: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const docRef = doc(db, 'championships', id);
+    await deleteDoc(docRef);
+    return { success: true };
+  } catch (err: any) {
+    console.error('Error deleting championship registration from cloud:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+/**
+ * Fetch all championship registrations from Firestore Cloud
+ */
+export const fetchChampionshipsFromCloud = async (): Promise<ChampionshipRegistration[]> => {
+  try {
+    const colRef = collection(db, 'championships');
+    const snapshot = await getDocs(colRef);
+    const list: ChampionshipRegistration[] = [];
+    snapshot.forEach(docSnap => {
+      const data = docSnap.data();
+      if (data && data.id) {
+        list.push(data as ChampionshipRegistration);
+      }
+    });
+    return list;
+  } catch (err) {
+    console.error('Error fetching championships from cloud:', err);
     return [];
   }
 };
