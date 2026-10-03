@@ -654,6 +654,14 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
         });
     }, [studentList, filterQuery]);
 
+    const pendingStudents = useMemo(() => {
+        return filteredStudents.filter(s => getCompletedCount(s.numeroEleve) === 0);
+    }, [filteredStudents, results, vmaResults]);
+
+    const completedStudents = useMemo(() => {
+        return filteredStudents.filter(s => getCompletedCount(s.numeroEleve) > 0);
+    }, [filteredStudents, results, vmaResults]);
+
     const currentLucLegerVma = selectedStudent ? vmaResults.find(v => v.numeroEleve === selectedStudent.numeroEleve)?.vma : undefined;
 
     return (
@@ -1056,7 +1064,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                {filteredStudents.map((student) => {
+                                {pendingStudents.map((student) => {
                                     const res = results.find(r => r.numeroEleve === student.numeroEleve);
                                     const vmaRes = vmaResults.find(v => v.numeroEleve === student.numeroEleve);
                                     const finalVma = res?.vma !== undefined ? res.vma : vmaRes?.vma;
