@@ -399,6 +399,69 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
     XLSX.writeFile(wb, `دفتر_النصوص_الرياضي_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  const handleExportWord = () => {
+    if (filteredSessions.length === 0) {
+      alert("لا توجد حصص مسجلة للتصدير.");
+      return;
+    }
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="ar" dir="rtl">
+      <head>
+        <meta charset="utf-8">
+        <title>دفتر النصوص الرياضي</title>
+        <style>
+          body { font-family: 'Traditional Arabic', Arial, sans-serif; direction: rtl; text-align: right; padding: 20px; color: #111; }
+          h1 { text-align: center; color: #1e3a8a; margin-bottom: 5px; font-size: 22px; }
+          p.subtitle { text-align: center; color: #555; font-size: 13px; margin-bottom: 20px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px; }
+          th, td { border: 1px solid #94a3b8; padding: 8px 10px; text-align: right; }
+          th { background-color: #f1f5f9; color: #0f172a; font-weight: bold; }
+          tr:nth-child(even) { background-color: #f8fafc; }
+        </style>
+      </head>
+      <body>
+        <h1>دفتر النصوص - التربية البدنية والرياضية</h1>
+        <p class="subtitle">الأستاذ: ${activeTeacher.name} • تاريخ التصدير: ${new Date().toLocaleDateString('ar-MA')}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>رقم الحصة</th>
+              <th>الهدف البيداغوجي / المحتوى</th>
+              <th>القسم</th>
+              <th>التاريخ واليوم</th>
+              <th>التوقيت</th>
+              <th>الأستاذ المؤطر</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filteredSessions.map(s => `
+              <tr>
+                <td><strong>${s.sessionNumber}</strong></td>
+                <td>${s.goal}</td>
+                <td><strong>${s.className}</strong></td>
+                <td>${s.date} (${getArabicDayName(s.date)})</td>
+                <td>${s.timeSlot}</td>
+                <td>${(s as any).loggedByTeacherName || activeTeacher.name}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob(['\uFEFF', html], { type: 'application/msword;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('download', `دفتر_النصوص_الرياضي_${new Date().toISOString().split('T')[0]}.doc`);
+    document.body.appendChild(link);
+    link.click();
+    URL.revokeObjectURL(url);
+    document.body.removeChild(link);
+  };
+
   // Helper to get Arabic weekday name from date
   const getArabicDayName = (dateStr: string): string => {
     if (!dateStr) return '';
@@ -530,6 +593,14 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
               >
                 <ArrowDownTrayIcon className="w-4 h-4" />
                 <span>تصدير دفتر النصوص Excel</span>
+              </button>
+
+              <button
+                onClick={handleExportWord}
+                className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-black rounded-2xl shadow-lg shadow-blue-700/10 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer w-full sm:w-auto justify-center"
+              >
+                <DocumentTextIcon className="w-4 h-4" />
+                <span>تصدير دفتر النصوص Word</span>
               </button>
             </div>
           </div>

@@ -147,7 +147,7 @@ export const saveStudentList = async (
   options?: { skipCloudSync?: boolean; preserveExisting?: boolean }
 ) => {
     const db = await initDB();
-    const cleanStudents = (students || []).filter(s => s && s.nomEleve && !isForbiddenStudentName(s.nomEleve) && !isForbiddenStudentName(s.numeroEleve));
+    const cleanStudents = (students || []).filter(s => s && s.nomEleve && !isForbiddenStudentName(s.nomEleve));
     
     let finalStudents = cleanStudents;
     if (options?.preserveExisting) {
@@ -181,7 +181,7 @@ export const getStudentList = async (className: string): Promise<StudentIdentity
     return new Promise((resolve, reject) => {
         request.onsuccess = () => {
           const rawStudents: StudentIdentity[] = request.result?.students || [];
-          const cleanStudents = rawStudents.filter(s => s && s.nomEleve && !isForbiddenStudentName(s.nomEleve) && !isForbiddenStudentName(s.numeroEleve));
+          const cleanStudents = rawStudents.filter(s => s && s.nomEleve && !isForbiddenStudentName(s.nomEleve));
           if (rawStudents.length !== cleanStudents.length) {
             saveStudentList(className, cleanStudents, { skipCloudSync: true }).catch(() => {});
           }
@@ -212,7 +212,7 @@ export const saveVmaResults = async (
 };
 export const getVmaResults = async (className: string): Promise<StudentResult[]> => {
     const raw = await getData<StudentResult>(VMA_STORE, className);
-    return (raw || []).filter(v => v && (!v.nomEleve || !isForbiddenStudentName(v.nomEleve)) && (!v.numeroEleve || !isForbiddenStudentName(v.numeroEleve)));
+    return (raw || []).filter(v => v && (!v.nomEleve || !isForbiddenStudentName(v.nomEleve)));
 };
 export const clearVmaResults = async (className: string) => {
     await saveData(VMA_STORE, className, []);
@@ -241,7 +241,7 @@ export const savePhysicalTests = async (
 };
 export const getPhysicalTests = async (className: string): Promise<PhysicalTests[]> => {
     const raw = await getData<PhysicalTests>(PHYSICAL_TESTS_STORE, className);
-    return (raw || []).filter(p => p && (!p.nomEleve || !isForbiddenStudentName(p.nomEleve)) && (!p.numeroEleve || !isForbiddenStudentName(p.numeroEleve)));
+    return (raw || []).filter(p => p && (!p.nomEleve || !isForbiddenStudentName(p.nomEleve)));
 };
 export const clearPhysicalTests = async (className: string) => {
     await saveData(PHYSICAL_TESTS_STORE, className, []);
