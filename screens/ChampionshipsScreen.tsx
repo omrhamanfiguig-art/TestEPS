@@ -52,15 +52,53 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [genderFilter, setGenderFilter] = useState<'ALL' | 'M' | 'F'>('ALL');
   const [vmaFilter, setVmaFilter] = useState<'ALL' | 'HIGH' | 'MEDIUM' | 'LOW'>('ALL');
+  const [testFilter, setTestFilter] = useState<'ALL' | 'PHYSICAL_DONE' | 'VMA_DONE' | 'ANY_TEST_DONE'>('ALL');
 
   // Form states
   const [selectedStudent, setSelectedStudent] = useState<GlobalStudentSearchResult | null>(null);
+  const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [editingRegistration, setEditingRegistration] = useState<ChampionshipRegistration | null>(null);
   const [birthDate, setBirthDate] = useState<string>('');
   const [sportRole, setSportRole] = useState<string>('');
+  const [studentPhotoUrl, setStudentPhotoUrl] = useState<string | undefined>(undefined);
   const [note, setNote] = useState<string>('');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // Sport roles dropdown options based on championship type
+  const sportRoleOptions = useMemo(() => {
+    switch (activeTab) {
+      case 'cross_country':
+        return [
+          { value: 'صغار / صغيراث (Minimes)', label: 'صغار / صغيراث (Minimes)' },
+          { value: 'فتيان / فتيَات (Cadets)', label: 'فتيان / فتيَات (Cadets)' },
+          { value: 'شبان / شابات (Juniors)', label: 'شبان / شابات (Juniors)' },
+          { value: 'سباق ريفي عام (Cross Country Mass)', label: 'سباق ريفي عام (Cross Country Mass)' }
+        ];
+      case 'athletics':
+        return [
+          { value: 'سباق السرعة 60م / 100م (Vitesse)', label: 'سباق السرعة 60م / 100م (Vitesse)' },
+          { value: 'الوثب الطولي (Saut en Longueur)', label: 'الوثب الطولي (Saut en Longueur)' },
+          { value: 'دفع الجلة (Lancer de Poids)', label: 'دفع الجلة (Lancer de Poids)' },
+          { value: 'سباق التحمل والمطاردة (Demi-fond)', label: 'سباق التحمل والمطاردة (Demi-fond)' },
+          { value: 'مسابقة مركبة (Épreuves Combinées)', label: 'مسابقة مركبة (Épreuves Combinées)' }
+        ];
+      case 'football':
+        return [
+          { value: 'حارس مرمى (Gardien)', label: 'حارس مرمى (Gardien)' },
+          { value: 'مدافع أوسط / جانبي (Défenseur)', label: 'مدافع أوسط / جانبي (Défenseur)' },
+          { value: 'وسط ميدان (Milieu)', label: 'وسط ميدان (Milieu)' },
+          { value: 'مهاجم صريح / جناح (Attaquant)', label: 'مهاجم صريح / جناح (Attaquant)' },
+          { value: 'قائد الفريق (Capitaine)', label: 'قائد الفريق (Capitaine)' }
+        ];
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (sportRoleOptions.length > 0 && (!sportRole || !sportRoleOptions.some(o => o.value === sportRole))) {
+      setSportRole(sportRoleOptions[0].value);
+    }
+  }, [activeTab, sportRoleOptions]);
 
   // Load classes, all students & registrations
   const loadAllData = async () => {
@@ -103,9 +141,31 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
   useEffect(() => {
     setSelectedStudent(null);
     setBirthDate('');
-    setSportRole('');
+    if (sportRoleOptions.length > 0) {
+      setSportRole(sportRoleOptions[0].value);
+    }
     setNote('');
+    setStudentPhotoUrl(undefined);
   }, [activeTab, selectedLevel, selectedClassFilter]);
+
+  // Sync photo & birthdate when student selected or editing
+  useEffect(() => {
+    if (selectedStudent) {
+      setStudentPhotoUrl(selectedStudent.student.photoUrl);
+      const num = selectedStudent.student.numeroEleve;
+      const priorReg = registrations.find(r => r.numeroEleve === num && r.dateNaissance);
+      if (priorReg && priorReg.dateNaissance) {
+        setBirthDate(priorReg.dateNaissance);
+      } else {
+        setBirthDate('');
+      }
+    } else if (editingRegistration) {
+      setStudentPhotoUrl(editingRegistration.photoUrl);
+    } else {
+      setStudentPhotoUrl(undefined);
+      setBirthDate('');
+    }
+  }, [selectedStudent, editingRegistration, registrations]);
 
   // Handle db update events (e.g. from background cloud sync)
   useEffect(() => {
@@ -200,6 +260,15 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
       if (vmaFilter === 'MEDIUM' && (vmaVal < 11 || vmaVal >= 14)) return false;
       if (vmaFilter === 'LOW' && (vmaVal <= 0 || vmaVal >= 11)) return false;
 
+      // 4.5. Test Completion Filter
+      if (testFilter !== 'ALL') {
+        const hasPhysical = s.isPhysicalDone;
+        const hasVma = s.isVmaDone;
+        if (testFilter === 'PHYSICAL_DONE' && !hasPhysical) return false;
+        if (testFilter === 'VMA_DONE' && !hasVma) return false;
+        if (testFilter === 'ANY_TEST_DONE' && !hasPhysical && !hasVma) return false;
+      }
+
       // 5. Text Search Query (Matches student name, order index, Massar number, or Class)
       const query = searchQuery.trim();
       if (query !== '') {
@@ -240,47 +309,77 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
     setEditingRegistration(reg);
     setSelectedStudent(null);
     setBirthDate(reg.dateNaissance || '');
-    setSportRole(reg.sportCollectifRole || '');
+    setSportRole(reg.sportCollectifRole || sportRoleOptions[0]?.value || '');
     setNote(reg.note || '');
+    setStudentPhotoUrl(reg.photoUrl);
   };
 
   // Submit Handler
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStudent && !editingRegistration) {
+    
+    // Check if we are in bulk mode or editing mode
+    const isBulk = selectedStudents.size > 0;
+    
+    if (!isBulk && !selectedStudent && !editingRegistration) {
       setFeedback('⚠️ الرجاء اختيار تلميذ(ة) أولاً.');
       return;
     }
 
-    const registrationId = editingRegistration ? editingRegistration.id : `${activeTab}_${selectedStudent!.className}_${selectedStudent!.student.numeroEleve}`;
-    const className = editingRegistration ? editingRegistration.className : selectedStudent!.className;
-    const numeroEleve = editingRegistration ? editingRegistration.numeroEleve : selectedStudent!.student.numeroEleve;
-    const nomEleve = editingRegistration ? editingRegistration.nomEleve : selectedStudent!.student.nomEleve;
-    const sexe = editingRegistration ? editingRegistration.sexe : selectedStudent!.student.sexe;
-    const photoUrl = editingRegistration ? editingRegistration.photoUrl : selectedStudent!.student.photoUrl;
+    const registrationsToSave: ChampionshipRegistration[] = [];
 
-    const newReg: ChampionshipRegistration = {
-      id: registrationId,
-      className,
-      numeroEleve,
-      nomEleve,
-      sexe: sexe || 'M',
-      dateNaissance: birthDate || undefined,
-      championshipType: activeTab,
-      sportCollectifRole: sportRole || undefined,
-      note: note || undefined,
-      photoUrl: photoUrl || undefined,
-      createdAt: editingRegistration ? editingRegistration.createdAt : new Date().toISOString()
-    };
+    if (editingRegistration) {
+        // Edit mode
+        const newReg: ChampionshipRegistration = {
+            ...editingRegistration,
+            dateNaissance: birthDate || undefined,
+            sportCollectifRole: sportRole || undefined,
+            note: note || undefined,
+            photoUrl: studentPhotoUrl || editingRegistration.photoUrl,
+            updatedAt: new Date().toISOString()
+        };
+        registrationsToSave.push(newReg);
+    } else {
+        // Add mode (Bulk or Single)
+        const studentsToRegister = isBulk 
+            ? students.filter(s => selectedStudents.has(`${s.className}_${s.student.numeroEleve}`))
+            : [selectedStudent!];
 
-    await saveChampionshipRegistration(newReg);
+        studentsToRegister.forEach(s => {
+            const registrationId = `${activeTab}_${s.className}_${s.student.numeroEleve}`;
+            registrationsToSave.push({
+                id: registrationId,
+                className: s.className,
+                numeroEleve: s.student.numeroEleve,
+                nomEleve: s.student.nomEleve,
+                sexe: s.student.sexe || 'M',
+                dateNaissance: birthDate || undefined,
+                championshipType: activeTab,
+                sportCollectifRole: sportRole || undefined,
+                note: note || undefined,
+                photoUrl: studentPhotoUrl || s.student.photoUrl,
+                createdAt: new Date().toISOString()
+            });
+        });
+    }
 
-    setFeedback(editingRegistration ? '✏️ تم تحديث بيانات المشاركة بنجاح!' : '🎉 تم توجيه وتعيين التلميذ(ة) للمشاركة بنجاح!');
+    for (const reg of registrationsToSave) {
+        await saveChampionshipRegistration(reg);
+    }
+
+    setFeedback(
+        editingRegistration 
+        ? '✏️ تم تحديث بيانات المشاركة بنجاح!' 
+        : `🎉 تم تعيين ${registrationsToSave.length} تلميذ(ة) للمشاركة بنجاح!`
+    );
+    
     setSelectedStudent(null);
+    setSelectedStudents(new Set());
     setEditingRegistration(null);
-    setSportRole('');
+    setSportRole(sportRoleOptions[0]?.value || '');
     setNote('');
     setBirthDate('');
+    setStudentPhotoUrl(undefined);
     
     setTimeout(() => setFeedback(null), 4000);
     loadAllData();
@@ -551,6 +650,23 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
               <option value="LOW">🐢 عادية السرعة (&lt; 11)</option>
             </select>
           </div>
+
+          {/* Test Performance Filter (Requested: تصفية عن طريق الاختبارات) */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-black text-gray-400 dark:text-gray-500 block">
+              اختبارات التلاميذ المنجزة:
+            </label>
+            <select
+              value={testFilter}
+              onChange={(e) => setTestFilter(e.target.value as any)}
+              className="w-full px-3 py-2.5 text-xs font-bold rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+            >
+              <option value="ALL">الكل (بدون تصفية)</option>
+              <option value="PHYSICAL_DONE">✅ أتم الاختبارات البدنية</option>
+              <option value="VMA_DONE">✅ أتم اختبار VMA</option>
+              <option value="ANY_TEST_DONE">✅ أتم اختبار واحد على الأقل</option>
+            </select>
+          </div>
         </div>
 
         {/* Text Search Bar Input with absolute cross-class results indicators */}
@@ -629,17 +745,32 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
                     <button
                       key={`${s.className}_${s.student.numeroEleve}`}
                       type="button"
-                      onClick={() => setSelectedStudent(s)}
+                      onClick={() => {
+                        const studentKey = `${s.className}_${s.student.numeroEleve}`;
+                        const newSelected = new Set(selectedStudents);
+                        if (newSelected.has(studentKey)) {
+                          newSelected.delete(studentKey);
+                        } else {
+                          newSelected.add(studentKey);
+                        }
+                        setSelectedStudents(newSelected);
+                      }}
                       className={`w-full p-3 rounded-xl border text-right transition flex items-center justify-between gap-3 active:scale-98 cursor-pointer ${
-                        isSelected
+                        selectedStudents.has(`${s.className}_${s.student.numeroEleve}`)
                           ? 'bg-amber-500/10 border-amber-500 text-amber-900 dark:text-amber-200 font-bold shadow-2xs'
                           : 'bg-white dark:bg-gray-800 border-gray-200/60 dark:border-gray-700/80 hover:border-amber-300 dark:hover:border-amber-700 hover:bg-amber-500/5 text-gray-900 dark:text-gray-100'
                       }`}
                     >
                       <div className="flex items-center gap-2 overflow-hidden">
+                        {/* Checkbox indicator */}
+                        <span className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${
+                          selectedStudents.has(`${s.className}_${s.student.numeroEleve}`) ? 'bg-amber-500 border-amber-500 text-white' : 'border-gray-300 dark:border-gray-600'
+                        }`}>
+                          {selectedStudents.has(`${s.className}_${s.student.numeroEleve}`) && '✓'}
+                        </span>
                         {/* Order pill */}
                         <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${
-                          isSelected ? 'bg-amber-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                          selectedStudents.has(`${s.className}_${s.student.numeroEleve}`) ? 'bg-amber-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
                         }`}>
                           #{s.orderIndex}
                         </span>
@@ -649,7 +780,7 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
                         <span className={`text-[9px] font-black px-1.5 rounded-sm ${
                           s.student.sexe === 'F' ? 'bg-pink-100 text-pink-700 dark:bg-pink-950/40' : 'bg-blue-100 text-blue-700 dark:bg-blue-950/40'
                         }`}>
-                          {s.student.sexe === 'F' ? '🚺 بنت' : '🚹 ولد'}
+                          {s.student.sexe === 'F' ? '🚺' : '🚹'}
                         </span>
                       </div>
 
@@ -712,6 +843,28 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
             {/* Registration details form */}
             <form onSubmit={handleRegister} className="space-y-4 pt-3 border-t border-gray-100 dark:border-gray-700">
               
+              {/* Student Photo Picker */}
+              {(selectedStudent || editingRegistration) && (
+                <div className="p-3 rounded-2xl bg-gray-50/80 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 flex items-center gap-3.5">
+                  <StudentAvatar
+                    photoUrl={studentPhotoUrl}
+                    nomEleve={selectedStudent ? selectedStudent.student.nomEleve : editingRegistration?.nomEleve}
+                    sexe={selectedStudent ? selectedStudent.student.sexe : editingRegistration?.sexe}
+                    size="lg"
+                    editable={true}
+                    onPhotoChange={(newPhoto) => setStudentPhotoUrl(newPhoto)}
+                  />
+                  <div className="flex-1 space-y-1">
+                    <span className="text-xs font-bold text-gray-800 dark:text-gray-200 block">
+                      صورة التلميذ(ة) في البطولة
+                    </span>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                      انقر لتعديل أو رفع صورة خاصة لهذا التلميذ.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Date of Birth (تاريخ الازدياد) */}
               <div className="space-y-1">
                 <label className="text-[11px] font-black text-gray-500 dark:text-gray-400 block">
@@ -727,22 +880,24 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
                 <p className="text-[10px] text-gray-400">مطلوب للتأكد من تصنيف الفئة العمرية المدرسية (صغار، فتيان، شبان).</p>
               </div>
 
-              {/* Discipline / Role / Position */}
+              {/* Discipline / Role / Position Dropdown */}
               <div className="space-y-1">
                 <label className="text-[11px] font-black text-gray-500 dark:text-gray-400 block">
                   {activeTab === 'football' 
-                    ? 'مركز اللاعب في كرة القدم (حارس، مدافع، وسط، مهاجم):' 
+                    ? 'مركز اللاعب في كرة القدم:' 
                     : activeTab === 'athletics' 
-                      ? 'الفعالية في ألعاب القوى (60م، 100م، دفع الجلة، وثب طولي...):' 
-                      : 'التخصص / الفئة الرياضية (العدو الريفي):'}
+                      ? 'الفعالية في ألعاب القوى:' 
+                      : 'التخصص / الفئة الرياضية:'}
                 </label>
-                <input
-                  type="text"
+                <select
                   value={sportRole}
                   onChange={(e) => setSportRole(e.target.value)}
-                  placeholder={activeTab === 'football' ? 'مثال: حارس مرمى، مدافع أوسط' : activeTab === 'athletics' ? 'مثال: سباق 100م، دفع الجلة' : 'مثال: سباق ريفي طويل'}
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 font-bold"
-                />
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500 font-bold cursor-pointer"
+                >
+                  {sportRoleOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
               </div>
 
               {/* General Note */}

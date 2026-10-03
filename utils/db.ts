@@ -1000,15 +1000,13 @@ export const deleteChampionshipRegistration = async (id: string): Promise<void> 
       tx.onerror = () => reject(tx.error);
     });
 
-    // Delete from Cloud
+    window.dispatchEvent(new CustomEvent('dbUpdated'));
+
+    // Delete from Cloud in background
     try {
       const { deleteChampionshipFromCloud } = await import('./firebase');
-      await deleteChampionshipFromCloud(id);
-    } catch (err) {
-      console.error("Failed to delete championship from cloud:", err);
-    }
-
-    window.dispatchEvent(new CustomEvent('dbUpdated'));
+      deleteChampionshipFromCloud(id).catch(() => {});
+    } catch (_) {}
   } catch (err) {
     console.error("Failed to delete championship registration:", err);
     throw err;
