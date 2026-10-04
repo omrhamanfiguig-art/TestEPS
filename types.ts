@@ -50,6 +50,7 @@ export interface PhysicalTests {
   vitesse30m?: number;
   vitesse60m?: number;
   vitesse80m?: number;
+  vitesse100m?: number;
   vitesseRelay?: number;
   sautHorizontal?: number;
   sautVertical?: number;

@@ -319,6 +319,9 @@ export const getAllClasses = async (): Promise<ClassStats[]> => {
                     // Check if physical test is filled
                     const isPhysicalTested = (
                         item.vitesse30m !== undefined ||
+                        item.vitesse60m !== undefined ||
+                        item.vitesse80m !== undefined ||
+                        item.vitesse100m !== undefined ||
                         item.sautHorizontal !== undefined ||
                         item.sautVertical !== undefined ||
                         item.lancerMedball !== undefined ||
@@ -745,6 +748,7 @@ export const searchStudentsGlobal = async (query: string = ''): Promise<GlobalSt
                 p.vitesse30m !== undefined ||
                 p.vitesse60m !== undefined ||
                 p.vitesse80m !== undefined ||
+                p.vitesse100m !== undefined ||
                 p.sautHorizontal !== undefined ||
                 p.sautVertical !== undefined ||
                 p.lancerMedball !== undefined ||

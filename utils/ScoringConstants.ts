@@ -191,6 +191,36 @@ export const SPEED_SCALE_80M: ScoringScale[] = [
   }
 ];
 
+// 100m Speed (Seconds)
+export const SPEED_SCALE_100M: ScoringScale[] = [
+  {
+    gender: 'M',
+    thresholds: [
+      { value: 11.8, score: 20 },
+      { value: 12.5, score: 18 },
+      { value: 13.2, score: 16 },
+      { value: 14.0, score: 14 },
+      { value: 14.8, score: 12 },
+      { value: 15.8, score: 10 },
+      { value: 16.8, score: 8 },
+      { value: 18.0, score: 6 },
+    ]
+  },
+  {
+    gender: 'F',
+    thresholds: [
+      { value: 13.2, score: 20 },
+      { value: 14.0, score: 18 },
+      { value: 14.8, score: 16 },
+      { value: 15.8, score: 14 },
+      { value: 16.8, score: 12 },
+      { value: 17.8, score: 10 },
+      { value: 19.2, score: 8 },
+      { value: 21.0, score: 6 },
+    ]
+  }
+];
+
 export const calculateScore = (value: number, scale: ScoringScale[], gender: 'M' | 'F' = 'M', lowerIsBetter: boolean = true): number => {
   const genderScale = scale.find(s => s.gender === gender) || scale[0];
   const sorted = [...genderScale.thresholds].sort((a, b) => lowerIsBetter ? a.value - b.value : b.value - a.value);
@@ -305,7 +335,7 @@ export const parseMinSecToSeconds = (input: string | number | undefined): number
 // Local storage keys for custom baremes
 const BAREME_STORAGE_PREFIX = 'eps_bareme_scale_v1_';
 
-export const getCustomScale = (testKey: 'speed' | 'speed-60' | 'speed-80' | 'endurance' | 'long-jump' | 'shot-put'): ScoringScale[] => {
+export const getCustomScale = (testKey: 'speed' | 'speed-60' | 'speed-80' | 'speed-100' | 'endurance' | 'long-jump' | 'shot-put'): ScoringScale[] => {
   try {
     const raw = localStorage.getItem(`${BAREME_STORAGE_PREFIX}${testKey}`);
     if (raw) {
@@ -322,13 +352,14 @@ export const getCustomScale = (testKey: 'speed' | 'speed-60' | 'speed-80' | 'end
     case 'speed': return SPEED_SCALE_30M;
     case 'speed-60': return SPEED_SCALE_60M;
     case 'speed-80': return SPEED_SCALE_80M;
+    case 'speed-100': return SPEED_SCALE_100M;
     case 'endurance': return ENDURANCE_SCALE_1000M;
     case 'long-jump': return LONG_JUMP_SCALE;
     case 'shot-put': return SHOT_PUT_SCALE;
   }
 };
 
-export const saveCustomScale = (testKey: 'speed' | 'speed-60' | 'speed-80' | 'endurance' | 'long-jump' | 'shot-put', scale: ScoringScale[]): void => {
+export const saveCustomScale = (testKey: 'speed' | 'speed-60' | 'speed-80' | 'speed-100' | 'endurance' | 'long-jump' | 'shot-put', scale: ScoringScale[]): void => {
   try {
     localStorage.setItem(`${BAREME_STORAGE_PREFIX}${testKey}`, JSON.stringify(scale));
     window.dispatchEvent(new CustomEvent('baremeUpdated', { detail: { testKey } }));
@@ -337,7 +368,7 @@ export const saveCustomScale = (testKey: 'speed' | 'speed-60' | 'speed-80' | 'en
   }
 };
 
-export const resetCustomScale = (testKey: 'speed' | 'speed-60' | 'speed-80' | 'endurance' | 'long-jump' | 'shot-put'): void => {
+export const resetCustomScale = (testKey: 'speed' | 'speed-60' | 'speed-80' | 'speed-100' | 'endurance' | 'long-jump' | 'shot-put'): void => {
   try {
     localStorage.removeItem(`${BAREME_STORAGE_PREFIX}${testKey}`);
     window.dispatchEvent(new CustomEvent('baremeUpdated', { detail: { testKey } }));

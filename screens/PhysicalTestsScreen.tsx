@@ -72,7 +72,7 @@ const findClosestPalier = (vma: number) => {
 };
 
 // Physical test keys
-type PhysicalTestField = 'vma' | 'vitesse30m' | 'sautHorizontal' | 'sautVertical' | 'lancerMedball' | 'souplesseAssis' | 'souplesseDebout' | 'equilibreStatique' | 'sautLong' | 'lancerPoids' | 'enduranceTemps';
+type PhysicalTestField = 'vma' | 'vitesse30m' | 'vitesse100m' | 'sautHorizontal' | 'sautVertical' | 'lancerMedball' | 'souplesseAssis' | 'souplesseDebout' | 'equilibreStatique' | 'sautLong' | 'lancerPoids' | 'enduranceTemps';
 
 export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({ 
     selectedClass, 
@@ -252,6 +252,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
             if (selectedStudent && numVal !== undefined && !isNaN(numVal)) {
                 if (field === 'vitesse30m') {
                     next.scoreVitesse = calculateScore(numVal, getCustomScale('speed'), selectedStudent.sexe || 'M', true);
+                } else if (field === 'vitesse100m') {
+                    next.scoreVitesse = calculateScore(numVal, getCustomScale('speed-100'), selectedStudent.sexe || 'M', true);
                 } else if (field === 'sautLong') {
                     next.scoreSautLong = calculateScore(numVal, getCustomScale('long-jump'), selectedStudent.sexe || 'M', false);
                 } else if (field === 'lancerPoids') {
@@ -261,7 +263,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                 }
             } else {
                 delete next[field];
-                if (field === 'vitesse30m') delete next.scoreVitesse;
+                if (field === 'vitesse30m' || field === 'vitesse100m') delete next.scoreVitesse;
                 else if (field === 'sautLong') delete next.scoreSautLong;
                 else if (field === 'lancerPoids') delete next.scoreLancerPoids;
                 else if (field === 'enduranceTemps') delete next.scoreEndurance;
@@ -372,6 +374,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
             updatedItem[field] = numVal;
             if (field === 'vitesse30m') {
                 updatedItem.scoreVitesse = calculateScore(numVal, getCustomScale('speed'), student.sexe || 'M', true);
+            } else if (field === 'vitesse100m') {
+                updatedItem.scoreVitesse = calculateScore(numVal, getCustomScale('speed-100'), student.sexe || 'M', true);
             } else if (field === 'sautLong') {
                 updatedItem.scoreSautLong = calculateScore(numVal, getCustomScale('long-jump'), student.sexe || 'M', false);
             } else if (field === 'lancerPoids') {
@@ -381,7 +385,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
             }
         } else {
             delete updatedItem[field];
-            if (field === 'vitesse30m') delete updatedItem.scoreVitesse;
+            if (field === 'vitesse30m' || field === 'vitesse100m') delete updatedItem.scoreVitesse;
             else if (field === 'sautLong') delete updatedItem.scoreSautLong;
             else if (field === 'lancerPoids') delete updatedItem.scoreLancerPoids;
             else if (field === 'enduranceTemps') delete updatedItem.scoreEndurance;
@@ -447,6 +451,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
         return results.some(r => 
             r.vma !== undefined || 
             r.vitesse30m !== undefined || 
+            (r as any).vitesse100m !== undefined || 
             r.sautHorizontal !== undefined || 
             r.sautVertical !== undefined || 
             r.lancerMedball !== undefined || 
@@ -476,6 +481,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                 "الجنس": student.sexe || '',
                 "VMA (كم/س)": finalVma !== undefined ? finalVma : '',
                 "30 م سرعة (ث)": res?.vitesse30m !== undefined ? res.vitesse30m : '',
+                "100 م سرعة (ث)": (res as any)?.vitesse100m !== undefined ? (res as any).vitesse100m : '',
                 "نقطة السرعة": (res as any)?.scoreVitesse ?? '',
                 "القفز الطولي (م)": (res as any)?.sautLong ?? '',
                 "نقطة القفز": (res as any)?.scoreSautLong ?? '',
@@ -879,9 +885,20 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                 setIsSprintModalOpen(true);
                             }}
                             className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs text-white bg-orange-600 hover:bg-orange-700 transition active:scale-95 cursor-pointer"
-                            title="تشغيل الميقاتي الميداني لسباقات السرعة"
+                            title="تشغيل الميقاتي الميداني لسباقات السرعة (30م، 60م، 80م، 100م)"
                         >
                             <span>⏱️ ميقاتي السرعة</span>
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                setSprintTestType('speed-100');
+                                setIsSprintModalOpen(true);
+                            }}
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs text-white bg-rose-600 hover:bg-rose-700 transition active:scale-95 cursor-pointer"
+                            title="تشغيل اختبار وسباق 100 متر الجري السريع"
+                        >
+                            <span>⚡ 100م سرعة</span>
                         </button>
 
                         <button
@@ -1515,6 +1532,18 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                 step="0.01" 
                                                 value={formData.vitesse30m ?? ''} 
                                                 onChange={e => handleInputChange('vitesse30m', e.target.value)}
+                                                placeholder=""
+                                                className="w-full rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 py-2 px-3 text-sm text-center font-bold" 
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">100 م سرعة (ثانية)</label>
+                                            <input 
+                                                type="number" 
+                                                step="0.01" 
+                                                value={formData.vitesse100m ?? ''} 
+                                                onChange={e => handleInputChange('vitesse100m', e.target.value)}
                                                 placeholder=""
                                                 className="w-full rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 py-2 px-3 text-sm text-center font-bold" 
                                             />

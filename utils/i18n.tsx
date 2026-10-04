@@ -86,6 +86,7 @@ export interface Translations {
   sprint30m: string;
   sprint60m: string;
   sprint80m: string;
+  sprint100m: string;
   longJump: string;
   longJumpAthletic: string;
   verticalJump: string;
@@ -257,6 +258,7 @@ const translations: Record<Language, Translations> = {
     sprint30m: "30 م سرعة",
     sprint60m: "60 م سرعة",
     sprint80m: "80 م سرعة",
+    sprint100m: "100 م سرعة",
     longJump: "القفز الأفقي",
     longJumpAthletic: "القفز الطولي",
     verticalJump: "القفز العمودي (سارجنت)",
@@ -423,6 +425,7 @@ const translations: Record<Language, Translations> = {
     sprint30m: "Vitesse 30 mètres",
     sprint60m: "Vitesse 60 mètres",
     sprint80m: "Vitesse 80 mètres",
+    sprint100m: "Vitesse 100 mètres",
     longJump: "Saut en longueur",
     longJumpAthletic: "Saut en Longueur",
     verticalJump: "Détente verticale (Sargent)",

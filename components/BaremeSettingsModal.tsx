@@ -21,7 +21,7 @@ import {
 interface BaremeSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  defaultTestKey?: 'speed' | 'speed-60' | 'speed-80' | 'endurance' | 'long-jump' | 'shot-put';
+  defaultTestKey?: 'speed' | 'speed-60' | 'speed-80' | 'speed-100' | 'endurance' | 'long-jump' | 'shot-put';
 }
 
 export const BaremeSettingsModal: React.FC<BaremeSettingsModalProps> = ({
@@ -29,7 +29,7 @@ export const BaremeSettingsModal: React.FC<BaremeSettingsModalProps> = ({
   onClose,
   defaultTestKey = 'endurance'
 }) => {
-  const [selectedTest, setSelectedTest] = useState<'speed' | 'speed-60' | 'speed-80' | 'endurance' | 'long-jump' | 'shot-put'>(defaultTestKey);
+  const [selectedTest, setSelectedTest] = useState<'speed' | 'speed-60' | 'speed-80' | 'speed-100' | 'endurance' | 'long-jump' | 'shot-put'>(defaultTestKey);
   const [activeGender, setActiveGender] = useState<'M' | 'F'>('M');
   const [currentScale, setCurrentScale] = useState<ScoringScale[]>([]);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export const BaremeSettingsModal: React.FC<BaremeSettingsModalProps> = ({
     }
   }, [isOpen, selectedTest]);
 
-  const loadScale = (testKey: 'speed' | 'speed-60' | 'speed-80' | 'endurance' | 'long-jump' | 'shot-put') => {
+  const loadScale = (testKey: 'speed' | 'speed-60' | 'speed-80' | 'speed-100' | 'endurance' | 'long-jump' | 'shot-put') => {
     const scale = getCustomScale(testKey);
     // Deep clone to allow editing
     setCurrentScale(JSON.parse(JSON.stringify(scale)));
@@ -127,12 +127,13 @@ export const BaremeSettingsModal: React.FC<BaremeSettingsModalProps> = ({
           )}
 
           {/* Test Type Tabs */}
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-7 gap-2">
             {[
               { id: 'endurance', label: 'التحمل', unit: 'د:ث' },
               { id: 'speed', label: '30 م', unit: 'ث' },
               { id: 'speed-60', label: '60 م', unit: 'ث' },
               { id: 'speed-80', label: '80 م', unit: 'ث' },
+              { id: 'speed-100', label: '100 م', unit: 'ث' },
               { id: 'long-jump', label: 'القفز الطولي', unit: 'م' },
               { id: 'shot-put', label: 'دفع الجلة', unit: 'م' },
             ].map(tab => (

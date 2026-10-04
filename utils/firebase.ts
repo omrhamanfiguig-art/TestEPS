@@ -203,34 +203,20 @@ export const savePhysicalTestsToCloud = async (
     const user = auth.currentUser;
     const authorEmail = user?.email || null;
 
-    // Fetch existing remote results if available to merge across devices
-    let remoteResults: PhysicalTests[] = [];
-    try {
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const d = snap.data();
-        if (Array.isArray(d.results)) remoteResults = d.results;
-      }
-    } catch {
-      // offline fallback
-    }
-
-    const mergedResults = mergePhysicalTests(remoteResults, results || []);
-
     const payload = sanitizeForFirestore({
       className: className.trim(),
-      results: mergedResults,
+      results: results || [],
       ownerEmail: authorEmail,
       updatedAt: new Date().toISOString()
     });
 
-    await setDoc(docRef, payload, { merge: true });
+    await setDoc(docRef, payload);
 
     // Also update class master document with physical tests
     const classDocRef = doc(db, 'classes', docId);
     await setDoc(classDocRef, {
       className: className.trim(),
-      physicalTests: sanitizeForFirestore(mergedResults),
+      physicalTests: sanitizeForFirestore(results || []),
       ownerEmail: authorEmail,
       updatedAt: new Date().toISOString()
     }, { merge: true }).catch(() => {});
@@ -260,34 +246,20 @@ export const saveVmaResultsToCloud = async (
     const user = auth.currentUser;
     const authorEmail = user?.email || null;
 
-    // Fetch existing remote results if available to merge across devices
-    let remoteResults: StudentResult[] = [];
-    try {
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const d = snap.data();
-        if (Array.isArray(d.results)) remoteResults = d.results;
-      }
-    } catch {
-      // offline fallback
-    }
-
-    const mergedResults = mergeStudentResults(remoteResults, results || []);
-
     const payload = sanitizeForFirestore({
       className: className.trim(),
-      results: mergedResults,
+      results: results || [],
       ownerEmail: authorEmail,
       updatedAt: new Date().toISOString()
     });
 
-    await setDoc(docRef, payload, { merge: true });
+    await setDoc(docRef, payload);
 
     // Also update class master document with VMA results
     const classDocRef = doc(db, 'classes', docId);
     await setDoc(classDocRef, {
       className: className.trim(),
-      vmaResults: sanitizeForFirestore(mergedResults),
+      vmaResults: sanitizeForFirestore(results || []),
       ownerEmail: authorEmail,
       updatedAt: new Date().toISOString()
     }, { merge: true }).catch(() => {});

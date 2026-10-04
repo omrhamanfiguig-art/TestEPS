@@ -326,6 +326,38 @@ export const useLucLeger = (
     }
   }, [results, className]);
 
+  // Update a student's VMA result
+  const updateStudentResult = useCallback(async (studentId: string, newVma: number, newPalier?: string) => {
+    const updatedResults = results.map(r => {
+      if (r.numeroEleve === studentId) {
+        return {
+          ...r,
+          vma: newVma,
+          palierAtteint: newPalier || r.palierAtteint
+        };
+      }
+      return r;
+    });
+    setResults(updatedResults);
+    await saveVmaResults(className, updatedResults);
+
+    try {
+      const currentPhys = await getPhysicalTests(className);
+      if (currentPhys && currentPhys.length > 0) {
+        const updatedPhys = currentPhys.map(p => {
+          if (p.numeroEleve === studentId) {
+            return { ...p, vma: newVma };
+          }
+          return p;
+        });
+        await savePhysicalTests(className, updatedPhys);
+      }
+      window.dispatchEvent(new CustomEvent('dbUpdated'));
+    } catch (err) {
+      console.error("Error updating physical tests on edit:", err);
+    }
+  }, [results, className]);
+
   return {
     testState,
     time,
@@ -338,5 +370,6 @@ export const useLucLeger = (
     prepareNextRun,
     recordStudentFinish,
     undoStudentFinish,
+    updateStudentResult,
   };
 };

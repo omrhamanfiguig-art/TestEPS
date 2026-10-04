@@ -37,7 +37,7 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
     const [studentList, setStudentList] = useState<StudentIdentity[]>([]);
     const [results, setResults] = useState<PhysicalTests[]>([]);
     const [isAthleticsModalOpen, setIsAthleticsModalOpen] = useState(false);
-    const [athleticsTestType, setAthleticsTestType] = useState<'speed' | 'speed-60' | 'speed-80' | 'endurance' | 'long-jump' | 'shot-put'>('speed');
+    const [athleticsTestType, setAthleticsTestType] = useState<'speed' | 'speed-60' | 'speed-80' | 'speed-100' | 'endurance' | 'long-jump' | 'shot-put'>('speed');
     const [isRaceStopwatchOpen, setIsRaceStopwatchOpen] = useState(false);
     const [raceStopwatchType, setRaceStopwatchType] = useState<RaceTestType>('speed');
     const [isBaremeModalOpen, setIsBaremeModalOpen] = useState(false);
@@ -73,6 +73,7 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
         { id: 'speed', label: t.sprint30m, icon: <RunningManIcon className="w-5 h-5" />, color: 'bg-orange-500', testKey: 'speed' },
         { id: 'speed-60', label: t.sprint60m, icon: <RunningManIcon className="w-5 h-5" />, color: 'bg-orange-600', testKey: 'speed-60' },
         { id: 'speed-80', label: t.sprint80m, icon: <RunningManIcon className="w-5 h-5" />, color: 'bg-orange-700', testKey: 'speed-80' },
+        { id: 'speed-100', label: t.sprint100m, icon: <RunningManIcon className="w-5 h-5" />, color: 'bg-rose-600', testKey: 'speed-100' },
         { id: 'relay', label: 'سباق التتابع (Relay)', icon: <RunningManIcon className="w-5 h-5" />, color: 'bg-amber-600', testKey: 'relay' },
         { id: 'endurance', label: t.endurance, icon: <RunningManIcon className="w-5 h-5" />, color: 'bg-red-600', testKey: 'endurance' },
         { id: 'long-jump', label: t.longJumpAthletic, icon: <TrophyIcon className="w-5 h-5" />, color: 'bg-indigo-600', testKey: 'long-jump' },
@@ -172,7 +173,7 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                         <div className="pt-2">
                             <button
                                 onClick={() => {
-                                    if (test.testKey === 'speed' || test.testKey === 'speed-60' || test.testKey === 'speed-80' || test.testKey === 'relay' || test.testKey === 'endurance') {
+                                    if (test.testKey === 'speed' || test.testKey === 'speed-60' || test.testKey === 'speed-80' || test.testKey === 'speed-100' || test.testKey === 'relay' || test.testKey === 'endurance') {
                                         setRaceStopwatchType(test.testKey as RaceTestType);
                                         setIsRaceStopwatchOpen(true);
                                     } else {
@@ -182,7 +183,7 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                                 }}
                                 className={`w-full py-3 rounded-2xl ${test.color} text-white font-bold text-sm shadow-md hover:opacity-90 active:scale-[0.98] transition flex items-center justify-center gap-2 cursor-pointer`}
                             >
-                                <span>{test.testKey === 'speed' || test.testKey === 'speed-60' || test.testKey === 'speed-80' || test.testKey === 'endurance' ? '⏱️ تشغيل الميقاتي والسباق' : 'ابدأ الاختبار'}</span>
+                                <span>{test.testKey === 'speed' || test.testKey === 'speed-60' || test.testKey === 'speed-80' || test.testKey === 'speed-100' || test.testKey === 'endurance' ? '⏱️ تشغيل الميقاتي والسباق' : 'ابدأ الاختبار'}</span>
                                 <ChevronDownIcon className="-rotate-90 w-4 h-4" />
                             </button>
                         </div>
@@ -208,6 +209,7 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                                 <th className="p-3 font-bold">30 م (ث)</th>
                                 <th className="p-3 font-bold">60 م (ث)</th>
                                 <th className="p-3 font-bold">80 م (ث)</th>
+                                <th className="p-3 font-bold">100 م (ث)</th>
                                 <th className="p-3 font-bold">سباق التتابع (ث)</th>
                                 <th className="p-3 font-bold">السرعة المتوسطة (د:ث)</th>
                                 <th className="p-3 font-bold">القفز الطولي (م)</th>
@@ -228,6 +230,7 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                                         <td className="p-3 font-mono">{r?.vitesse30m ? `${r.vitesse30m} ث` : '-'}</td>
                                         <td className="p-3 font-mono">{(r as any)?.vitesse60m ? `${(r as any).vitesse60m} ث` : '-'}</td>
                                         <td className="p-3 font-mono">{(r as any)?.vitesse80m ? `${(r as any).vitesse80m} ث` : '-'}</td>
+                                        <td className="p-3 font-mono">{(r as any)?.vitesse100m ? `${(r as any).vitesse100m} ث` : '-'}</td>
                                         <td className="p-3 font-mono">{(r as any)?.vitesseRelay ? `${(r as any).vitesseRelay} ث` : '-'}</td>
                                         <td className="p-3 font-mono text-red-600 dark:text-red-400 font-bold">{r?.enduranceTemps ? `${formatSecondsToMinSec(r.enduranceTemps)} د` : '-'}</td>
                                         <td className="p-3 font-mono">{r?.sautLong ? `${r.sautLong} م` : '-'}</td>
@@ -237,7 +240,7 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                             })}
                             {studentList.length === 0 && (
                                 <tr>
-                                    <td colSpan={7} className="p-10 text-center text-gray-400 font-medium">يرجى اختيار قسم أو استيراد لائحة تلاميذ</td>
+                                    <td colSpan={9} className="p-10 text-center text-gray-400 font-medium">يرجى اختيار قسم أو استيراد لائحة تلاميذ</td>
                                 </tr>
                             )}
                         </tbody>

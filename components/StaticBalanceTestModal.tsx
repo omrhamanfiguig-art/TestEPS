@@ -11,7 +11,8 @@ import {
   TrophyIcon,
   SparklesIcon,
   ChevronRightIcon,
-  TrashIcon
+  TrashIcon,
+  PencilSquareIcon
 } from './Icons';
 import { StudentAvatar } from './StudentAvatar';
 
@@ -44,6 +45,11 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
   const [elapsedTime, setElapsedTime] = useState<number>(0); // in milliseconds
   const startTimeRef = useRef<number>(0);
   const [participantCount, setParticipantCount] = useState<number>(4);
+
+  // Results table delete confirmation and edit states
+  const [studentToDelete, setStudentToDelete] = useState<{ numeroEleve: string; nomEleve: string } | null>(null);
+  const [studentToEdit, setStudentToEdit] = useState<{ numeroEleve: string; nomEleve: string; currentTime: number } | null>(null);
+  const [editTimeInput, setEditTimeInput] = useState<string>('');
 
   // Selected Participants array
   const [selectedParticipants, setSelectedParticipants] = useState<BalanceRunner[]>([
@@ -328,6 +334,21 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
     await savePhysicalTests(selectedClass, updatedPhys);
     window.dispatchEvent(new CustomEvent('dbUpdated'));
     if (onDataSaved) onDataSaved();
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!studentToDelete) return;
+    await handleDeleteResult(studentToDelete.numeroEleve);
+    setStudentToDelete(null);
+  };
+
+  const handleSaveEditTime = async () => {
+    if (!studentToEdit) return;
+    const parsed = parseFloat(editTimeInput);
+    if (!isNaN(parsed) && parsed >= 0) {
+      await saveBalanceResult(studentToEdit.numeroEleve, parsed);
+    }
+    setStudentToEdit(null);
   };
 
   const clearLaneStudents = () => {
@@ -721,6 +742,7 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
                       <th className="p-2.5 text-right">الاسم والنسب</th>
                       <th className="p-2.5 w-16">الجنس</th>
                       <th className="p-2.5 w-32">زمن الثبات (ثانية)</th>
+                      <th className="p-2.5 w-16">تعديل</th>
                       <th className="p-2.5 w-16">حذف</th>
                     </tr>
                   </thead>
@@ -743,9 +765,23 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
                         </td>
                         <td className="p-2">
                           <button
-                            onClick={() => handleDeleteResult(student.numeroEleve)}
+                            type="button"
+                            onClick={() => {
+                              setStudentToEdit({ numeroEleve: student.numeroEleve, nomEleve: student.nomEleve, currentTime: timeSec || 0 });
+                              setEditTimeInput(timeSec !== undefined ? String(timeSec) : '');
+                            }}
+                            title="تعديل هذا الزمن"
+                            className="p-1 hover:bg-indigo-100 dark:hover:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-lg transition cursor-pointer"
+                          >
+                            <PencilSquareIcon className="w-4 h-4" />
+                          </button>
+                        </td>
+                        <td className="p-2">
+                          <button
+                            type="button"
+                            onClick={() => setStudentToDelete({ numeroEleve: student.numeroEleve, nomEleve: student.nomEleve })}
                             title="حذف هذا الزمن"
-                            className="p-1 hover:bg-red-100 dark:hover:bg-red-950/50 text-red-500 rounded-lg transition"
+                            className="p-1 hover:bg-red-100 dark:hover:bg-red-950/50 text-red-500 rounded-lg transition cursor-pointer"
                           >
                             <TrashIcon className="w-4 h-4" />
                           </button>
@@ -771,6 +807,89 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
         </div>
 
       </div>
+
+      {/* نافذة تأكيد مسح نتيجة الاختبار */}
+      {studentToDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-md w-full p-5 sm:p-6 border border-gray-200 dark:border-gray-700 text-right">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center mb-4">
+              <TrashIcon className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg sm:text-xl font-black text-gray-900 dark:text-white mb-2">
+              تأكيد مسح نتيجة الاختبار
+            </h3>
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+              هل أنت متأكد من رغبتك في مسح نتيجة التلميذ «<strong className="text-gray-900 dark:text-white font-bold">{studentToDelete.nomEleve}</strong>» من هذا الاختبار؟
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setStudentToDelete(null)}
+                className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-xs sm:text-sm font-bold hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              >
+                <TrashIcon className="w-4 h-4" />
+                <span>نعم، مسح النتيجة</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* نافذة تعديل نتيجة الاختبار في الجدول */}
+      {studentToEdit && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-md w-full p-5 sm:p-6 border border-gray-200 dark:border-gray-700 text-right">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-3">
+              <PencilSquareIcon className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-black text-gray-900 dark:text-white mb-1">
+              تعديل زمن الثبات
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              التلميذ: <strong className="text-gray-900 dark:text-white font-bold">{studentToEdit.nomEleve}</strong>
+            </p>
+            <div className="space-y-3 mb-6">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                  الزمن المسجل (ثانية):
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  autoFocus
+                  value={editTimeInput}
+                  onChange={(e) => setEditTimeInput(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-mono font-black text-lg text-center text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                  placeholder="30.5"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setStudentToEdit(null)}
+                className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-xs sm:text-sm font-bold hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEditTime}
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              >
+                <span>حفظ التعديل ✔️</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

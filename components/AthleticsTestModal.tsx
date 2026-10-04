@@ -33,7 +33,7 @@ interface AthleticsTestModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialClass: string;
-  testType: 'speed' | 'speed-60' | 'speed-80' | 'endurance' | 'long-jump' | 'shot-put';
+  testType: 'speed' | 'speed-60' | 'speed-80' | 'speed-100' | 'endurance' | 'long-jump' | 'shot-put';
   onDataSaved?: () => void;
 }
 
@@ -144,6 +144,7 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
       'speed': 'vitesse30m',
       'speed-60': 'vitesse60m',
       'speed-80': 'vitesse80m',
+      'speed-100': 'vitesse100m',
       'endurance': 'enduranceTemps',
       'long-jump': 'sautLong',
       'shot-put': 'lancerPoids'
@@ -156,7 +157,7 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
     let scale = getCustomScale(testType);
     let lowerIsBetter = true;
 
-    if (testType === 'speed' || testType === 'speed-60' || testType === 'speed-80') {
+    if (testType === 'speed' || testType === 'speed-60' || testType === 'speed-80' || testType === 'speed-100') {
       actualScoreField = 'scoreVitesse';
       lowerIsBetter = true;
     } else if (testType === 'endurance') {
@@ -210,6 +211,7 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
                 {testType === 'speed' && 'اختبار الجري السريع (30 م)'}
                 {testType === 'speed-60' && 'اختبار الجري السريع (60 م)'}
                 {testType === 'speed-80' && 'اختبار الجري السريع (80 م)'}
+                {testType === 'speed-100' && 'اختبار الجري السريع (100 م)'}
                 {testType === 'endurance' && 'اختبار الجري المسافات المتوسطة'}
                 {testType === 'long-jump' && 'اختبار القفز الطولي'}
                 {testType === 'shot-put' && 'اختبار دفع الجلة'}

@@ -13,6 +13,7 @@ interface ResultsTableProps {
   results: StudentResult[];
   onStudentClick?: (numeroEleve: string) => void;
   onDeleteResult?: (numeroEleve: string) => void;
+  onEditResult?: (numeroEleve: string, newVma: number, newPalier?: string) => void;
   onClearAll?: () => void;
   onGenerateGroups?: () => void;
   selectedClass?: string;
@@ -22,6 +23,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
   results, 
   onStudentClick,
   onDeleteResult,
+  onEditResult,
   onClearAll,
   onGenerateGroups,
   selectedClass
@@ -30,6 +32,12 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
   const [genderFilter, setGenderFilter] = useState<'ALL' | 'M' | 'F'>('ALL');
   const [sortBy, setSortBy] = useState<'number' | 'vma-desc' | 'vma-asc' | 'gender-m' | 'gender-f'>('number');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+
+  // Confirmation & Edit States
+  const [studentToDelete, setStudentToDelete] = useState<{ numeroEleve: string; nomEleve: string } | null>(null);
+  const [studentToEdit, setStudentToEdit] = useState<{ numeroEleve: string; nomEleve: string; vma: number; palierAtteint: string } | null>(null);
+  const [editVmaValue, setEditVmaValue] = useState<string>('');
+  const [editPalierValue, setEditPalierValue] = useState<string>('');
 
   // Filter and sort results
   const filteredAndSortedResults = useMemo(() => {
@@ -302,22 +310,29 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
 
                   {/* Actions */}
                   <div className="flex items-center gap-1 shrink-0">
-                    {onStudentClick && (
-                      <button
-                        type="button"
-                        onClick={() => onStudentClick(result.numeroEleve)}
-                        title="تعديل بيانات التلميذ"
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-                      >
-                        <PencilSquareIcon className="w-4 h-4" />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStudentToEdit({
+                          numeroEleve: result.numeroEleve,
+                          nomEleve: result.nomEleve || 'التلميذ',
+                          vma: result.vma,
+                          palierAtteint: result.palierAtteint
+                        });
+                        setEditVmaValue(String(result.vma));
+                        setEditPalierValue(String(result.palierAtteint));
+                      }}
+                      title="تعديل نتيجة هذا التلميذ"
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer"
+                    >
+                      <PencilSquareIcon className="w-4 h-4" />
+                    </button>
                     {onDeleteResult && (
                       <button
                         type="button"
-                        onClick={() => onDeleteResult(result.numeroEleve)}
-                        title="حذف نتيجة هذا التلميذ والتراجع عنها"
-                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 transition"
+                        onClick={() => setStudentToDelete({ numeroEleve: result.numeroEleve, nomEleve: result.nomEleve || 'التلميذ' })}
+                        title="حذف نتيجة هذا التلميذ"
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 transition cursor-pointer"
                       >
                         <TrashIcon className="w-4 h-4" />
                       </button>
@@ -404,22 +419,29 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
                     </td>
                     <td className="px-2 py-3 text-center">
                       <div className="flex items-center justify-center gap-1">
-                        {onStudentClick && (
-                          <button
-                            type="button"
-                            onClick={() => onStudentClick(result.numeroEleve)}
-                            title="تعديل بيانات التلميذ"
-                            className="p-1 rounded text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition"
-                          >
-                            <PencilSquareIcon className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStudentToEdit({
+                              numeroEleve: result.numeroEleve,
+                              nomEleve: result.nomEleve || 'التلميذ',
+                              vma: result.vma,
+                              palierAtteint: result.palierAtteint
+                            });
+                            setEditVmaValue(String(result.vma));
+                            setEditPalierValue(String(result.palierAtteint));
+                          }}
+                          title="تعديل نتيجة التلميذ"
+                          className="p-1 rounded text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer"
+                        >
+                          <PencilSquareIcon className="w-3.5 h-3.5" />
+                        </button>
                         {onDeleteResult && (
                           <button
                             type="button"
-                            onClick={() => onDeleteResult(result.numeroEleve)}
+                            onClick={() => setStudentToDelete({ numeroEleve: result.numeroEleve, nomEleve: result.nomEleve || 'التلميذ' })}
                             title="حذف نتيجة التلميذ"
-                            className="p-1 rounded text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition"
+                            className="p-1 rounded text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition cursor-pointer"
                           >
                             <TrashIcon className="w-3.5 h-3.5" />
                           </button>
@@ -433,6 +455,117 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
           </div>
         )}
       </div>
+
+      {/* نافذة تأكيد مسح نتيجة الاختبار */}
+      {studentToDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-md w-full p-5 sm:p-6 border border-gray-200 dark:border-gray-700 text-right">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center mb-4">
+              <TrashIcon className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg sm:text-xl font-black text-gray-900 dark:text-white mb-2">
+              تأكيد مسح نتيجة الاختبار
+            </h3>
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+              هل أنت متأكد من رغبتك في مسح نتيجة التلميذ «<strong className="text-gray-900 dark:text-white font-bold">{studentToDelete.nomEleve}</strong>» من هذا الاختبار؟
+              سيتم حذف قيمة السرعة الهوائية (VMA) والمسافة المقطوعة نهائياً.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setStudentToDelete(null)}
+                className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-xs sm:text-sm font-bold hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDeleteResult && studentToDelete) {
+                    onDeleteResult(studentToDelete.numeroEleve);
+                  }
+                  setStudentToDelete(null);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              >
+                <TrashIcon className="w-4 h-4" />
+                <span>نعم، مسح النتيجة</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* نافذة تعديل نتيجة الاختبار في الجدول */}
+      {studentToEdit && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-md w-full p-5 sm:p-6 border border-gray-200 dark:border-gray-700 text-right">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-3">
+              <PencilSquareIcon className="w-6 h-6" />
+            </div>
+            <h3 className="text-lg font-black text-gray-900 dark:text-white mb-1">
+              تعديل نتيجة الاختبار في الجدول
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              التلميذ: <strong className="text-gray-900 dark:text-white font-bold">{studentToEdit.nomEleve}</strong>
+            </p>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                  السرعة الهوائية VMA (كم/س):
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  autoFocus
+                  value={editVmaValue}
+                  onChange={(e) => setEditVmaValue(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-mono font-black text-lg text-center text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                  placeholder="12.5"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                  المستوى (Palier):
+                </label>
+                <input
+                  type="text"
+                  value={editPalierValue}
+                  onChange={(e) => setEditPalierValue(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-bold text-sm text-center text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Palier 6"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setStudentToEdit(null)}
+                className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-xs sm:text-sm font-bold hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const vmaNum = parseFloat(editVmaValue);
+                  if (!isNaN(vmaNum) && vmaNum > 0) {
+                    if (onEditResult) {
+                      onEditResult(studentToEdit.numeroEleve, vmaNum, editPalierValue);
+                    } else if (onStudentClick) {
+                      onStudentClick(studentToEdit.numeroEleve);
+                    }
+                  }
+                  setStudentToEdit(null);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold shadow-md hover:shadow-lg transition flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              >
+                <span>حفظ التعديل ✔️</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

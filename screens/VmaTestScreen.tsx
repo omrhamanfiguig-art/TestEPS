@@ -35,7 +35,8 @@ export const VmaTestScreen: React.FC<VmaTestScreenProps> = ({ selectedClass, set
         clearAllData,
         prepareNextRun,
         recordStudentFinish,
-        undoStudentFinish
+        undoStudentFinish,
+        updateStudentResult
     } = useLucLeger(selectedClass, studentList, sessionDate, language);
 
     const [groups, setGroups] = useState<AffinityGroup[]>([]);
@@ -280,7 +281,14 @@ export const VmaTestScreen: React.FC<VmaTestScreenProps> = ({ selectedClass, set
                 <ResultsTable 
                     results={results} 
                     onStudentClick={(num) => setModalStudentNumber(num)} 
-                    onDeleteResult={(num) => undoStudentFinish(num)}
+                    onDeleteResult={(num) => {
+                        undoStudentFinish(num);
+                        showToast("تم مسح نتيجة التلميذ بنجاح.");
+                    }}
+                    onEditResult={(num, newVma, newPalier) => {
+                        updateStudentResult(num, newVma, newPalier);
+                        showToast("تم حفظ التعديل بنجاح.");
+                    }}
                     onClearAll={() => setIsClearConfirmOpen(true)}
                     onGenerateGroups={handleGenerateGroups}
                     selectedClass={selectedClass}
