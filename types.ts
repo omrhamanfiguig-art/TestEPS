@@ -57,6 +57,10 @@ export interface PhysicalTests {
   lancerMedball?: number;
   lancerPoids?: number;
   sautLong?: number;
+  sautLongAttempts?: number[];
+  lancerPoidsAttempts?: number[];
+  sautHorizontalAttempts?: number[];
+  lancerMedballAttempts?: number[];
   vitesseDist?: number;
   enduranceDist?: number;
   enduranceTemps?: number;

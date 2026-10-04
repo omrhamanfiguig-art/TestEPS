@@ -913,6 +913,28 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                         </button>
 
                         <button
+                            onClick={() => {
+                                setAthleticsTestType('long-jump');
+                                setIsAthleticsModalOpen(true);
+                            }}
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs text-white bg-indigo-600 hover:bg-indigo-700 transition active:scale-95 cursor-pointer"
+                            title="اختبار القفز الطولي بنظام المحاولات (1 أو 2 أو 3 محاولات) وتحديد أحسن محاولة تلقائياً"
+                        >
+                            <span>🎯 القفز الطولي</span>
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                setAthleticsTestType('shot-put');
+                                setIsAthleticsModalOpen(true);
+                            }}
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs text-white bg-slate-700 hover:bg-slate-800 transition active:scale-95 cursor-pointer"
+                            title="اختبار دفع الجلة بنظام المحاولات (1 أو 2 أو 3 محاولات) وتحديد أحسن محاولة تلقائياً"
+                        >
+                            <span>☄️ دفع الجلة</span>
+                        </button>
+
+                        <button
                             onClick={handleExport}
                             disabled={!hasEnteredValues}
                             className={`col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs transition active:scale-95 ${
@@ -1069,12 +1091,34 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                         <div className="text-[10px] font-normal text-red-600 dark:text-red-400">دقائق : ثواني (د:ث)</div>
                                     </th>
                                     <th className="p-2.5 font-bold min-w-[95px]">
-                                        <div>قفز طولي</div>
-                                        <div className="text-[10px] font-normal text-gray-400">متر</div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setAthleticsTestType('long-jump');
+                                                setIsAthleticsModalOpen(true);
+                                            }}
+                                            className="inline-flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer group"
+                                            title="اضغط لتشغيل اختبار القفز الطولي بنظام المحاولات (1 أو 2 أو 3 محاولات) وتحديد أحسن محاولة تلقائياً"
+                                        >
+                                            <span>قفز طولي</span>
+                                            <span className="text-[10px] px-1 py-0.5 rounded bg-indigo-600 text-white font-mono group-hover:bg-indigo-700">🎯</span>
+                                        </button>
+                                        <div className="text-[10px] font-normal text-gray-400">متر (محاولات)</div>
                                     </th>
                                     <th className="p-2.5 font-bold min-w-[95px]">
-                                        <div>دفع الجلة</div>
-                                        <div className="text-[10px] font-normal text-gray-400">متر</div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setAthleticsTestType('shot-put');
+                                                setIsAthleticsModalOpen(true);
+                                            }}
+                                            className="inline-flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-300 transition cursor-pointer group"
+                                            title="اضغط لتشغيل اختبار دفع الجلة بنظام المحاولات (1 أو 2 أو 3 محاولات) وتحديد أحسن محاولة تلقائياً"
+                                        >
+                                            <span>دفع الجلة</span>
+                                            <span className="text-[10px] px-1 py-0.5 rounded bg-slate-700 text-white font-mono group-hover:bg-slate-800">☄️</span>
+                                        </button>
+                                        <div className="text-[10px] font-normal text-gray-400">متر (محاولات)</div>
                                     </th>
                                     <th className="p-2.5 font-bold w-20">الإنجاز</th>
                                     <th className="p-2.5 font-bold w-12">بطاقة</th>
