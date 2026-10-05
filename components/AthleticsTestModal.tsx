@@ -172,14 +172,23 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
     setRankedResults([]);
   };
 
-  const handleAssignStudent = async (rankIdx: number, studentNum: string) => {
+  const handleAssignStudent = (rankIdx: number, studentNum: string) => {
     const updated = [...rankedResults];
     updated[rankIdx].studentNumber = studentNum;
     setRankedResults(updated);
+  };
 
-    if (studentNum) {
-      await saveResult(studentNum, updated[rankIdx].timeMs / 1000);
+  const handleSaveRaceRankedResults = async () => {
+    const assignedRunners = rankedResults.filter(r => !!r.studentNumber && r.timeMs > 0);
+    if (assignedRunners.length === 0) {
+      showToast('يرجى تعيين المتسابقين أولاً قبل الحفظ');
+      return;
     }
+
+    for (const r of assignedRunners) {
+      await saveResult(r.studentNumber, r.timeMs / 1000);
+    }
+    showToast(`✓ تم بنجاح حفظ نتائج ${assignedRunners.length} متسابق في السجل!`);
   };
 
   // Field test handler: updates one attempt value for a student, auto-determines the best attempt, and saves
@@ -1085,14 +1094,15 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
                     <select
                       value={res.studentNumber}
                       onChange={(e) => handleAssignStudent(idx, e.target.value)}
-                      className="flex-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm"
+                      className="flex-1 bg-white dark:bg-gray-800 border-2 border-amber-400 dark:border-amber-600 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold text-gray-900 dark:text-white"
                     >
-                      <option value="">-- اختر المتسابق --</option>
+                      <option value="">-- 👤 اختر التلميذ الفائز بالمركز {res.rank} --</option>
                       {students.map((s, sIdx) => {
                         const numDisplay = s.orderIndex || (sIdx + 1);
+                        const assignedOther = rankedResults.find((r, rIdx) => rIdx !== idx && String(r.studentNumber) === String(s.numeroEleve));
                         return (
-                          <option key={s.numeroEleve} value={s.numeroEleve}>
-                            #{numDisplay} - {s.nomEleve}
+                          <option key={s.numeroEleve} value={s.numeroEleve} disabled={!!assignedOther}>
+                            #{numDisplay} - {s.nomEleve} ({s.sexe === 'F' ? 'أنثى' : 'ذكر'}) {assignedOther ? `⚠️ (محدد بالمركز ${assignedOther.rank})` : ''}
                           </option>
                         );
                       })}
@@ -1100,6 +1110,22 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
                   </div>
                 ))}
               </div>
+
+              {/* Explicit Save Results Button for Race */}
+              {rankedResults.length > 0 && (
+                <div className="flex items-center justify-between p-4 bg-amber-50 dark:bg-amber-950/30 rounded-2xl border border-amber-200 dark:border-amber-800">
+                  <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
+                    تم تسجيل {rankedResults.filter(r => !!r.studentNumber).length} من {rankedResults.length} متسابق. اضغط على حفظ لتثبيت النتائج بالسجل.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSaveRaceRankedResults}
+                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>💾 حفظ نتائج السباق</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

@@ -113,6 +113,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
     const [filterTeacher, setFilterTeacher] = useState<string>('ALL');
     const [filterLevel, setFilterLevel] = useState<string>('ALL');
     const [teacherProfiles, setTeacherProfiles] = useState<TeacherProfile[]>(() => getTeacherProfiles());
+    const [tableFilterTab, setTableFilterTab] = useState<'all' | 'completed' | 'pending'>('all');
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -169,13 +170,16 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
         getStudentList(className).then(list => {
             const normalizedList = list.map(s => ({
                 ...s,
-                numeroEleve: String(s.numeroEleve)
+                numeroEleve: String(s.numeroEleve ?? '')
             }));
             setStudentList(normalizedList);
         });
         getPhysicalTests(className).then(res => {
             const sanitized = (res || []).map(item => {
-                const cleaned: any = { ...item };
+                const cleaned: any = { 
+                    ...item,
+                    numeroEleve: String(item.numeroEleve ?? '')
+                };
                 Object.keys(cleaned).forEach(k => {
                     if (typeof cleaned[k] === 'number' && isNaN(cleaned[k])) {
                         delete cleaned[k];
@@ -187,7 +191,10 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
         });
         getVmaResults(className).then(vmaList => {
             const sanitizedVma = (vmaList || []).map(item => {
-                const cleaned: any = { ...item };
+                const cleaned: any = { 
+                    ...item,
+                    numeroEleve: String(item.numeroEleve ?? '')
+                };
                 Object.keys(cleaned).forEach(k => {
                     if (typeof cleaned[k] === 'number' && isNaN(cleaned[k])) {
                         delete cleaned[k];
@@ -668,6 +675,53 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
         return filteredStudents.filter(s => getCompletedCount(s.numeroEleve) > 0);
     }, [filteredStudents, results, vmaResults]);
 
+    const displayedTableStudents = useMemo(() => {
+        if (tableFilterTab === 'completed') return completedStudents;
+        if (tableFilterTab === 'pending') return pendingStudents;
+        return filteredStudents;
+    }, [tableFilterTab, completedStudents, pendingStudents, filteredStudents]);
+
+    // Statistical summary for class performance
+    const testStats = useMemo(() => {
+        const calculateStats = (extractor: (r?: PhysicalTests, vma?: number) => number | undefined, isTime = false) => {
+            const values: number[] = [];
+            studentList.forEach(s => {
+                const r = results.find(item => item.numeroEleve === s.numeroEleve);
+                const vmaRes = vmaResults.find(v => v.numeroEleve === s.numeroEleve);
+                const finalVma = r?.vma !== undefined ? r.vma : vmaRes?.vma;
+                const v = extractor(r, finalVma);
+                if (v !== undefined && !isNaN(v) && v > 0) {
+                    values.push(v);
+                }
+            });
+
+            if (values.length === 0) return { avg: '-', best: '-', count: 0 };
+            const sum = values.reduce((a, b) => a + b, 0);
+            const avgNum = sum / values.length;
+            const bestNum = isTime ? Math.min(...values) : Math.max(...values);
+
+            return {
+                avg: isTime ? formatSecondsToMinSec(avgNum) : avgNum.toFixed(1),
+                best: isTime ? formatSecondsToMinSec(bestNum) : bestNum.toFixed(1),
+                count: values.length
+            };
+        };
+
+        return {
+            vma: calculateStats((r, vma) => vma),
+            vitesse30m: calculateStats((r) => r?.vitesse30m, true),
+            sautHorizontal: calculateStats((r) => r?.sautHorizontal),
+            sautVertical: calculateStats((r) => r?.sautVertical),
+            lancerMedball: calculateStats((r) => r?.lancerMedball),
+            souplesseAssis: calculateStats((r) => r?.souplesseAssis),
+            souplesseDebout: calculateStats((r) => r?.souplesseDebout),
+            equilibreStatique: calculateStats((r) => r?.equilibreStatique),
+            enduranceTemps: calculateStats((r) => r?.enduranceTemps, true),
+            sautLong: calculateStats((r) => r?.sautLong),
+            lancerPoids: calculateStats((r) => r?.lancerPoids)
+        };
+    }, [studentList, results, vmaResults]);
+
     const currentLucLegerVma = selectedStudent ? vmaResults.find(v => v.numeroEleve === selectedStudent.numeroEleve)?.vma : undefined;
 
     return (
@@ -955,9 +1009,9 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
             {viewMode === 'table' && (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col flex-grow">
                     {/* Table Toolbar */}
-                    <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50/50 dark:bg-gray-800/50">
-                        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
-                            <div className="relative w-full sm:w-72">
+                    <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-gray-50/50 dark:bg-gray-800/50">
+                        <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                            <div className="relative w-full sm:w-64">
                                 <input
                                     type="text"
                                     value={filterQuery}
@@ -975,6 +1029,55 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                     </button>
                                 )}
                             </div>
+
+                            {/* Status Filter Tabs (الكل / مكتمل / قيد الإنجاز) */}
+                            <div className="flex items-center bg-gray-200/80 dark:bg-gray-700/80 p-1 rounded-xl border border-gray-300/60 dark:border-gray-600">
+                                <button
+                                    type="button"
+                                    onClick={() => setTableFilterTab('all')}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        tableFilterTab === 'all'
+                                            ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                                            : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
+                                    }`}
+                                >
+                                    <span>👥 جميع التلاميذ</span>
+                                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300">
+                                        {filteredStudents.length}
+                                    </span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setTableFilterTab('completed')}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        tableFilterTab === 'completed'
+                                            ? 'bg-white dark:bg-gray-800 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                                            : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
+                                    }`}
+                                    title="عرض التلاميذ الذين سُجِّلت لهم نتائج"
+                                >
+                                    <span>✅ تم تقييمهم</span>
+                                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">
+                                        {completedStudents.length}
+                                    </span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setTableFilterTab('pending')}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        tableFilterTab === 'pending'
+                                            ? 'bg-white dark:bg-gray-800 text-amber-600 dark:text-amber-400 shadow-xs'
+                                            : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
+                                    }`}
+                                    title="عرض التلاميذ الذين لم يُسجَّل لهم أي اختبار بعد"
+                                >
+                                    <span>⏳ قيد الإنجاز</span>
+                                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300">
+                                        {pendingStudents.length}
+                                    </span>
+                                </button>
+                            </div>
+
                             <button
                                 type="button"
                                 onClick={() => {
@@ -987,13 +1090,10 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                 <UserPlusIcon className="w-3.5 h-3.5" />
                                 <span>إضافة تلميذ</span>
                             </button>
-                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                                عدد التلاميذ: {studentList.length}
-                            </span>
                         </div>
 
                         {/* Real-time Silent Background Auto-save Status Indicator */}
-                        <div className="text-xs">
+                        <div className="text-xs shrink-0">
                             {saveStatus === 'saving' || isSaving ? (
                                 <span className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800">
                                     <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
@@ -1125,7 +1225,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                {pendingStudents.map((student) => {
+                                {displayedTableStudents.map((student) => {
                                     const res = results.find(r => r.numeroEleve === student.numeroEleve);
                                     const vmaRes = vmaResults.find(v => v.numeroEleve === student.numeroEleve);
                                     const finalVma = res?.vma !== undefined ? res.vma : vmaRes?.vma;
@@ -1197,15 +1297,22 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
 
                                             {/* 30m Sprint */}
                                             <td className="p-1.5">
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    placeholder=""
-                                                    defaultValue={toSafeDefaultValue(res?.vitesse30m)}
-                                                    key={`vitesse-${student.numeroEleve}-${toSafeDefaultValue(res?.vitesse30m)}`}
-                                                    onBlur={(e) => handleTableFieldChange(student, 'vitesse30m', e.target.value)}
-                                                    className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                                                />
+                                                <div className="relative">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        placeholder=""
+                                                        defaultValue={toSafeDefaultValue(res?.vitesse30m)}
+                                                        key={`vitesse-${student.numeroEleve}-${toSafeDefaultValue(res?.vitesse30m)}`}
+                                                        onBlur={(e) => handleTableFieldChange(student, 'vitesse30m', e.target.value)}
+                                                        className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                                                    />
+                                                    {res?.scoreVitesse !== undefined && (
+                                                        <span className="block text-[9px] text-orange-600 dark:text-orange-400 font-bold mt-0.5">
+                                                            ن: {res.scoreVitesse}/20
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
 
                                             {/* Saut Horizontal */}
@@ -1288,47 +1395,92 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
 
                                             {/* Endurance in min:sec (e.g. 03:20) */}
                                             <td className="p-1.5 bg-red-50/30 dark:bg-red-950/10 border-x border-red-100 dark:border-red-950/40">
-                                                <input
-                                                    type="text"
-                                                    placeholder="3:20"
-                                                    defaultValue={toSafeEnduranceDefault(res?.enduranceTemps)}
-                                                    key={`endurance-${student.numeroEleve}-${toSafeEnduranceDefault(res?.enduranceTemps)}`}
-                                                    onBlur={(e) => handleTableFieldChange(student, 'enduranceTemps', e.target.value)}
-                                                    className="w-full text-center py-1.5 px-1 rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-gray-800 text-red-800 dark:text-red-300 font-bold focus:ring-1 focus:ring-red-500 focus:outline-none font-mono"
-                                                    title="أدخل التوقيت بالدقائق والثواني (مثال 3:25 أو 03:25)"
-                                                />
+                                                <div className="relative">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="3:20"
+                                                        defaultValue={toSafeEnduranceDefault(res?.enduranceTemps)}
+                                                        key={`endurance-${student.numeroEleve}-${toSafeEnduranceDefault(res?.enduranceTemps)}`}
+                                                        onBlur={(e) => handleTableFieldChange(student, 'enduranceTemps', e.target.value)}
+                                                        className="w-full text-center py-1.5 px-1 rounded-lg border border-red-200 dark:border-red-800 bg-white dark:bg-gray-800 text-red-800 dark:text-red-300 font-bold focus:ring-1 focus:ring-red-500 focus:outline-none font-mono"
+                                                        title="أدخل التوقيت بالدقائق والثواني (مثال 3:25 أو 03:25)"
+                                                    />
+                                                    {res?.scoreEndurance !== undefined && (
+                                                        <span className="block text-[9px] text-red-600 dark:text-red-400 font-bold mt-0.5">
+                                                            ن: {res.scoreEndurance}/20
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
 
                                             {/* Saut Long */}
                                             <td className="p-1.5">
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    placeholder=""
-                                                    defaultValue={toSafeDefaultValue(res?.sautLong)}
-                                                    key={`sautLong-${student.numeroEleve}-${toSafeDefaultValue(res?.sautLong)}`}
-                                                    onBlur={(e) => handleTableFieldChange(student, 'sautLong', e.target.value)}
-                                                    className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                                                />
+                                                <div className="relative">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        placeholder=""
+                                                        defaultValue={toSafeDefaultValue(res?.sautLong)}
+                                                        key={`sautLong-${student.numeroEleve}-${toSafeDefaultValue(res?.sautLong)}`}
+                                                        onBlur={(e) => handleTableFieldChange(student, 'sautLong', e.target.value)}
+                                                        className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none font-bold"
+                                                    />
+                                                    <div className="flex items-center justify-center gap-1 mt-0.5">
+                                                        {res?.sautLongAttempts && res.sautLongAttempts.length > 1 && (
+                                                            <span 
+                                                                className="text-[9px] px-1 py-0.2 rounded bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-mono font-bold"
+                                                                title={`المحاولات: ${res.sautLongAttempts.join('م | ')}م`}
+                                                            >
+                                                                {res.sautLongAttempts.length}م
+                                                            </span>
+                                                        )}
+                                                        {res?.scoreSautLong !== undefined && (
+                                                            <span className="text-[9px] text-indigo-600 dark:text-indigo-400 font-bold">
+                                                                ن: {res.scoreSautLong}/20
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </td>
 
                                             {/* Lancer Poids */}
                                             <td className="p-1.5">
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    placeholder=""
-                                                    defaultValue={toSafeDefaultValue(res?.lancerPoids)}
-                                                    key={`lancerPoids-${student.numeroEleve}-${toSafeDefaultValue(res?.lancerPoids)}`}
-                                                    onBlur={(e) => handleTableFieldChange(student, 'lancerPoids', e.target.value)}
-                                                    className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                                                />
+                                                <div className="relative">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        placeholder=""
+                                                        defaultValue={toSafeDefaultValue(res?.lancerPoids)}
+                                                        key={`lancerPoids-${student.numeroEleve}-${toSafeDefaultValue(res?.lancerPoids)}`}
+                                                        onBlur={(e) => handleTableFieldChange(student, 'lancerPoids', e.target.value)}
+                                                        className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none font-bold"
+                                                    />
+                                                    <div className="flex items-center justify-center gap-1 mt-0.5">
+                                                        {res?.lancerPoidsAttempts && res.lancerPoidsAttempts.length > 1 && (
+                                                            <span 
+                                                                className="text-[9px] px-1 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-mono font-bold"
+                                                                title={`المحاولات: ${res.lancerPoidsAttempts.join('م | ')}م`}
+                                                            >
+                                                                {res.lancerPoidsAttempts.length}م
+                                                            </span>
+                                                        )}
+                                                        {res?.scoreLancerPoids !== undefined && (
+                                                            <span className="text-[9px] text-slate-700 dark:text-slate-300 font-bold">
+                                                                ن: {res.scoreLancerPoids}/20
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </td>
 
                                             {/* Completion */}
                                             <td className="p-2">
                                                 {completedCount > 0 ? (
-                                                    <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-full">
+                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                                                        completedCount >= 8
+                                                            ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300/60'
+                                                            : 'text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-950/60'
+                                                    }`}>
                                                         {completedCount}/11
                                                     </span>
                                                 ) : (
@@ -1341,7 +1493,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                 <button
                                                     type="button"
                                                     onClick={() => setModalStudentNumber(student.numeroEleve)}
-                                                    className="p-1 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                    className="p-1 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                                                     title="فتح بطاقة التلميذ"
                                                 >
                                                     <PencilSquareIcon className="w-4 h-4" />
@@ -1351,16 +1503,110 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                     );
                                 })}
 
-                                {filteredStudents.length === 0 && (
+                                {displayedTableStudents.length === 0 && (
                                     <tr>
-                                        <td colSpan={13} className="py-12 text-center text-gray-400">
+                                        <td colSpan={15} className="py-12 text-center text-gray-400">
                                             <UsersIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                                            <p className="font-semibold">لم يتم العثور على أي تلميذ في هذا القسم.</p>
-                                            <p className="text-xs mt-1">انقر على "استيراد" لإضافة التلاميذ أو الاختبارات عبر ملف Excel.</p>
+                                            <p className="font-semibold">
+                                                {filteredStudents.length === 0 
+                                                    ? "لم يتم العثور على أي تلميذ في هذا القسم." 
+                                                    : "لا توجد نتائج مطابقة للتصنيف المختار حالياً."}
+                                            </p>
+                                            {filteredStudents.length === 0 && (
+                                                <p className="text-xs mt-1">انقر على "استيراد" لإضافة التلاميذ أو الاختبارات عبر ملف Excel.</p>
+                                            )}
                                         </td>
                                     </tr>
                                 )}
                             </tbody>
+
+                            {/* Class Statistics Footer (المعدل العام وأفضل إنجاز) */}
+                            {studentList.length > 0 && (
+                                <tfoot className="bg-gray-100/90 dark:bg-gray-900/90 text-gray-800 dark:text-gray-200 font-bold border-t-2 border-indigo-200 dark:border-indigo-800 sticky bottom-0 z-10 shadow-xs">
+                                    <tr className="border-b border-gray-200 dark:border-gray-700">
+                                        <td colSpan={3} className="p-2 text-right text-[11px] font-black bg-indigo-50/70 dark:bg-indigo-950/60 text-indigo-900 dark:text-indigo-300">
+                                            📊 معدل القسم (Moyenne):
+                                        </td>
+                                        <td className="p-1.5 font-mono text-amber-700 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/30">
+                                            {testStats.vma.avg !== '-' ? `${testStats.vma.avg}` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono text-orange-700 dark:text-orange-400">
+                                            {testStats.vitesse30m.avg !== '-' ? `${testStats.vitesse30m.avg}ث` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono">
+                                            {testStats.sautHorizontal.avg !== '-' ? `${testStats.sautHorizontal.avg}سم` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono">
+                                            {testStats.sautVertical.avg !== '-' ? `${testStats.sautVertical.avg}سم` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono">
+                                            {testStats.lancerMedball.avg !== '-' ? `${testStats.lancerMedball.avg}م` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono">
+                                            {testStats.souplesseAssis.avg !== '-' ? `${testStats.souplesseAssis.avg}سم` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono">
+                                            {testStats.souplesseDebout.avg !== '-' ? `${testStats.souplesseDebout.avg}سم` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono">
+                                            {testStats.equilibreStatique.avg !== '-' ? `${testStats.equilibreStatique.avg}ث` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono text-red-700 dark:text-red-400 bg-red-50/40 dark:bg-red-950/20">
+                                            {testStats.enduranceTemps.avg !== '-' ? `${testStats.enduranceTemps.avg}` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono text-indigo-700 dark:text-indigo-400">
+                                            {testStats.sautLong.avg !== '-' ? `${testStats.sautLong.avg}م` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono text-slate-700 dark:text-slate-300">
+                                            {testStats.lancerPoids.avg !== '-' ? `${testStats.lancerPoids.avg}م` : '-'}
+                                        </td>
+                                        <td colSpan={2} className="p-1.5 text-[10px] text-gray-500 font-normal">
+                                            {completedStudents.length}/{studentList.length} مقيّم
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td colSpan={3} className="p-2 text-right text-[11px] font-black bg-amber-50/60 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300">
+                                            🏆 أفضل إنجاز (Top Score):
+                                        </td>
+                                        <td className="p-1.5 font-mono text-amber-800 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-950/30">
+                                            {testStats.vma.best !== '-' ? `${testStats.vma.best}` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono text-orange-800 dark:text-orange-300">
+                                            {testStats.vitesse30m.best !== '-' ? `${testStats.vitesse30m.best}ث` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono">
+                                            {testStats.sautHorizontal.best !== '-' ? `${testStats.sautHorizontal.best}سم` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono">
+                                            {testStats.sautVertical.best !== '-' ? `${testStats.sautVertical.best}سم` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono">
+                                            {testStats.lancerMedball.best !== '-' ? `${testStats.lancerMedball.best}م` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono">
+                                            {testStats.souplesseAssis.best !== '-' ? `${testStats.souplesseAssis.best}سم` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono">
+                                            {testStats.souplesseDebout.best !== '-' ? `${testStats.souplesseDebout.best}سم` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono">
+                                            {testStats.equilibreStatique.best !== '-' ? `${testStats.equilibreStatique.best}ث` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono text-red-800 dark:text-red-300 bg-red-50/40 dark:bg-red-950/20">
+                                            {testStats.enduranceTemps.best !== '-' ? `${testStats.enduranceTemps.best}` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono text-indigo-800 dark:text-indigo-300">
+                                            {testStats.sautLong.best !== '-' ? `${testStats.sautLong.best}م` : '-'}
+                                        </td>
+                                        <td className="p-1.5 font-mono text-slate-800 dark:text-slate-200">
+                                            {testStats.lancerPoids.best !== '-' ? `${testStats.lancerPoids.best}م` : '-'}
+                                        </td>
+                                        <td colSpan={2} className="p-1.5 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                                            {studentList.length > 0 ? Math.round((completedStudents.length / studentList.length) * 100) : 0}% إنجاز
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            )}
                         </table>
                     </div>
                 </div>

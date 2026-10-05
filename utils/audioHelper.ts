@@ -30,7 +30,7 @@ const getMasterNode = (audioContext: AudioContext): AudioNode => {
  * Keeps the Bluetooth A2DP audio link continuously active to prevent 
  * Bluetooth speakers from entering standby/sleep mode or muting between shuttle beeps.
  */
-export const startBluetoothKeepAlive = (audioContext: AudioContext | null) => {
+export const startBluetoothKeepAlive = (audioContext?: AudioContext | null) => {
   if (typeof window === 'undefined') return;
 
   // 1. WebAudio Sub-Audible Carrier Signal
