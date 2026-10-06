@@ -16,6 +16,7 @@ import {
   CheckCircleIcon, 
   XMarkIcon, 
   ArrowDownTrayIcon, 
+  ArrowUpTrayIcon,
   ArrowPathIcon,
   TrashIcon,
   PencilSquareIcon,
@@ -27,6 +28,11 @@ import {
 } from '../components/Icons';
 import { StudentAvatar } from '../components/StudentAvatar';
 import { AddEditStudentModal } from '../components/AddEditStudentModal';
+import { TextbookScreen } from './TextbookScreen';
+import { PedagogicalReportsView } from '../components/PedagogicalReportsView';
+import { StudentReportModal } from '../components/StudentReportModal';
+import { GroupReportModal } from '../components/GroupReportModal';
+import { ImportSessionsModal } from '../components/ImportSessionsModal';
 import { 
   exportSessionAttendanceToExcel, 
   exportClassAttendanceCumulativeToExcel,
@@ -120,8 +126,18 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
   const [records, setRecords] = useState<Record<string, AttendanceRecord>>({});
   const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
   
-  // Active Tab: 'roll-call-table' | 'history' | 'cumulative'
-  const [activeTab, setActiveTab] = useState<'table' | 'history' | 'cumulative'>('table');
+  // Active Tab: 'table' | 'textbook' | 'reports' | 'cumulative' | 'history'
+  const [activeTab, setActiveTab] = useState<'table' | 'textbook' | 'reports' | 'cumulative' | 'history'>('table');
+  
+  // Student Pedagogical Report Modal State
+  const [selectedStudentForReport, setSelectedStudentForReport] = useState<StudentIdentity | null>(null);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isGroupReportModalOpen, setIsGroupReportModalOpen] = useState(false);
+  
+  // Import Sessions & Delete Session Modals
+  const [isImportSessionsModalOpen, setIsImportSessionsModalOpen] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<AttendanceSession | null>(null);
+  const [isDeletingSession, setIsDeletingSession] = useState(false);
   
   // Interactive Roll Call Carousel Modal
   const [isRollCallModalOpen, setIsRollCallModalOpen] = useState(false);
@@ -405,13 +421,15 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
     return { total, present, absent, justified, late, noKit, rate };
   }, [students, records]);
 
-  // Save current session to DB and Cloud
+  // Save current session to DB and Cloud manually
   const handleSaveSession = async (isAuto = false) => {
     if (!selectedClass || students.length === 0) {
-      if (!isAuto) setNotification({ message: "يرجى تحديد قسم به تلاميذ أولاً.", type: 'error' });
+      setNotification({ message: "يرجى تحديد قسم به تلاميذ أولاً.", type: 'error' });
+      setTimeout(() => setNotification(null), 3000);
       return;
     }
 
+    setIsSaving(true);
     const recordsList: AttendanceRecord[] = students.map(s => {
       return records[s.numeroEleve] || { studentNumber: s.numeroEleve, status: 'present' };
     });
@@ -436,43 +454,62 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
       updatedAt: new Date().toISOString()
     };
 
-    if (isAuto) setIsSaving(true);
     try {
       await saveAttendanceSession(sessionObj);
       const updated = await getAttendanceSessions(selectedClass);
       setPreviousSessions(updated);
 
-      if (!isAuto) {
-        setNotification({
-          message: `تم حفظ ورقة غياب حصة ${date} (${timeSlot}) ومزامنتها سحابياً بنجاح!`,
-          type: 'success'
-        });
-      }
+      setNotification({
+        message: `تم حفظ ورقة غياب حصة ${date} (${timeSlot}) ومزامنتها محلياً وسحابياً بنجاح! 💾☁️`,
+        type: 'success'
+      });
+      setTimeout(() => setNotification(null), 3500);
     } catch (err) {
       console.error('Save failed', err);
+      setNotification({ message: "حدث خطأ أثناء حفظ ورقة الحصة", type: 'error' });
+      setTimeout(() => setNotification(null), 3000);
     } finally {
-      if (isAuto) setIsSaving(false);
+      setIsSaving(false);
     }
   };
 
-  // Auto-save logic (runs automatically 1s after any change)
-  useEffect(() => {
-    if (Object.keys(records).length === 0 || !selectedClass) return;
-    
-    const timer = setTimeout(() => {
-      handleSaveSession(true);
-    }, 1000);
+  // Delete session handler (opens custom confirmation modal)
+  const handleDeleteSession = (sess: AttendanceSession) => {
+    setSessionToDelete(sess);
+  };
 
-    return () => clearTimeout(timer);
-  }, [records, date, timeSlot, topic, sessionNumber, selectedClass]);
+  const handleConfirmDeleteSession = async () => {
+    if (!sessionToDelete) return;
+    setIsDeletingSession(true);
+    try {
+      await deleteAttendanceSession(selectedClass, sessionToDelete.id);
+      
+      // Update local state immediately
+      setPreviousSessions(prev => prev.filter(s => s.id !== sessionToDelete.id));
 
-  // Delete session
-  const handleDeleteSession = async (sessId: string, sessDate: string) => {
-    if (confirm(`هل أنت متأكد من حذف ورقة غياب حصة ${sessDate}؟`)) {
-      await deleteAttendanceSession(selectedClass, sessId);
-      const updated = await getAttendanceSessions(selectedClass);
-      setPreviousSessions(updated);
-      setNotification({ message: "تم حذف ورقة الحصة بنجاح.", type: 'success' });
+      // If the currently open form was using the deleted session, reset to fresh ID
+      if (sessionId === sessionToDelete.id) {
+        const freshId = `sess_${selectedClass.replace(/\s+/g, '_')}_${date}_${Date.now()}`;
+        setSessionId(freshId);
+        const freshMap: Record<string, AttendanceRecord> = {};
+        students.forEach(s => {
+          freshMap[s.numeroEleve] = { studentNumber: s.numeroEleve, status: 'present' };
+        });
+        setRecords(freshMap);
+      }
+
+      setNotification({
+        message: `تم حذف ورقة غياب حصة ${sessionToDelete.date} (${sessionToDelete.timeSlot || ''}) بنجاح. 🗑️`,
+        type: 'success'
+      });
+      setTimeout(() => setNotification(null), 3500);
+      setSessionToDelete(null);
+    } catch (err) {
+      console.error('Failed to delete session:', err);
+      setNotification({ message: "حدث خطأ أثناء حذف ورقة الحصة", type: 'error' });
+      setTimeout(() => setNotification(null), 3000);
+    } finally {
+      setIsDeletingSession(false);
     }
   };
 
@@ -485,17 +522,44 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
 
   // Roll Call Modal Actions
   const currentRollStudent = students[rollCallIndex];
-  const handleRollCallAnswer = (status: AttendanceStatus) => {
+  
+  // Compute cumulative stats for currently displayed student in Roll Call
+  const currentRollStudentStats = useMemo(() => {
+    if (!currentRollStudent) return { present: 0, absent: 0, late: 0, noKit: 0, justified: 0 };
+    let present = 0, absent = 0, late = 0, noKit = 0, justified = 0;
+    
+    previousSessions.forEach(sess => {
+      const rec = sess.records.find(r => r.studentNumber === currentRollStudent.numeroEleve);
+      if (rec) {
+        if (rec.status === 'present') present++;
+        if (rec.status === 'absent') absent++;
+        if (rec.status === 'late') late++;
+        if (rec.status === 'no-kit') noKit++;
+        if (rec.status === 'justified') justified++;
+      }
+    });
+
+    const activeRec = records[currentRollStudent.numeroEleve];
+    if (activeRec) {
+      if (activeRec.status === 'present') present++;
+      if (activeRec.status === 'absent') absent++;
+      if (activeRec.status === 'late') late++;
+      if (activeRec.status === 'no-kit') noKit++;
+      if (activeRec.status === 'justified') justified++;
+    }
+
+    return { present, absent, late, noKit, justified };
+  }, [currentRollStudent, previousSessions, records]);
+
+  const handleRollCallAnswer = async (status: AttendanceStatus) => {
     if (!currentRollStudent) return;
     handleStatusChange(currentRollStudent.numeroEleve, status);
     if (rollCallIndex < students.length - 1) {
       setRollCallIndex(rollCallIndex + 1);
     } else {
       setIsRollCallModalOpen(false);
-      setNotification({
-        message: "اكتملت المناداة على جميع التلاميذ بنجاح! يمكنك الآن مراجعة اللائحة وحفظها.",
-        type: 'success'
-      });
+      // Explicit manual save & cloud sync upon completing roll call
+      await handleSaveSession(false);
     }
   };
 
@@ -684,12 +748,28 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
               <span>📢</span>
               <span>بدء المناداة</span>
             </button>
-          </div>
 
-          {/* Auto-Save Indicator Badge (No Save Button) */}
-          <div className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 shadow-2xs w-full sm:w-auto text-center">
-            <CheckCircleIcon className={`w-4 h-4 text-emerald-500 ${isSaving ? 'animate-spin text-amber-500' : ''}`} />
-            <span>{isSaving ? 'جاري الحفظ...' : 'حفظ تلقائي مفعّل ✓'}</span>
+            <button
+              type="button"
+              onClick={() => setIsGroupReportModalOpen(true)}
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-2xl text-xs font-black text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 shadow-md shadow-indigo-600/20 active:scale-95 transition cursor-pointer"
+              title="إنشاء تقرير إداري جماعي وإرساله بالواتساب أو كصورة للإدارة"
+            >
+              <UserGroupIcon className="w-4 h-4 shrink-0" />
+              <span>تقرير جماعي للإدارة (WhatsApp / صورة)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSaveSession(false)}
+              disabled={isSaving}
+              className={`inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black text-white shadow-lg shadow-emerald-600/25 active:scale-95 transition cursor-pointer ${
+                isSaving ? 'bg-emerald-700 opacity-80 cursor-wait' : 'bg-emerald-600 hover:bg-emerald-700'
+              }`}
+              title="حفظ ورقة حضور الحصة يدوياً في السجل وقاعدة البيانات السحابية"
+            >
+              <CheckCircleIcon className={`w-4 h-4 text-white ${isSaving ? 'animate-spin' : ''}`} />
+              <span>{isSaving ? 'جاري الحفظ والمزامنة...' : '💾 حفظ ورقة الحضور'}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -840,17 +920,17 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
 
       {/* Tabs Header */}
       <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-3 flex-wrap gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           <button
             type="button"
             onClick={() => setActiveTab('table')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'table'
                 ? 'bg-indigo-600 text-white shadow-xs'
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
           >
-            <span>ورقة حضور الحصة</span>
+            <span>📋 ورقة الحضور</span>
             <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20">
               {students.length}
             </span>
@@ -858,53 +938,78 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
 
           <button
             type="button"
-            onClick={() => setActiveTab('cumulative')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
-              activeTab === 'cumulative'
+            onClick={() => setActiveTab('textbook')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'textbook'
                 ? 'bg-indigo-600 text-white shadow-xs'
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
           >
-            <span>المواظبة التراكمية</span>
+            <span>📖 دفتر النصوص</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('reports')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'reports'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+          >
+            <span>🏥 فضاء التقارير والحالات</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('cumulative')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              activeTab === 'cumulative'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+          >
+            <span>📊 المواظبة التراكمية</span>
             <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20">
-              {previousSessions.length} حصص
+              {previousSessions.length}
             </span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('history')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'history'
                 ? 'bg-indigo-600 text-white shadow-xs'
-                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
           >
-            <span>سجل الحصص السابقة</span>
+            <span>🗄️ سجل الحصص</span>
           </button>
         </div>
 
         {/* Export Buttons */}
         <div className="flex items-center gap-2">
-          {activeTab === 'table' ? (
+          {activeTab === 'table' && (
             <>
               <button
                 type="button"
                 onClick={handleMarkAllPresent}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 transition"
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 transition cursor-pointer"
               >
                 تحديد الكل حاضر
               </button>
               <button
                 type="button"
                 onClick={handleExportExcel}
-                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100 transition flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100 transition flex items-center gap-1.5 cursor-pointer"
               >
                 <ArrowDownTrayIcon className="w-3.5 h-3.5" />
                 <span>تصدير Excel</span>
               </button>
             </>
-          ) : (
+          )}
+          {activeTab === 'cumulative' && (
             <div className="flex gap-2">
               <button
                 type="button"
@@ -913,7 +1018,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                 title="تصدير سجل الأنشطة والغيابات لجميع الحصص الدراسية"
               >
                 <ArrowDownTrayIcon className="w-3.5 h-3.5" />
-                <span>تصدير سجل الأنشطة (كل الحصص)</span>
+                <span>تصدير سجل الأنشطة</span>
               </button>
               <button
                 type="button"
@@ -921,7 +1026,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                 className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100 transition flex items-center gap-1.5 cursor-pointer"
               >
                 <ArrowDownTrayIcon className="w-3.5 h-3.5" />
-                <span>تصدير التقرير التراكمي Excel</span>
+                <span>تصدير التقرير التراكمي</span>
               </button>
             </div>
           )}
@@ -976,7 +1081,8 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                   <th className="p-3">التلميذ</th>
                   <th className="p-3 text-center w-16">الجنس</th>
                   <th className="p-3 text-center">حالة الحضور</th>
-                  <th className="p-3">ملاحظات إضافية</th>
+                  <th className="p-3 text-center w-36">التقارير والحالات</th>
+                  <th className="p-3 w-48">ملاحظات إضافية</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60 font-medium">
@@ -1111,6 +1217,21 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                         </div>
                       </td>
 
+                      <td className="p-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedStudentForReport(s);
+                            setIsReportModalOpen(true);
+                          }}
+                          className="px-2.5 py-1.5 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 rounded-xl text-[11px] font-bold hover:bg-teal-100 dark:hover:bg-teal-900/60 flex items-center justify-center gap-1 mx-auto cursor-pointer shadow-2xs active:scale-95 transition"
+                          title="تسجيل تقرير تربوي، إعفاء طبي، أو ملاحظة سلوك للتلميذ"
+                        >
+                          <DocumentTextIcon className="w-3.5 h-3.5" />
+                          <span>📝 تقرير / حالة</span>
+                        </button>
+                      </td>
+
                       <td className="p-3 w-48">
                         <input
                           type="text"
@@ -1200,6 +1321,19 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                           );
                         })}
 
+                        {/* Report button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedStudentForReport(s);
+                            setIsReportModalOpen(true);
+                          }}
+                          className="px-2 py-1 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 rounded-lg text-[10px] font-bold flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs"
+                          title="تقرير / حالة التلميذ"
+                        >
+                          <span>📝 تقرير</span>
+                        </button>
+
                         {/* Expand Note Input button */}
                         <button
                           type="button"
@@ -1246,10 +1380,24 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
         </div>
       )}
 
-      {/* Tab 2: Cumulative Attendance Report Across All Sessions */}
+      {/* Tab 2: Textbook Screen (دفتر النصوص الرياضي) */}
+      {activeTab === 'textbook' && (
+        <div className="rounded-3xl overflow-hidden bg-white dark:bg-gray-800 p-2 sm:p-4 border border-gray-100 dark:border-gray-700">
+          <TextbookScreen selectedClass={selectedClass} setSelectedClass={setSelectedClass} />
+        </div>
+      )}
+
+      {/* Tab 3: Pedagogical Reports Space (فضاء التقارير والحالات التربوية) */}
+      {activeTab === 'reports' && (
+        <div className="rounded-3xl overflow-hidden bg-white dark:bg-gray-800 p-2 sm:p-4 border border-gray-100 dark:border-gray-700">
+          <PedagogicalReportsView selectedClass={selectedClass} students={students} />
+        </div>
+      )}
+
+      {/* Tab 4: Cumulative Attendance Report Across All Sessions */}
       {activeTab === 'cumulative' && (
         <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-          <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/40">
+          <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-gray-50/50 dark:bg-gray-800/40">
             <div>
               <h3 className="font-bold text-base text-gray-900 dark:text-white">
                 تقرير المواظبة والغيابات التراكمي للقسم
@@ -1258,13 +1406,24 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                 مجموع الحصص المنجزة: <strong>{previousSessions.length} حصة</strong>
               </p>
             </div>
-            <button
-              onClick={handleExportCumulative}
-              className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs hover:bg-emerald-700 transition"
-            >
-              <ArrowDownTrayIcon className="w-4 h-4" />
-              <span>تصدير التقرير التراكمي إلى Excel</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsImportSessionsModalOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs hover:bg-indigo-700 transition cursor-pointer"
+              >
+                <ArrowUpTrayIcon className="w-4 h-4" />
+                <span>استيراد سجل الحصص</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleExportCumulative}
+                className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs hover:bg-emerald-700 transition cursor-pointer"
+              >
+                <ArrowDownTrayIcon className="w-4 h-4" />
+                <span>تصدير التقرير التراكمي (Excel)</span>
+              </button>
+            </div>
           </div>
 
           {/* Desktop Table View */}
@@ -1456,28 +1615,58 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
         </div>
       )}
 
-      {/* Tab 3: Session History */}
+      {/* Tab 5: Session History */}
       {activeTab === 'history' && (
         <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-700">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-700 gap-3">
             <div>
-              <h3 className="font-bold text-base text-gray-900 dark:text-white">
-                سجل الحصص السابقة لقسم {selectedClass}
+              <h3 className="font-bold text-base text-gray-900 dark:text-white flex items-center gap-2">
+                <span>🗄️ سجل الحصص السابقة لقسم {selectedClass}</span>
+                <span className="text-xs font-bold px-2.5 py-0.5 bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 rounded-xl">
+                  {previousSessions.length} حصص مسجلة
+                </span>
               </h3>
               <p className="text-xs text-gray-400 mt-0.5">
-                يمكنك الضغط على أي حصة لاستعراض ورقتها وتعديلها أو تصديرها
+                استعراض ورقة أي حصة وتعديلها أو تصديرها واستيراد سجلات الحصص والأنشطة
               </p>
             </div>
-            <span className="text-xs font-bold px-3 py-1 bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 rounded-xl">
-              {previousSessions.length} حصص مسجلة
-            </span>
+            
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsImportSessionsModalOpen(true)}
+                className="py-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
+              >
+                <ArrowUpTrayIcon className="w-4 h-4" />
+                <span>📥 استيراد سجل الحصص (Excel)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExportAllSportsActivity}
+                className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
+              >
+                <ArrowDownTrayIcon className="w-4 h-4" />
+                <span>📤 تصدير تقرير الأنشطة</span>
+              </button>
+            </div>
           </div>
 
           {previousSessions.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              <CalendarDaysIcon className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-2" />
-              <p className="font-bold">لا توجد حصص سابقة مسجلة لهذا القسم.</p>
-              <p className="text-xs text-gray-400 mt-1">سجل أول حصة اليوم وسيتم حفظها تلقائياً في السجل.</p>
+            <div className="text-center py-12 text-gray-400 space-y-3">
+              <CalendarDaysIcon className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600" />
+              <div>
+                <p className="font-bold text-gray-700 dark:text-gray-300">لا توجد حصص مسجلة لهذا القسم بعد.</p>
+                <p className="text-xs text-gray-400 mt-1">سجل أول حصة اليوم أو استورد سجل الحصص السابقة من ملف Excel.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsImportSessionsModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 rounded-xl text-xs font-bold border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 transition cursor-pointer"
+              >
+                <ArrowUpTrayIcon className="w-4 h-4" />
+                <span>استيراد سجل الحصص من ملف Excel / CSV</span>
+              </button>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1500,6 +1689,11 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                     <div className="text-sm font-black text-gray-900 dark:text-white mt-2 flex items-center gap-1.5">
                       <ClockIcon className="w-4 h-4 text-gray-400 shrink-0" />
                       <span>{sess.timeSlot || "الحصة العادية"}</span>
+                      {sess.sessionNumber && (
+                        <span className="text-xs text-indigo-500 font-bold mr-auto">
+                          ({sess.sessionNumber})
+                        </span>
+                      )}
                     </div>
 
                     {sess.topic && (
@@ -1521,22 +1715,22 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                     <button
                       type="button"
                       onClick={() => handleLoadPreviousSession(sess)}
-                      className="flex-1 py-1.5 px-3 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition"
+                      className="flex-1 py-1.5 px-3 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition cursor-pointer"
                     >
                       فتح وتعديل
                     </button>
                     <button
                       type="button"
                       onClick={() => exportSessionAttendanceToExcel(sess, students)}
-                      className="p-1.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100"
+                      className="p-1.5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 cursor-pointer"
                       title="تصدير الحصة Excel"
                     >
                       <ArrowDownTrayIcon className="w-4 h-4" />
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDeleteSession(sess.id, sess.date)}
-                      className="p-1.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50"
+                      onClick={() => handleDeleteSession(sess)}
+                      className="p-1.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
                       title="حذف الحصة"
                     >
                       <TrashIcon className="w-4 h-4" />
@@ -1606,6 +1800,39 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                    records[currentRollStudent.numeroEleve]?.status === 'justified' ? 'مبرر' : 'بدون بذلة'}
                 </span>
               </div>
+
+              {/* Student Cumulative Attendance Stats */}
+              <div className="grid grid-cols-4 gap-2 w-full bg-gray-50 dark:bg-gray-750 p-2.5 rounded-2xl border border-gray-150 dark:border-gray-700 text-center">
+                <div className="p-1">
+                  <div className="text-sm font-black text-emerald-600 dark:text-emerald-400">{currentRollStudentStats.present}</div>
+                  <div className="text-[10px] font-bold text-gray-500">حضور</div>
+                </div>
+                <div className="p-1">
+                  <div className="text-sm font-black text-rose-600 dark:text-rose-400">{currentRollStudentStats.absent}</div>
+                  <div className="text-[10px] font-bold text-gray-500">غياب</div>
+                </div>
+                <div className="p-1">
+                  <div className="text-sm font-black text-amber-500 dark:text-amber-400">{currentRollStudentStats.late}</div>
+                  <div className="text-[10px] font-bold text-gray-500">تأخر</div>
+                </div>
+                <div className="p-1">
+                  <div className="text-sm font-black text-purple-600 dark:text-purple-400">{currentRollStudentStats.noKit}</div>
+                  <div className="text-[10px] font-bold text-gray-500">بدون بذلة</div>
+                </div>
+              </div>
+
+              {/* Add Pedagogical / Administrative Report Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedStudentForReport(currentRollStudent);
+                  setIsReportModalOpen(true);
+                }}
+                className="w-full py-2 px-3 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-200 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-2xs hover:bg-teal-100 dark:hover:bg-teal-900/60 transition cursor-pointer active:scale-95"
+              >
+                <DocumentTextIcon className="w-4 h-4" />
+                <span>📝 تسجيل تقرير / حالة خاصة للإدارة</span>
+              </button>
             </div>
 
             {/* Large One-Tap Buttons */}
@@ -1657,20 +1884,28 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                 type="button"
                 disabled={rollCallIndex === 0}
                 onClick={() => setRollCallIndex(rollCallIndex - 1)}
-                className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold disabled:opacity-30"
+                className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold disabled:opacity-30 cursor-pointer"
               >
                 السابق
               </button>
 
-              <span className="text-xs font-bold text-gray-400">
-                {rollCallIndex + 1} من {students.length}
-              </span>
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsRollCallModalOpen(false);
+                  await handleSaveSession(false);
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-xs cursor-pointer active:scale-95 transition flex items-center gap-1"
+                title="إنهاء المناداة وحفظ الورقة مباشرة"
+              >
+                <span>💾 إنهاء وحفظ</span>
+              </button>
 
               <button
                 type="button"
                 disabled={rollCallIndex === students.length - 1}
                 onClick={() => setRollCallIndex(rollCallIndex + 1)}
-                className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold disabled:opacity-30"
+                className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold disabled:opacity-30 cursor-pointer"
               >
                 التالي
               </button>
@@ -1886,6 +2121,124 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                 className="px-4 py-1.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 hover:text-indigo-600 rounded-lg transition cursor-pointer"
               >
                 🔄 إعادة ضبط اللائحة الافتراضية
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Student Pedagogical Report Modal */}
+      {isReportModalOpen && selectedStudentForReport && (
+        <StudentReportModal
+          isOpen={isReportModalOpen}
+          onClose={() => setIsReportModalOpen(false)}
+          student={selectedStudentForReport}
+          className={selectedClass}
+        />
+      )}
+
+      {/* Group Administrative Report Modal */}
+      {isGroupReportModalOpen && (
+        <GroupReportModal
+          isOpen={isGroupReportModalOpen}
+          onClose={() => setIsGroupReportModalOpen(false)}
+          className={selectedClass}
+          students={students}
+          currentRecords={records}
+          previousSessions={previousSessions}
+          sessionDate={date}
+          sessionTopic={topic}
+        />
+      )}
+
+      {/* Import Sessions Modal */}
+      {isImportSessionsModalOpen && (
+        <ImportSessionsModal
+          isOpen={isImportSessionsModalOpen}
+          onClose={() => setIsImportSessionsModalOpen(false)}
+          currentClass={selectedClass}
+          onSuccess={async (importedCount) => {
+            const fresh = await getAttendanceSessions(selectedClass);
+            setPreviousSessions(fresh);
+            setNotification({
+              message: `تم بنجاح استيراد ${importedCount} حصة رياضية وحفظها في قاعدة البيانات المحلية والسحابية! 📥✅`,
+              type: 'success'
+            });
+            setTimeout(() => setNotification(null), 4000);
+          }}
+        />
+      )}
+
+      {/* Custom Delete Session Confirmation Modal */}
+      {sessionToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in" dir="rtl">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-5 border border-rose-150 dark:border-rose-900/60 text-right">
+            <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400">
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/60 rounded-2xl">
+                <TrashIcon className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-base text-gray-900 dark:text-white">
+                  حذف ورقة الحصة الرياضية
+                </h3>
+                <p className="text-xs text-gray-400">
+                  تأكيد الحذف النهائي من السجل المحلي والسحابي
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 dark:bg-gray-750 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-2 text-xs">
+              <div className="flex justify-between items-center font-bold">
+                <span className="text-gray-500">القسم:</span>
+                <span className="text-indigo-600 font-black">{sessionToDelete.className}</span>
+              </div>
+              <div className="flex justify-between items-center font-bold">
+                <span className="text-gray-500">تاريخ الحصة:</span>
+                <span className="font-mono text-gray-900 dark:text-white">{sessionToDelete.date} ({sessionToDelete.timeSlot || 'الحصة العادية'})</span>
+              </div>
+              {sessionToDelete.topic && (
+                <div className="flex justify-between items-center font-bold">
+                  <span className="text-gray-500">موضوع النشاط:</span>
+                  <span className="text-gray-800 dark:text-gray-200 truncate max-w-[200px]">{sessionToDelete.topic}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center font-bold pt-1 border-t border-gray-200 dark:border-gray-700 text-[11px]">
+                <span className="text-emerald-600 font-black">حاضر: {sessionToDelete.summary?.present ?? 0}</span>
+                <span className="text-rose-600 font-black">غائب: {sessionToDelete.summary?.absent ?? 0}</span>
+                <span className="text-amber-600 font-black">تأخر: {sessionToDelete.summary?.late ?? 0}</span>
+              </div>
+            </div>
+
+            <p className="text-xs font-bold text-gray-600 dark:text-gray-300">
+              هل أنت متأكد من حذف هذه الحصة نهائياً؟ لن تتمكن من استرجاع بياناتها إلا بإعادة إدخالها أو استيرادها.
+            </p>
+
+            <div className="flex items-center justify-between gap-3 pt-2">
+              <button
+                type="button"
+                disabled={isDeletingSession}
+                onClick={() => setSessionToDelete(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-xs font-bold hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              >
+                إلغاء
+              </button>
+
+              <button
+                type="button"
+                disabled={isDeletingSession}
+                onClick={handleConfirmDeleteSession}
+                className="flex-1 py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-md shadow-rose-600/20 flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer"
+              >
+                {isDeletingSession ? (
+                  <>
+                    <span className="inline-block animate-spin">⏳</span>
+                    <span>جارٍ الحذف...</span>
+                  </>
+                ) : (
+                  <>
+                    <TrashIcon className="w-4 h-4" />
+                    <span>تأكيد الحذف النهائي</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

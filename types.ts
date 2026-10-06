@@ -169,3 +169,30 @@ export interface ChampionshipRegistration {
   createdAt: string;
 }
 
+export type ReportCaseType = 
+  | 'medical_exemption' // إعفاء طبي
+  | 'behavior' // ملاحظة سلوكية / انضباط
+  | 'outstanding_talent' // موهبة وتفوق
+  | 'injury' // إصابة رياضية
+  | 'absence_warning' // إنذار غياب متكرر
+  | 'observation' // ملاحظة بيداغوجية عامة
+  | 'other'; // أخرى
+
+export interface PedagogicalReport {
+  id: string;
+  className: string;
+  studentNumber: string;
+  studentName?: string;
+  date: string; // YYYY-MM-DD
+  caseType: ReportCaseType;
+  title: string;
+  details: string;
+  actionTaken?: string;
+  severity?: 'low' | 'medium' | 'high';
+  doctorName?: string; // For medical exemptions
+  exemptionStartDate?: string;
+  exemptionEndDate?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+

@@ -95,18 +95,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: language === 'ar' ? 'تقويم' : 'Éval'
     },
     {
-      id: 'athletics' as ActiveScreen,
-      label: t.navAthletics,
-      icon: <RunningManIcon className="w-5 h-5" />,
-      badge: '60m/80m'
-    },
-    {
-      id: 'team-games' as ActiveScreen,
-      label: t.navTeamGames,
-      icon: <UserGroupIcon className="w-5 h-5" />,
-      badge: language === 'ar' ? 'جماعية' : 'S.Co'
-    },
-    {
       id: 'global-grades' as ActiveScreen,
       label: t.navGlobalGrades,
       icon: <TableCellsIcon className="w-5 h-5" />,
@@ -120,27 +108,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'attendance' as ActiveScreen,
-      label: t.navAttendance,
-      icon: <CalendarDaysIcon className="w-5 h-5" />,
-      badge: language === 'ar' ? 'حصص' : 'Présence'
-    },
-    {
-      id: 'textbook' as ActiveScreen,
-      label: language === 'ar' ? 'دفتر النصوص الرياضي' : 'Cahier de Textes',
-      icon: <DocumentTextIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />,
-      badge: language === 'ar' ? 'توثيق' : 'Prog'
-    },
-    {
-      id: 'measurements' as ActiveScreen,
-      label: t.navMeasurements,
-      icon: <RulerIcon className="w-5 h-5" />,
-      badge: 'IMC'
-    },
-    {
-      id: 'championships' as ActiveScreen,
-      label: language === 'ar' ? 'البطولات المدرسية' : 'Championnats',
-      icon: <TrophyIcon className="w-5 h-5 text-amber-600 dark:text-amber-400" />,
-      badge: language === 'ar' ? 'مشاركة' : 'Inscr'
+      label: language === 'ar' ? 'الغياب ودفتر النصوص' : 'Présence & Cahier',
+      icon: <CalendarDaysIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />,
+      badge: language === 'ar' ? 'توثيق' : 'Suivi'
     },
     {
       id: 'settings' as ActiveScreen,
@@ -327,8 +297,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {[
           { id: 'classes' as ActiveScreen, label: language === 'ar' ? 'الأقسام' : 'Classes', icon: <AcademicCapIcon className="w-5 h-5" /> },
           { id: 'physical-tests' as ActiveScreen, label: language === 'ar' ? 'الروائز' : 'Tests', icon: <TrophyIcon className="w-5 h-5" /> },
-          { id: 'athletics' as ActiveScreen, label: language === 'ar' ? 'القوى' : 'Athlé', icon: <RunningManIcon className="w-5 h-5" /> },
-          { id: 'attendance' as ActiveScreen, label: language === 'ar' ? 'الغياب' : 'Présence', icon: <CalendarDaysIcon className="w-5 h-5" /> },
+          { id: 'attendance' as ActiveScreen, label: language === 'ar' ? 'الغياب والنصوص' : 'Suivi', icon: <CalendarDaysIcon className="w-5 h-5" /> },
+          { id: 'talent' as ActiveScreen, label: language === 'ar' ? 'المواهب' : 'Talents', icon: <SparklesIcon className="w-5 h-5" /> },
           { id: 'global-grades' as ActiveScreen, label: language === 'ar' ? 'المحضر' : 'Bilan', icon: <TableCellsIcon className="w-5 h-5" /> },
         ].map(item => {
           const isActive = activeScreen === item.id;

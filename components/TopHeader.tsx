@@ -53,7 +53,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       case 'talent':
         return t.navTalent;
       case 'attendance':
-        return t.navAttendance;
+        return language === 'ar' ? 'التتبع والغياب ودفتر النصوص' : 'Suivi & Présence';
       case 'textbook':
         return language === 'ar' ? 'دفتر النصوص الرياضي' : 'Cahier de Textes';
       case 'measurements':

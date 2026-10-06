@@ -1591,4 +1591,275 @@ export const exportFilteredStudentsRosterToExcel = (
   return true;
 };
 
+/**
+ * Download sample Excel template for Sports Activity & Attendance Sessions History
+ */
+export const downloadSessionsTemplate = () => {
+  const XLSX = (window as any).XLSX;
+  if (!XLSX) {
+    console.error("XLSX library not loaded");
+    return false;
+  }
+
+  const headers = [
+    "الترتيب",
+    "رقم الحصة",
+    "القسم",
+    "النشاط / موضوع الحصة",
+    "التاريخ",
+    "التوقيت",
+    "مجموع التلاميذ",
+    "عدد الحاضرين",
+    "عدد الغائبين",
+    "غياب مبرر",
+    "المتأخرون",
+    "بدون بذلة رياضة",
+    "نسبة الحضور %"
+  ];
+
+  const today = new Date().toISOString().split('T')[0];
+
+  const sampleRows: any[][] = [
+    ["نموذج استيراد سجل الحصص والأنشطة الرياضية"],
+    ["ملاحظة: يمكنك تعديل البيانات وإضافة حصص جديدة مع احترام الأعمدة أدناه"],
+    [],
+    headers,
+    [1, "الحصة 1", "2APIC-1", "الجري السريع وألعاب القوى (Sprint)", today, "08:00 - 09:00", 32, 30, 2, 1, 1, 1, "93.8%"],
+    [2, "الحصة 2", "2APIC-1", "كرة السلة: التمرير والتصويب (Basketball)", today, "09:00 - 10:00", 32, 31, 1, 0, 2, 0, "96.9%"],
+    [3, "الحصة 3", "2APIC-1", "الجمباز والحركات الأرضية (Gymnastique)", today, "10:00 - 11:00", 32, 29, 3, 1, 0, 2, "90.6%"]
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(sampleRows);
+  ws['!cols'] = [
+    { wch: 8 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 34 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 16 }
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "سجل الحصص");
+  XLSX.writeFile(wb, `نموذج_استيراد_سجل_الحصص_${today}.xlsx`);
+  return true;
+};
+
+export interface ParsedSessionsData {
+  sessions: AttendanceSession[];
+  classes: string[];
+  totalSessions: number;
+}
+
+/**
+ * Parses an Excel or CSV file containing Sports Activity & Attendance sessions history
+ */
+export const parseSportsActivitySessionsExcel = async (
+  file: File,
+  fallbackClassName?: string
+): Promise<ParsedSessionsData> => {
+  const XLSX = (window as any).XLSX;
+  if (!XLSX) {
+    throw new Error("لم يتم تحميل مكتبة قراءة ملفات Excel");
+  }
+
+  // Handle JSON format as well
+  if (file.name.endsWith('.json')) {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    const sessionsArray: AttendanceSession[] = Array.isArray(data) ? data : (data.sessions || []);
+    const classes = Array.from(new Set(sessionsArray.map(s => s.className).filter(Boolean)));
+    return {
+      sessions: sessionsArray,
+      classes,
+      totalSessions: sessionsArray.length
+    };
+  }
+
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+  
+  const parsedSessions: AttendanceSession[] = [];
+  const foundClasses = new Set<string>();
+
+  // Process all sheets in workbook
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+    if (!jsonData || jsonData.length === 0) continue;
+
+    // Find the header row
+    let headerRowIdx = -1;
+    let colIdxMap: Record<string, number> = {};
+
+    for (let r = 0; r < Math.min(jsonData.length, 10); r++) {
+      const row = jsonData[r];
+      if (!Array.isArray(row)) continue;
+
+      const normRow = row.map(cell => String(cell || '').trim().toLowerCase().replace(/[\s\-_/\\()]+/g, ' '));
+      
+      const hasDate = normRow.some(c => c.includes('تاريخ') || c.includes('date') || c.includes('jour'));
+      const hasSessionOrTopic = normRow.some(c => 
+        c.includes('حصة') || c.includes('séance') || c.includes('session') ||
+        c.includes('نشاط') || c.includes('موضوع') || c.includes('activité') || c.includes('topic')
+      );
+      const hasClassOrAttendance = normRow.some(c => 
+        c.includes('قسم') || c.includes('classe') || c.includes('حاضر') || c.includes('حضور') || c.includes('présent')
+      );
+
+      if ((hasDate || hasSessionOrTopic) && (hasClassOrAttendance || normRow.length >= 4)) {
+        headerRowIdx = r;
+        
+        row.forEach((cell, idx) => {
+          const colName = String(cell || '').trim().toLowerCase();
+          
+          if (colName.includes('رقم الحصة') || colName.includes('حصة') || colName.includes('séance') || colName.includes('session')) {
+            if (!colIdxMap['sessionNumber']) colIdxMap['sessionNumber'] = idx;
+          }
+          if (colName.includes('قسم') || colName.includes('classe') || colName.includes('class')) {
+            if (!colIdxMap['className']) colIdxMap['className'] = idx;
+          }
+          if (colName.includes('نشاط') || colName.includes('موضوع') || colName.includes('activité') || colName.includes('sujet') || colName.includes('topic')) {
+            if (!colIdxMap['topic']) colIdxMap['topic'] = idx;
+          }
+          if (colName.includes('تاريخ') || colName.includes('date') || colName.includes('jour')) {
+            if (!colIdxMap['date']) colIdxMap['date'] = idx;
+          }
+          if (colName.includes('توقيت') || colName.includes('وقت') || colName.includes('horaire') || colName.includes('heure') || colName.includes('time')) {
+            if (!colIdxMap['timeSlot']) colIdxMap['timeSlot'] = idx;
+          }
+          if (colName.includes('مجموع') || colName.includes('عدد التلاميذ') || colName.includes('total') || colName.includes('effectif')) {
+            if (!colIdxMap['total']) colIdxMap['total'] = idx;
+          }
+          if (colName.includes('حاضر') || colName.includes('حضور') || colName.includes('présent') || colName.includes('present')) {
+            if (!colIdxMap['present']) colIdxMap['present'] = idx;
+          }
+          if (colName.includes('غياب') || colName.includes('غائب') || colName.includes('absent')) {
+            if (!colIdxMap['absent']) colIdxMap['absent'] = idx;
+          }
+          if (colName.includes('مبرر') || colName.includes('justifié') || colName.includes('justified')) {
+            if (!colIdxMap['justified']) colIdxMap['justified'] = idx;
+          }
+          if (colName.includes('تأخر') || colName.includes('retard') || colName.includes('late')) {
+            if (!colIdxMap['late']) colIdxMap['late'] = idx;
+          }
+          if (colName.includes('بذلة') || colName.includes('tenue') || colName.includes('kit')) {
+            if (!colIdxMap['noKit']) colIdxMap['noKit'] = idx;
+          }
+        });
+        break;
+      }
+    }
+
+    if (headerRowIdx === -1) continue;
+
+    // Parse session data rows
+    for (let r = headerRowIdx + 1; r < jsonData.length; r++) {
+      const row = jsonData[r];
+      if (!Array.isArray(row) || row.length === 0 || row.every(cell => cell === undefined || cell === null || cell === '')) {
+        continue;
+      }
+
+      // Class name
+      let rowClassName = colIdxMap['className'] !== undefined ? String(row[colIdxMap['className']] || '').trim() : '';
+      if (!rowClassName) {
+        rowClassName = fallbackClassName || sheetName || 'قسم افتراضي';
+      }
+      if (rowClassName.startsWith('تقرير') || rowClassName.startsWith('سجل')) {
+        rowClassName = fallbackClassName || 'قسم افتراضي';
+      }
+
+      // Date parsing
+      let rawDate = colIdxMap['date'] !== undefined ? row[colIdxMap['date']] : undefined;
+      let sessionDate = new Date().toISOString().split('T')[0];
+
+      if (rawDate) {
+        if (rawDate instanceof Date) {
+          sessionDate = rawDate.toISOString().split('T')[0];
+        } else if (typeof rawDate === 'number') {
+          // Excel serial date to JS date
+          const utc_days = Math.floor(rawDate - 25569);
+          const utc_value = utc_days * 86400;
+          const date_info = new Date(utc_value * 1000);
+          sessionDate = date_info.toISOString().split('T')[0];
+        } else {
+          const str = String(rawDate).trim();
+          // Try parse YYYY-MM-DD or DD/MM/YYYY
+          if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+            sessionDate = str;
+          } else if (/^\d{1,2}[/-]\d{1,2}[/-]\d{4}$/.test(str)) {
+            const parts = str.split(/[/-]/);
+            if (parts.length === 3) {
+              const day = parts[0].padStart(2, '0');
+              const month = parts[1].padStart(2, '0');
+              const year = parts[2];
+              sessionDate = `${year}-${month}-${day}`;
+            }
+          }
+        }
+      }
+
+      // Topic / Activity
+      const topic = colIdxMap['topic'] !== undefined ? String(row[colIdxMap['topic']] || '').trim() : "ألعاب القوى والتربية البدنية";
+      
+      // Session Number
+      let sessionNumber = colIdxMap['sessionNumber'] !== undefined ? String(row[colIdxMap['sessionNumber']] || '').trim() : `الحصة ${parsedSessions.length + 1}`;
+      if (!sessionNumber || sessionNumber === '-') {
+        sessionNumber = `الحصة ${parsedSessions.length + 1}`;
+      }
+
+      // TimeSlot
+      const timeSlot = colIdxMap['timeSlot'] !== undefined ? String(row[colIdxMap['timeSlot']] || '').trim() : "08:00 - 09:00";
+
+      // Counts
+      const total = colIdxMap['total'] !== undefined ? Number(row[colIdxMap['total']]) || 0 : 0;
+      const present = colIdxMap['present'] !== undefined ? Number(row[colIdxMap['present']]) || 0 : 0;
+      const absent = colIdxMap['absent'] !== undefined ? Number(row[colIdxMap['absent']]) || 0 : 0;
+      const justified = colIdxMap['justified'] !== undefined ? Number(row[colIdxMap['justified']]) || 0 : 0;
+      const late = colIdxMap['late'] !== undefined ? Number(row[colIdxMap['late']]) || 0 : 0;
+      const noKit = colIdxMap['noKit'] !== undefined ? Number(row[colIdxMap['noKit']]) || 0 : 0;
+
+      const cleanClassName = rowClassName.trim();
+      foundClasses.add(cleanClassName);
+
+      const sessId = `imported_sess_${cleanClassName.replace(/\s+/g, '_')}_${sessionDate}_${sessionNumber.replace(/\s+/g, '_')}_${Date.now()}_${r}`;
+
+      const sessionItem: AttendanceSession = {
+        id: sessId,
+        className: cleanClassName,
+        date: sessionDate,
+        timeSlot: timeSlot || "08:00 - 09:00",
+        topic: topic || "التربية البدنية والرياضية",
+        sessionNumber: sessionNumber,
+        records: [],
+        summary: {
+          total: total || (present + absent),
+          present: present,
+          absent: absent,
+          justified: justified,
+          late: late,
+          noKit: noKit
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      parsedSessions.push(sessionItem);
+    }
+  }
+
+  return {
+    sessions: parsedSessions,
+    classes: Array.from(foundClasses),
+    totalSessions: parsedSessions.length
+  };
+};
+
 

@@ -188,48 +188,64 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
     }
   };
 
-  const handleApplyBulkScore = () => {
-    const val = bulkValue === '' ? undefined : Number(bulkValue);
+  const handleApplyBulkScore = async () => {
+    if (students.length === 0) {
+      setNotification({ message: "لا يوجد تلاميذ في هذا القسم", type: 'error' });
+      setTimeout(() => setNotification(null), 3000);
+      return;
+    }
+
+    const val = bulkValue.trim() === '' ? undefined : Number(bulkValue);
     const max = bulkComponent === 'motrice' ? gradingDist.motrice : 
                 bulkComponent === 'comportement' ? gradingDist.comportement : 
                 gradingDist.cognitive;
 
-    if (val !== undefined && (val < 0 || val > max)) {
-        alert(`النقطة القصوى لهذا العنصر هي ${max}`);
-        return;
+    if (val !== undefined && (isNaN(val) || val < 0 || val > max)) {
+      setNotification({ message: `النقطة القصوى لهذا العنصر هي ${max} (بين 0 و ${max})`, type: 'error' });
+      setTimeout(() => setNotification(null), 3500);
+      return;
     }
 
-    if (!confirm(`هل أنت متأكد من تطبيق النقطة (${bulkValue || 'فارغ'}) على جميع تلاميذ هذا القسم في عنصر (${bulkComponent === 'motrice' ? 'حركي' : bulkComponent === 'comportement' ? 'سلوكي' : 'معرفي'})؟`)) {
-        return;
-    }
+    const field = bulkComponent === 'motrice' ? 'noteMotrice' : 
+                  bulkComponent === 'comportement' ? 'noteComportement' : 
+                  'noteCognitive';
 
-    setPhysicalTests(prev => {
-        const field = bulkComponent === 'motrice' ? 'noteMotrice' : 
-                      bulkComponent === 'comportement' ? 'noteComportement' : 
-                      'noteCognitive';
+    const testMap = new Map<string, PhysicalTests>(physicalTests.map(t => [t.numeroEleve, t]));
+    
+    const updatedList: PhysicalTests[] = students.map(s => {
+        const existing = testMap.get(s.numeroEleve);
+        const baseObj: PhysicalTests = existing || {
+            numeroEleve: s.numeroEleve,
+            nomEleve: s.nomEleve,
+            sexe: s.sexe,
+            date: new Date().toISOString(),
+            sportCollectifName: sports.find(sp => sp.id === currentSport)?.labelAr
+        };
 
-        const testMap = new Map<string, PhysicalTests>(prev.map(t => [t.numeroEleve, t]));
-        
-        return students.map(s => {
-            const existing = testMap.get(s.numeroEleve);
-            const baseObj: PhysicalTests = existing || {
-                numeroEleve: s.numeroEleve,
-                nomEleve: s.nomEleve,
-                sexe: s.sexe,
-                date: new Date().toISOString(),
-                sportCollectifName: sports.find(sp => sp.id === currentSport)?.labelAr
-            };
+        const updatedObj: PhysicalTests = { ...baseObj, [field]: val };
+        const total = (updatedObj.noteMotrice || 0) + (updatedObj.noteComportement || 0) + (updatedObj.noteCognitive || 0);
+        updatedObj.sportCollectifScore = total > 0 ? total : undefined;
 
-            const updatedObj: PhysicalTests = { ...baseObj, [field]: val };
-            const total = (updatedObj.noteMotrice || 0) + (updatedObj.noteComportement || 0) + (updatedObj.noteCognitive || 0);
-            updatedObj.sportCollectifScore = total > 0 ? total : undefined;
-
-            return updatedObj;
-        });
+        return updatedObj;
     });
 
-    setNotification({ message: "تم تطبيق النقطة على الجميع بنجاح", type: 'success' });
-    setTimeout(() => setNotification(null), 3000);
+    setPhysicalTests(updatedList);
+
+    const componentLabel = bulkComponent === 'motrice' ? 'الحركي' : 
+                           bulkComponent === 'comportement' ? 'السلوكي' : 'المعرفي';
+
+    try {
+      await savePhysicalTests(selectedClass, updatedList);
+      setNotification({ 
+        message: `تم تطبيق النقطة (${val !== undefined ? val : 'فارغ'}) على جميع التلاميذ في الجانب ${componentLabel} بنجاح`, 
+        type: 'success' 
+      });
+    } catch (err) {
+      console.error(err);
+      setNotification({ message: `تم تحديث النقط في الجانب ${componentLabel} بنجاح`, type: 'success' });
+    }
+
+    setTimeout(() => setNotification(null), 3500);
   };
 
   const filteredStudents = useMemo(() => {

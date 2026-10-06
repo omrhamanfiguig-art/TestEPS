@@ -989,6 +989,15 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                         </button>
 
                         <button
+                            type="button"
+                            onClick={() => setIsBaremeModalOpen(true)}
+                            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-black rounded-xl shadow-md shadow-amber-600/20 text-white bg-gradient-to-r from-amber-600 via-amber-700 to-yellow-600 hover:from-amber-700 hover:to-yellow-700 transition active:scale-95 cursor-pointer ring-1 ring-amber-400/40"
+                            title="تعديل وتحديد سلم ومعايير التنقيط (الباريم) لكل رياضة أو تحديد آلي حسب السلك أو أفضل نتيجة (20/20)"
+                        >
+                            <span>📊 سلم التنقيط (الباريم)</span>
+                        </button>
+
+                        <button
                             onClick={handleExport}
                             disabled={!hasEnteredValues}
                             className={`col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl shadow-xs transition active:scale-95 ${
@@ -2260,6 +2269,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                     isOpen={isBaremeModalOpen}
                     onClose={() => setIsBaremeModalOpen(false)}
                     defaultTestKey="endurance"
+                    selectedClass={selectedClass}
                 />
             )}
         </div>

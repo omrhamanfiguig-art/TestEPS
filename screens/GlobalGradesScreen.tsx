@@ -133,108 +133,125 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
     });
   };
 
-  const handleApplyBulkScore = () => {
-    const val = bulkValue === '' ? undefined : Number(bulkValue);
+  const handleApplyBulkScore = async () => {
+    if (students.length === 0) {
+      setNotification({ message: "لا يوجد تلاميذ في هذا القسم لتطبيق النقط عليهم", type: 'error' });
+      setTimeout(() => setNotification(null), 3000);
+      return;
+    }
+
+    const val = bulkValue.trim() === '' ? undefined : Number(bulkValue);
     const max = bulkComponent === 'motrice' ? gradingDist.motrice : 
                 bulkComponent === 'comportement' ? gradingDist.comportement : 
                 gradingDist.cognitive;
 
-    if (val !== undefined && (val < 0 || val > max)) {
-        alert(`النقطة القصوى لهذا العنصر هي ${max}`);
-        return;
+    if (val !== undefined && (isNaN(val) || val < 0 || val > max)) {
+      setNotification({ message: `النقطة القصوى لهذا العنصر هي ${max} (بين 0 و ${max})`, type: 'error' });
+      setTimeout(() => setNotification(null), 3500);
+      return;
     }
 
-    if (!confirm(`هل أنت متأكد من تطبيق النقطة (${bulkValue || 'فارغ'}) على جميع تلاميذ هذا القسم في عنصر (${bulkComponent === 'motrice' ? 'حركي' : bulkComponent === 'comportement' ? 'سلوكي' : 'معرفي'})؟`)) {
-        return;
+    const field = bulkComponent === 'motrice' ? 'noteMotrice' : 
+                  bulkComponent === 'comportement' ? 'noteComportement' : 
+                  'noteCognitive';
+
+    const testMap = new Map<string, PhysicalTests>(physicalTests.map(t => [t.numeroEleve, t]));
+    
+    const updatedTests: PhysicalTests[] = students.map(s => {
+        const existing = testMap.get(s.numeroEleve);
+        if (existing) {
+            return { ...existing, [field]: val };
+        } else {
+            return {
+                numeroEleve: s.numeroEleve,
+                nomEleve: s.nomEleve,
+                sexe: s.sexe,
+                [field]: val,
+                date: new Date().toISOString()
+            };
+        }
+    });
+
+    setPhysicalTests(updatedTests);
+
+    const componentLabel = bulkComponent === 'motrice' ? 'الحركي' : 
+                           bulkComponent === 'comportement' ? 'السلوكي' : 'المعرفي';
+
+    try {
+      await savePhysicalTests(selectedClass, updatedTests);
+      setNotification({ 
+        message: `تم تطبيق النقطة (${val !== undefined ? val : 'فارغ'}) على جميع التلاميذ (${students.length} تلميذ) في الجانب ${componentLabel} بنجاح`, 
+        type: 'success' 
+      });
+    } catch (err) {
+      console.error(err);
+      setNotification({ message: `تم تحديث الجدول لنقطة ${componentLabel} بنجاح`, type: 'success' });
     }
 
-    setPhysicalTests(prev => {
-        const field = bulkComponent === 'motrice' ? 'noteMotrice' : 
-                      bulkComponent === 'comportement' ? 'noteComportement' : 
-                      'noteCognitive';
+    setTimeout(() => setNotification(null), 3500);
+  };
 
-        const testMap = new Map<string, PhysicalTests>(prev.map(t => [t.numeroEleve, t]));
+  const handleAutoCalculateBehavior = async () => {
+    if (!selectedClass || students.length === 0) return;
+    setIsLoading(true);
+    try {
+        const attendance = await getAttendanceSessions(selectedClass);
+        if (attendance.length === 0) {
+            setNotification({ message: "لا توجد حصص غياب مسجلة لهذا القسم لحساب النقط تلقائياً.", type: 'error' });
+            setTimeout(() => setNotification(null), 3500);
+            setIsLoading(false);
+            return;
+        }
+
+        const testMap = new Map<string, PhysicalTests>(physicalTests.map(t => [t.numeroEleve, t]));
         
-        return students.map(s => {
+        const updatedTests: PhysicalTests[] = students.map(s => {
+            let absences = 0;
+            let noKits = 0;
+            let lates = 0;
+
+            attendance.forEach(session => {
+                const record = session.records.find(r => r.studentNumber === s.numeroEleve);
+                if (record) {
+                    if (record.status === 'absent') absences++;
+                    if (record.status === 'no-kit') noKits++;
+                    if (record.status === 'late') lates++;
+                }
+            });
+
+            const autoScore = calculateBehaviorScore(
+                gradingDist.comportement,
+                absences,
+                noKits,
+                lates
+            );
+
             const existing = testMap.get(s.numeroEleve);
             if (existing) {
-                return { ...existing, [field]: val } as PhysicalTests;
+                return { ...existing, noteComportement: autoScore };
             } else {
                 return {
                     numeroEleve: s.numeroEleve,
                     nomEleve: s.nomEleve,
                     sexe: s.sexe,
-                    [field]: val,
+                    noteComportement: autoScore,
                     date: new Date().toISOString()
                 };
             }
         });
-    });
 
-    setNotification({ message: "تم تطبيق النقطة على الجميع بنجاح", type: 'success' });
-    setTimeout(() => setNotification(null), 3000);
-  };
+        setPhysicalTests(updatedTests);
+        await savePhysicalTests(selectedClass, updatedTests);
 
-  const handleAutoCalculateBehavior = async () => {
-    if (!selectedClass) return;
-    setIsLoading(true);
-    try {
-        const attendance = await getAttendanceSessions(selectedClass);
-        if (attendance.length === 0) {
-            alert("لا توجد حصص غياب مسجلة لهذا القسم لحساب النقط تلقائياً.");
-            setIsLoading(false);
-            return;
-        }
-
-        if (!confirm(`سيتم حساب نقطة السلوك تلقائياً لـ ${students.length} تلميذ بناءً على ${attendance.length} حصة مسجلة. هل تود الاستمرار؟`)) {
-            setIsLoading(false);
-            return;
-        }
-
-        setPhysicalTests(prev => {
-            const testMap = new Map<string, PhysicalTests>(prev.map(t => [t.numeroEleve, t]));
-            
-            return students.map(s => {
-                let absences = 0;
-                let noKits = 0;
-                let lates = 0;
-
-                attendance.forEach(session => {
-                    const record = session.records.find(r => r.studentNumber === s.numeroEleve);
-                    if (record) {
-                        if (record.status === 'absent') absences++;
-                        if (record.status === 'no-kit') noKits++;
-                        if (record.status === 'late') lates++;
-                    }
-                });
-
-                const autoScore = calculateBehaviorScore(
-                    gradingDist.comportement,
-                    absences,
-                    noKits,
-                    lates
-                );
-
-                const existing = testMap.get(s.numeroEleve);
-                if (existing) {
-                    return { ...existing, noteComportement: autoScore } as PhysicalTests;
-                } else {
-                    return {
-                        numeroEleve: s.numeroEleve,
-                        nomEleve: s.nomEleve,
-                        sexe: s.sexe,
-                        noteComportement: autoScore,
-                        date: new Date().toISOString()
-                    };
-                }
-            });
+        setNotification({ 
+          message: `تم حساب وتطبيق نقط السلوك تلقائياً لـ ${students.length} تلميذ بناءً على ${attendance.length} حصة بنجاح`, 
+          type: 'success' 
         });
-
-        setNotification({ message: "تم حساب نقط السلوك تلقائياً بنجاح", type: 'success' });
-        setTimeout(() => setNotification(null), 3000);
+        setTimeout(() => setNotification(null), 4000);
     } catch (err) {
         console.error(err);
         setNotification({ message: "خطأ أثناء حساب النقط", type: 'error' });
+        setTimeout(() => setNotification(null), 3000);
     } finally {
         setIsLoading(false);
     }
@@ -244,7 +261,8 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
     if (students.length === 0) return;
     const XLSX = (window as any).XLSX;
     if (!XLSX) {
-        alert("لم يتم تحميل مكتبة Excel.");
+        setNotification({ message: "لم يتم تحميل مكتبة Excel بعد، يرجى المحاولة بعد قليل", type: 'error' });
+        setTimeout(() => setNotification(null), 3000);
         return;
     }
     

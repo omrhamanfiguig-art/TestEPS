@@ -4,6 +4,8 @@ import {
     parsePhysicalTestsExcel, 
     downloadPhysicalTestsTemplate, 
     downloadStudentsTemplate,
+    downloadSessionsTemplate,
+    exportAllSessionsSportsActivityToExcel,
     ParsedPhysicalTestsData
 } from '../utils/excelHelper';
 import { 
@@ -12,8 +14,11 @@ import {
     getPhysicalTests, 
     savePhysicalTests, 
     getVmaResults, 
-    saveVmaResults 
+    saveVmaResults,
+    getAttendanceSessions,
+    getAllAttendanceSessions
 } from '../utils/db';
+import { ImportSessionsModal } from '../components/ImportSessionsModal';
 import { exportGroupsToWord } from '../utils/wordHelper';
 import { generateAffinityGroups } from '../utils/groupHelper';
 import { LUC_LEGER_DATA } from '../constants';
@@ -91,6 +96,9 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
     const [syncVma, setSyncVma] = useState(true);
     const [updateStudentList, setUpdateStudentList] = useState(true);
     const physicalFileInputRef = useRef<HTMLInputElement>(null);
+
+    // 3. Sports Activity & Attendance sessions import state
+    const [isImportSessionsModalOpen, setIsImportSessionsModalOpen] = useState(false);
 
     // Backup restore input
     const backupInputRef = useRef<HTMLInputElement>(null);
@@ -617,6 +625,26 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
         }
     };
 
+    // Export all sports activity sessions
+    const handleExportSessionsExcel = async () => {
+        try {
+            const sessions = await getAttendanceSessions(selectedClass);
+            if (!sessions || sessions.length === 0) {
+                const all = await getAllAttendanceSessions();
+                if (!all || all.length === 0) {
+                    setMessage({ text: "لا توجد أي حصص مسجلة لتصديرها حالياً.", type: 'error' });
+                    return;
+                }
+                exportAllSessionsSportsActivityToExcel(all);
+            } else {
+                exportAllSessionsSportsActivityToExcel(sessions);
+            }
+            setMessage({ text: "تم تصدير سجل الحصص والأنشطة بنجاح.", type: 'success' });
+        } catch (err: any) {
+            setMessage({ text: "خطأ أثناء تصدير سجل الحصص.", type: 'error' });
+        }
+    };
+
     return (
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto flex flex-col gap-8">
             {/* Feedback notification */}
@@ -1107,7 +1135,51 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
                 </div>
             </div>
 
-            {/* 5. Backup & Restore */}
+            {/* 5. Sports Activity Sessions Import & Export */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700/60">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <ExcelIcon className="text-indigo-600 dark:text-indigo-400" />
+                            <span>سجل الحصص والأنشطة الرياضية وتتبع الغياب</span>
+                        </h2>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            استيراد وتصدير سجل الحصص الدراسية السابقة وتتبع المواظبة والأنشطة من وإلى ملفات Excel أو CSV أو JSON.
+                        </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2.5">
+                        <button
+                            type="button"
+                            onClick={downloadSessionsTemplate}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-100 transition cursor-pointer"
+                        >
+                            <ArrowDownTrayIcon className="w-4 h-4" />
+                            <span>تحميل النموذج</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => setIsImportSessionsModalOpen(true)}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition active:scale-95 cursor-pointer"
+                        >
+                            <ArrowUpTrayIcon className="w-4 h-4" />
+                            <span>استيراد سجل الحصص</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleExportSessionsExcel}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition active:scale-95 cursor-pointer"
+                        >
+                            <ArrowDownTrayIcon className="w-4 h-4" />
+                            <span>تصدير السجل (Excel)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* 6. Backup & Restore */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700/60">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
@@ -1414,6 +1486,21 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* MODAL: Import Sports Activity Sessions */}
+            {isImportSessionsModalOpen && (
+                <ImportSessionsModal
+                    isOpen={isImportSessionsModalOpen}
+                    onClose={() => setIsImportSessionsModalOpen(false)}
+                    currentClass={selectedClass}
+                    onSuccess={(count) => {
+                        setMessage({
+                            text: `تم بنجاح استيراد ${count} حصة رياضية وتسجيلها في قاعدة البيانات المحلية والسحابية!`,
+                            type: 'success'
+                        });
+                    }}
+                />
             )}
         </div>
     );
