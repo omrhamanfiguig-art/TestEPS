@@ -49,7 +49,6 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
   const [selectedClass, setSelectedClass] = useState<string>(initialClass);
   const [classes, setClasses] = useState<string[]>(() => normalizeClassNames(classList));
   
-  const [laneCount, setLaneCount] = useState<number>(4);
   const [students, setStudents] = useState<StudentIdentity[]>([]);
   const [physicalResults, setPhysicalResults] = useState<PhysicalTests[]>([]);
 
@@ -67,40 +66,8 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
   const [tableStudentToEdit, setTableStudentToEdit] = useState<{ numeroEleve: string; nomEleve: string; currentTime: number } | null>(null);
   const [tableEditTimeInput, setTableEditTimeInput] = useState<string>('');
 
-  // Selected runners state for current heat (starts with clean unassigned lanes)
-  const [selectedRunners, setSelectedRunners] = useState<BalanceRunner[]>(() => {
-    const initialRunners: BalanceRunner[] = [];
-    for (let i = 1; i <= 4; i++) {
-      initialRunners.push({
-        laneIndex: i,
-        studentNumber: '',
-        isFinished: false
-      });
-    }
-    return initialRunners;
-  });
-
-  // Adjust runners count dynamically when laneCount changes
-  useEffect(() => {
-    setSelectedRunners(prev => {
-      const currentMap = new Map<number, BalanceRunner>(prev.map(r => [r.laneIndex, r]));
-      const nextRunners: BalanceRunner[] = [];
-
-      for (let i = 1; i <= laneCount; i++) {
-        const existing = currentMap.get(i);
-        if (existing) {
-          nextRunners.push(existing);
-        } else {
-          nextRunners.push({
-            laneIndex: i,
-            studentNumber: '',
-            isFinished: false
-          });
-        }
-      }
-      return nextRunners;
-    });
-  }, [laneCount]);
+  // Selected runners state for current heat (starts completely open and dynamic)
+  const [selectedRunners, setSelectedRunners] = useState<BalanceRunner[]>([]);
 
   // Timer & Audio
   const [testState, setTestState] = useState<'idle' | 'running' | 'paused'>('idle');
@@ -205,12 +172,7 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
     setElapsedTime(0);
     setIsBatchSaved(false);
     setHasUnsavedChanges(false);
-    setSelectedRunners(prev => prev.map(r => ({
-      ...r,
-      recordedTime: undefined,
-      isFinished: false,
-      arrivalOrder: undefined
-    })));
+    setSelectedRunners([]);
   };
 
   useEffect(() => {
@@ -232,8 +194,36 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
       'الثامن 🏅',
       'التاسع 🎖️',
       'العاشر 🏅',
-      'الحادي عشر 🎖️',
-      'الثاني عشر 🏅'
+      'الحادي عشر',
+      'الثاني عشر',
+      'الثالث عشر',
+      'الرابع عشر',
+      'الخامس عشر',
+      'السادس عشر',
+      'السابع عشر',
+      'الثامن عشر',
+      'التاسع عشر',
+      'العشرون',
+      'الواحد والعشرون',
+      'الثاني والعشرون',
+      'الثالث والعشرون',
+      'الرابع والعشرون',
+      'الخامس والعشرون',
+      'السادس والعشرون',
+      'السابع والعشرون',
+      'الثامن والعشرون',
+      'التاسع والعشرون',
+      'الثلاثون',
+      'الحادي والثلاثون',
+      'الثاني والثلاثون',
+      'الثالث والثلاثون',
+      'الرابع والثلاثون',
+      'الخامس والثلاثون',
+      'السادس والثلاثون',
+      'السابع والثلاثون',
+      'الثامن والثلاثون',
+      'التاسع والثلاثون',
+      'الأربعون'
     ];
     return ranks[orderIndex] || `المركز ${orderIndex + 1}`;
   };
@@ -405,70 +395,28 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
     const timeInSec = Number((elapsedTime / 1000).toFixed(2));
     playBeep(1318.5, 0.15, 'sine');
 
-    // Find next unfinished runner in lane order
-    let targetIdx = selectedRunners.findIndex(r => !r.isFinished);
-
-    if (targetIdx === -1) {
-      const newLaneIndex = selectedRunners.length + 1;
-      const newRunner: BalanceRunner = {
-        laneIndex: newLaneIndex,
-        studentNumber: '',
-        recordedTime: timeInSec,
-        isFinished: true,
-        arrivalOrder: finishedCount + 1
-      };
-      setSelectedRunners(prev => [...prev, newRunner]);
-      setLaneCount(prev => Math.max(prev, newLaneIndex));
-      setHasUnsavedChanges(true);
-      setIsBatchSaved(false);
-      showFeedback(`تم تسجيل سقوط متسابق #${newLaneIndex}: ${timeInSec}ث (اضغط حفظ لتثبيتها)`);
-    } else {
-      const newArrivalOrder = finishedCount + 1;
-      const updated = selectedRunners.map((r, idx) =>
-        idx === targetIdx ? { ...r, recordedTime: timeInSec, isFinished: true, arrivalOrder: newArrivalOrder } : r
-      );
-      setSelectedRunners(updated);
-      setHasUnsavedChanges(true);
-      setIsBatchSaved(false);
-      showFeedback(`تم تحديد ${getArabicRankName(newArrivalOrder - 1)}: ${timeInSec}ث (بانتظار الحفظ 💾)`);
-
-      if (updated.every(r => r.isFinished)) {
-        pauseTimer();
-      }
-    }
+    const newArrivalOrder = selectedRunners.length + 1;
+    const newRunner: BalanceRunner = {
+      laneIndex: newArrivalOrder,
+      studentNumber: '',
+      recordedTime: timeInSec,
+      isFinished: true,
+      arrivalOrder: newArrivalOrder
+    };
+    setSelectedRunners(prev => [...prev, newRunner]);
+    setHasUnsavedChanges(true);
+    setIsBatchSaved(false);
+    showFeedback(`تم تسجيل ${getArabicRankName(newArrivalOrder - 1)}: ${timeInSec}ث (بانتظار الحفظ 💾)`);
   };
 
   // Click on a specific lane tile to record arrival or cancel
   const handleLaneTileClick = (laneIndex: number) => {
     if (testState !== 'running' && testState !== 'paused') return;
 
-    const runner = selectedRunners.find(r => r.laneIndex === laneIndex);
-    if (!runner) return;
-
-    if (!runner.isFinished) {
-      const timeInSec = Number((elapsedTime / 1000).toFixed(2));
-      playBeep(1318.5, 0.15, 'sine');
-      const newArrivalOrder = finishedCount + 1;
-
-      const updated = selectedRunners.map(r =>
-        r.laneIndex === laneIndex ? { ...r, recordedTime: timeInSec, isFinished: true, arrivalOrder: newArrivalOrder } : r
-      );
-      setSelectedRunners(updated);
-      setHasUnsavedChanges(true);
-      setIsBatchSaved(false);
-      showFeedback(`تم تسجيل سقوط المتسابق #${laneIndex}: ${timeInSec}ث`);
-
-      if (updated.every(r => r.isFinished)) {
-        pauseTimer();
-      }
-    } else {
-      setSelectedRunners(prev => prev.map(r =>
-        r.laneIndex === laneIndex ? { ...r, recordedTime: undefined, isFinished: false, arrivalOrder: undefined } : r
-      ));
-      setHasUnsavedChanges(true);
-      setIsBatchSaved(false);
-      showFeedback(`تم إلغاء توقيت المتسابق #${laneIndex}`);
-    }
+    setSelectedRunners(prev => prev.filter(r => r.laneIndex !== laneIndex));
+    setHasUnsavedChanges(true);
+    setIsBatchSaved(false);
+    showFeedback(`تم حذف توقيت المتسابق #${laneIndex}`);
   };
 
   // Manual student assignment to a specific lane post-fall
@@ -534,13 +482,7 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
   // Prepare next run with clean unassigned lanes for manual post-fall assignment
   const handlePrepareNextHeat = () => {
     resetTimer();
-    setSelectedRunners(prev => prev.map(r => ({
-      ...r,
-      studentNumber: '',
-      recordedTime: undefined,
-      isFinished: false,
-      arrivalOrder: undefined
-    })));
+    setSelectedRunners([]);
     setIsBatchSaved(false);
     setHasUnsavedChanges(false);
     showFeedback('تم تجهيز الفوج التالي - الميقاتي والتعيين اليدوي جاهز');
@@ -597,7 +539,7 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
 
         {/* Compact Single-Row: Class Dropdown & Status */}
         <div className="px-3 sm:px-4 py-1.5 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
             {/* لائحة القسم */}
             <div className="flex items-center gap-1">
               <label className="font-bold text-gray-700 dark:text-gray-300 shrink-0">القسم:</label>
@@ -614,8 +556,8 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
             </div>
           </div>
 
-          <div className="text-xs text-gray-500 dark:text-gray-400 font-bold">
-            اختبار الثبات والتوازن على قدم واحدة
+          <div className="text-[11px] sm:text-xs text-teal-700 dark:text-teal-300 font-bold bg-teal-50 dark:bg-teal-950/60 px-2.5 py-0.5 rounded-md border border-teal-200 dark:border-teal-800">
+            تسجيل اختلال التوازن المباشر (مفتوح لأي عدد) ⚖️
           </div>
         </div>
 
