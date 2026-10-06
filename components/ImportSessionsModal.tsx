@@ -97,13 +97,13 @@ export const ImportSessionsModal: React.FC<ImportSessionsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in" dir="rtl">
       <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-2xl w-full p-6 space-y-6 border border-gray-150 dark:border-gray-700 max-h-[90vh] flex flex-col">
         {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-3">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
-              <ArrowUpTrayIcon className="w-5 h-5" />
+              <ArrowUpTrayIcon />
             </div>
             <div>
               <h3 className="font-extrabold text-base text-gray-900 dark:text-white">
@@ -123,7 +123,7 @@ export const ImportSessionsModal: React.FC<ImportSessionsModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="overflow-y-auto flex-1 space-y-5 pr-1">
+        <div className="overflow-y-auto flex-1 space-y-5 pr-1 text-right">
           {/* Instructions & Template Download */}
           <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-2xl border border-indigo-100 dark:border-indigo-900/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="text-xs text-indigo-900 dark:text-indigo-200 space-y-1">
@@ -140,7 +140,7 @@ export const ImportSessionsModal: React.FC<ImportSessionsModalProps> = ({
               onClick={downloadSessionsTemplate}
               className="py-2 px-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
             >
-              <ArrowDownTrayIcon className="w-4 h-4" />
+              <ArrowDownTrayIcon />
               <span>تحميل النموذج (.xlsx)</span>
             </button>
           </div>
@@ -159,7 +159,7 @@ export const ImportSessionsModal: React.FC<ImportSessionsModalProps> = ({
             />
             <div className="flex flex-col items-center space-y-2">
               <div className="p-3 bg-white dark:bg-gray-800 rounded-2xl shadow-xs group-hover:scale-110 transition text-indigo-600 dark:text-indigo-400">
-                <ArrowUpTrayIcon className="w-6 h-6" />
+                <ArrowUpTrayIcon />
               </div>
               <div className="font-black text-sm text-gray-800 dark:text-gray-200">
                 {file ? file.name : "اضغط هنا لاختيار ملف Excel أو CSV أو JSON"}
@@ -266,7 +266,7 @@ export const ImportSessionsModal: React.FC<ImportSessionsModalProps> = ({
               </>
             ) : (
               <>
-                <CheckCircleIcon className="w-4 h-4" />
+                <CheckCircleIcon className="w-5 h-5" />
                 <span>تأكيد استيراد {parsedData?.totalSessions || 0} حصة</span>
               </>
             )}

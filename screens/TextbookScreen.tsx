@@ -26,6 +26,7 @@ import {
   SparklesIcon
 } from '../components/Icons';
 import { useLanguage } from '../utils/i18n';
+import { exportTextbookToWord } from '../utils/wordHelper';
 import { 
   saveTeacherProfileToCloud, 
   fetchTeacherProfilesFromCloud 
@@ -132,6 +133,14 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
   // Filter state
   const [classFilter, setClassFilter] = useState<'all' | 'my' | string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Word Export Settings (Mise en Page) State
+  const [isWordSettingsModalOpen, setIsWordSettingsModalOpen] = useState(false);
+  const [wordFontFamily, setWordFontFamily] = useState("'Segoe UI', Tahoma, Arial, sans-serif");
+  const [wordFontSize, setWordFontSize] = useState("11pt");
+  const [wordMargins, setWordMargins] = useState("1.2cm");
+  const [wordClassFilter, setWordClassFilter] = useState("all");
+  const [wordLevelFilter, setWordLevelFilter] = useState("all");
 
   // Active Teacher Profile Helper
   const activeTeacher = useMemo(() => {
@@ -367,9 +376,14 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
   }, [sessions, classFilter, searchQuery, activeTeacher]);
 
   const handleExportExcel = () => {
+    if (filteredSessions.length === 0) {
+      setNotification({ message: "لا توجد حصص مسجلة لتصديرها حالياً في دفتر النصوص.", type: 'error' });
+      return;
+    }
+
     const XLSX = (window as any).XLSX;
     if (!XLSX) {
-      alert("لم يتم تحميل مكتبة Excel.");
+      setNotification({ message: "لم يتم تحميل مكتبة Excel بنجاح.", type: 'error' });
       return;
     }
 
@@ -389,7 +403,7 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
       s.className,
       s.date,
       s.timeSlot,
-      (s as any).loggedByTeacherName || "أستاذ التربية البدنية",
+      (s as any).loggedByTeacherName || activeTeacher?.name || "أستاذ التربية البدنية",
       new Date(s.createdAt).toLocaleDateString('ar-MA')
     ]);
 
@@ -397,69 +411,37 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "دفتر النصوص");
     XLSX.writeFile(wb, `دفتر_النصوص_الرياضي_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    setNotification({ message: "تم تصدير دفتر النصوص بصيغة Excel بنجاح! 📊", type: 'success' });
   };
 
   const handleExportWord = () => {
-    if (filteredSessions.length === 0) {
-      alert("لا توجد حصص مسجلة للتصدير.");
+    if (sessions.length === 0) {
+      setNotification({ message: "لا توجد حصص مسجلة في دفتر النصوص لتصديرها حالياً.", type: 'error' });
       return;
     }
+    setWordClassFilter(classFilter !== 'my' ? classFilter : 'all');
+    setIsWordSettingsModalOpen(true);
+  };
 
-    const html = `
-      <!DOCTYPE html>
-      <html lang="ar" dir="rtl">
-      <head>
-        <meta charset="utf-8">
-        <title>دفتر النصوص الرياضي</title>
-        <style>
-          body { font-family: 'Traditional Arabic', Arial, sans-serif; direction: rtl; text-align: right; padding: 20px; color: #111; }
-          h1 { text-align: center; color: #1e3a8a; margin-bottom: 5px; font-size: 22px; }
-          p.subtitle { text-align: center; color: #555; font-size: 13px; margin-bottom: 20px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px; }
-          th, td { border: 1px solid #94a3b8; padding: 8px 10px; text-align: right; }
-          th { background-color: #f1f5f9; color: #0f172a; font-weight: bold; }
-          tr:nth-child(even) { background-color: #f8fafc; }
-        </style>
-      </head>
-      <body>
-        <h1>دفتر النصوص - التربية البدنية والرياضية</h1>
-        <p class="subtitle">الأستاذ: ${activeTeacher.name} • تاريخ التصدير: ${new Date().toLocaleDateString('ar-MA')}</p>
-        <table>
-          <thead>
-            <tr>
-              <th>رقم الحصة</th>
-              <th>الهدف البيداغوجي / المحتوى</th>
-              <th>القسم</th>
-              <th>التاريخ واليوم</th>
-              <th>التوقيت</th>
-              <th>الأستاذ المؤطر</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${filteredSessions.map(s => `
-              <tr>
-                <td><strong>${s.sessionNumber}</strong></td>
-                <td>${s.goal}</td>
-                <td><strong>${s.className}</strong></td>
-                <td>${s.date} (${getArabicDayName(s.date)})</td>
-                <td>${s.timeSlot}</td>
-                <td>${(s as any).loggedByTeacherName || activeTeacher.name}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </body>
-      </html>
-    `;
+  const handleExecuteWordExport = () => {
+    const teacherName = activeTeacher?.name || "أستاذ التربية البدنية والرياضية";
+    const classNameLabel = wordClassFilter !== 'all' ? wordClassFilter : (wordLevelFilter !== 'all' ? wordLevelFilter : (selectedClass || "جميع الأقسام الحضورية"));
 
-    const blob = new Blob(['\uFEFF', html], { type: 'application/msword;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('download', `دفتر_النصوص_الرياضي_${new Date().toISOString().split('T')[0]}.doc`);
-    document.body.appendChild(link);
-    link.click();
-    URL.revokeObjectURL(url);
-    document.body.removeChild(link);
+    const success = exportTextbookToWord(sessions, teacherName, classNameLabel, {
+      fontFamily: wordFontFamily,
+      fontSize: wordFontSize,
+      margins: wordMargins,
+      classFilter: wordClassFilter,
+      levelFilter: wordLevelFilter
+    });
+
+    if (success) {
+      setNotification({ message: "تم تصدير دفتر النصوص الرياضي بصيغة Word بنجاح وفق إعدادات الصفحة المحددة! 📄", type: 'success' });
+      setIsWordSettingsModalOpen(false);
+    } else {
+      setNotification({ message: "لا توجد حصص مطابقة لنطاق الاستخراج المحدد.", type: 'error' });
+    }
   };
 
   // Helper to get Arabic weekday name from date
@@ -1019,7 +1001,7 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
               </div>
             </div>
 
-            {/* Timetable Submit bar */}
+      {/* Timetable Submit bar */}
             <div className="pt-4 flex justify-end">
               <button
                 type="submit"
@@ -1031,6 +1013,151 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
             </div>
           </div>
         </form>
+      )}
+
+      {/* Word Export Settings & Mise en Page Modal */}
+      {isWordSettingsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in" dir="rtl">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-lg w-full p-6 space-y-5 border border-indigo-150 dark:border-indigo-900/60 text-right">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+                  <DocumentTextIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-gray-900 dark:text-white">
+                    إعدادات تخطيط وتصدير دفتر النصوص (Mise en Page)
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    تخصيص نوع وحجم الخط، الهوامش، ونطاق الاستخراج حسب القسم أو المستوى
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsWordSettingsModalOpen(false)}
+                className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 cursor-pointer"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Font Family */}
+              <div>
+                <label className="block font-bold text-gray-700 dark:text-gray-300 mb-1">
+                  نوع الخط (Font Family):
+                </label>
+                <select
+                  value={wordFontFamily}
+                  onChange={(e) => setWordFontFamily(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-bold text-xs cursor-pointer"
+                >
+                  <option value="'Segoe UI', Tahoma, Arial, sans-serif">Segoe UI (حديث ومهني)</option>
+                  <option value="'Traditional Arabic', Times New Roman, serif">Traditional Arabic (تقليدي رسمي)</option>
+                  <option value="Arial, sans-serif">Arial (عادي وواضح)</option>
+                  <option value="'Times New Roman', Times, serif">Times New Roman (أجنبي رسمي)</option>
+                </select>
+              </div>
+
+              {/* Font Size */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-gray-700 dark:text-gray-300 mb-1">
+                    حجم الخط (Font Size):
+                  </label>
+                  <select
+                    value={wordFontSize}
+                    onChange={(e) => setWordFontSize(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-bold text-xs cursor-pointer"
+                  >
+                    <option value="10pt">صغير (10pt)</option>
+                    <option value="11pt">متوسط قياسي (11pt)</option>
+                    <option value="12pt">كبير (12pt)</option>
+                    <option value="14pt">كبير جداً (14pt)</option>
+                  </select>
+                </div>
+
+                {/* Margins / Mise en Page */}
+                <div>
+                  <label className="block font-bold text-gray-700 dark:text-gray-300 mb-1">
+                    هوامش الصفحة (Mise en Page):
+                  </label>
+                  <select
+                    value={wordMargins}
+                    onChange={(e) => setWordMargins(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-bold text-xs cursor-pointer"
+                  >
+                    <option value="0.8cm">هوامش ضيقة / مكثفة (0.8 سم)</option>
+                    <option value="1.2cm">هوامش عادية / متوازنة (1.2 سم)</option>
+                    <option value="2.0cm">هوامش واسعة للطباعة (2.0 سم)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Extraction Scope: By Class or Level */}
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-100 dark:border-gray-700">
+                <div>
+                  <label className="block font-bold text-gray-700 dark:text-gray-300 mb-1">
+                    استخراج حسب القسم:
+                  </label>
+                  <select
+                    value={wordClassFilter}
+                    onChange={(e) => {
+                      setWordClassFilter(e.target.value);
+                      if (e.target.value !== 'all') setWordLevelFilter('all');
+                    }}
+                    className="w-full p-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-bold text-xs cursor-pointer"
+                  >
+                    <option value="all">📁 جميع الأقسام (بدون استثناء)</option>
+                    {classList.map(c => (
+                      <option key={c.className} value={c.className}>قسم {c.className}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 dark:text-gray-300 mb-1">
+                    استخراج حسب المستوى الدراسي:
+                  </label>
+                  <select
+                    value={wordLevelFilter}
+                    onChange={(e) => {
+                      setWordLevelFilter(e.target.value);
+                      if (e.target.value !== 'all') setWordClassFilter('all');
+                    }}
+                    className="w-full p-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-bold text-xs cursor-pointer"
+                  >
+                    <option value="all">🏫 جميع المستويات</option>
+                    <option value="1APIC">الأولى إعدادي (1APIC)</option>
+                    <option value="2APIC">الثانية إعدادي (2APIC)</option>
+                    <option value="3APIC">الثالثة إعدادي (3APIC)</option>
+                    <option value="1BAC">الأولى باكالوريا (1BAC)</option>
+                    <option value="2BAC">الثانية باكالوريا (2BAC)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-700">
+              <button
+                type="button"
+                onClick={() => setIsWordSettingsModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-xs font-bold hover:bg-gray-100 cursor-pointer"
+              >
+                إلغاء
+              </button>
+
+              <button
+                type="button"
+                onClick={handleExecuteWordExport}
+                className="px-5 py-2.5 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-black shadow-md flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+              >
+                <DocumentTextIcon className="w-4 h-4" />
+                <span>بدء تصدير المستند (Word .doc)</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

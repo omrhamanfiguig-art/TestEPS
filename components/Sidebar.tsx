@@ -17,7 +17,8 @@ import {
     SparklesIcon,
     UserGroupIcon,
     TableCellsIcon,
-    DocumentTextIcon
+    DocumentTextIcon,
+    BanknotesIcon
 } from './Icons';
 import { useLanguage } from '../utils/i18n';
 import { getAllClasses, ClassStats } from '../utils/db';
@@ -36,6 +37,7 @@ export type ActiveScreen =
   | 'attendance'
   | 'measurements' 
   | 'championships'
+  | 'sports-association'
   | 'settings';
 
 interface SidebarProps {
@@ -111,6 +113,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: language === 'ar' ? 'الغياب ودفتر النصوص' : 'Présence & Cahier',
       icon: <CalendarDaysIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />,
       badge: language === 'ar' ? 'توثيق' : 'Suivi'
+    },
+    {
+      id: 'sports-association' as ActiveScreen,
+      label: language === 'ar' ? 'فضاء الجمعية الرياضية' : 'Association Sportive',
+      icon: <BanknotesIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />,
+      badge: language === 'ar' ? 'جمعية' : 'AS'
     },
     {
       id: 'settings' as ActiveScreen,

@@ -12,6 +12,7 @@ import { ClassesScreen } from './screens/ClassesScreen';
 import { AttendanceScreen } from './screens/AttendanceScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { ChampionshipsScreen } from './screens/ChampionshipsScreen';
+import { SportsAssociationScreen } from './screens/SportsAssociationScreen';
 import { LanguageProvider, useLanguage } from './utils/i18n';
 import { getAllClasses } from './utils/db';
 import { syncCloudToLocalDB, syncLocalToCloudDB, listenToCloudClasses } from './utils/firebase';
@@ -214,6 +215,13 @@ const MainLayout: React.FC = () => {
 
           {activeScreen === 'championships' && (
             <ChampionshipsScreen
+              selectedClass={selectedClass}
+              setSelectedClass={setSelectedClass}
+            />
+          )}
+
+          {activeScreen === 'sports-association' && (
+            <SportsAssociationScreen
               selectedClass={selectedClass}
               setSelectedClass={setSelectedClass}
             />

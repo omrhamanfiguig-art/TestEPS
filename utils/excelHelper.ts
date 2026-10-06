@@ -1862,4 +1862,137 @@ export const parseSportsActivitySessionsExcel = async (
   };
 };
 
+/**
+ * Export participant list to Excel / CSV with proper Arabic encoding
+ */
+export const exportParticipantsToExcel = (
+  participants: Array<{
+    numeroEleve: string;
+    nomEleve: string;
+    sexe?: string;
+    className: string;
+    sportCollectifRole?: string;
+    championshipType?: string;
+    championshipTitle?: string;
+    date?: string;
+  }>,
+  titleName: string = 'لائحة_المشاركين'
+) => {
+  const XLSX = (window as any).XLSX;
+  const headers = ['#', 'رقم مسار', 'الاسم والنسب', 'الجنس', 'القسم', 'التخصص / الفئة', 'النشاط / البطولة'];
+  
+  const sheetData: any[][] = [
+    [titleName],
+    ['تاريخ التصدير:', new Date().toLocaleDateString('ar-MA')],
+    [],
+    headers
+  ];
+
+  participants.forEach((p, idx) => {
+    sheetData.push([
+      idx + 1,
+      p.numeroEleve || '',
+      p.nomEleve || '',
+      p.sexe === 'M' ? 'ذكر' : p.sexe === 'F' ? 'أنثى' : p.sexe || '',
+      p.className || '',
+      p.sportCollectifRole || '-',
+      p.championshipTitle || p.championshipType || '-'
+    ]);
+  });
+
+  if (XLSX) {
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+    ws['!cols'] = [
+      { wch: 6 },
+      { wch: 15 },
+      { wch: 28 },
+      { wch: 10 },
+      { wch: 15 },
+      { wch: 25 },
+      { wch: 25 }
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "المشاركون");
+    XLSX.writeFile(wb, `${titleName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+  } else {
+    const csvRows = sheetData.map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','));
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${titleName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+};
+
+/**
+ * Export financial transactions to Excel / CSV
+ */
+export const exportTransactionsToExcel = (
+  transactions: Array<{
+    date: string;
+    type: 'revenue' | 'expense';
+    category: string;
+    amount: number;
+    receiptNumber?: string;
+    description?: string;
+  }>,
+  titleName: string = 'التقرير_المالي'
+) => {
+  const XLSX = (window as any).XLSX;
+  const headers = ['#', 'التاريخ', 'النوع', 'البند / التصنيف', 'المبلغ (درهم)', 'رقم الوصل', 'البيان والتفاصيل'];
+  
+  const sheetData: any[][] = [
+    [titleName],
+    ['تاريخ التصدير:', new Date().toLocaleDateString('ar-MA')],
+    [],
+    headers
+  ];
+
+  transactions.forEach((t, idx) => {
+    sheetData.push([
+      idx + 1,
+      t.date,
+      t.type === 'revenue' ? 'مدخول' : 'مصروف',
+      t.category,
+      t.amount,
+      t.receiptNumber || '-',
+      t.description || '-'
+    ]);
+  });
+
+  if (XLSX) {
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+    ws['!cols'] = [
+      { wch: 6 },
+      { wch: 12 },
+      { wch: 10 },
+      { wch: 25 },
+      { wch: 15 },
+      { wch: 15 },
+      { wch: 35 }
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "المعاملات المالية");
+    XLSX.writeFile(wb, `${titleName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+  } else {
+    const csvRows = sheetData.map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(','));
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${titleName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+};
+
+
 

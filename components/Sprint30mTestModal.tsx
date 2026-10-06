@@ -1208,7 +1208,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                       const speedKmH = timeSec ? ((raceConfig.distanceMeters / timeSec) * 3.6).toFixed(1) : '-';
 
                       return (
-                        <tr key={student.numeroEleve} className="hover:bg-amber-50/40 dark:hover:bg-amber-950/20 transition-colors">
+                        <tr key={`${student.numeroEleve}_${idx}`} className="hover:bg-amber-50/40 dark:hover:bg-amber-950/20 transition-colors">
                           <td className="p-2 font-bold text-gray-600 dark:text-gray-400">
                             {idx === 0 ? '🥇 1' : idx === 1 ? '🥈 2' : idx === 2 ? '🥉 3' : idx + 1}
                           </td>

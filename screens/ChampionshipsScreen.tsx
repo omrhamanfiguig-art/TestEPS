@@ -11,10 +11,13 @@ import {
   AcademicCapIcon,
   DocumentTextIcon,
   SparklesIcon,
-  InformationCircleIcon
+  InformationCircleIcon,
+  PrinterIcon
 } from '../components/Icons';
 import { useLanguage } from '../utils/i18n';
 import { StudentAvatar } from '../components/StudentAvatar';
+import { PrintPreviewModal, PrintPreviewColumn } from '../components/PrintPreviewModal';
+import { exportParticipantsToExcel } from '../utils/excelHelper';
 import { 
   getAllClasses, 
   saveChampionshipRegistration, 
@@ -64,6 +67,20 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
   const [note, setNote] = useState<string>('');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // Print Preview Modal State
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+  const [printPreviewConfig, setPrintPreviewConfig] = useState<{
+    title: string;
+    subtitle?: string;
+    columns: PrintPreviewColumn[];
+    data: Array<Record<string, any>>;
+    onExportExcel?: () => void;
+  }>({
+    title: '',
+    columns: [],
+    data: []
+  });
 
   // Sport roles dropdown options based on championship type
   const sportRoleOptions = useMemo(() => {
@@ -542,6 +559,41 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
     document.body.removeChild(link);
   };
 
+  const handleOpenPrintPreview = () => {
+    let title = 'البطولة الرياضية المدرسية';
+    if (activeTab === 'cross_country') title = 'بطولة العدو الريفي المدرسي (Cross Country)';
+    else if (activeTab === 'athletics') title = 'البطولة الإقليمية لألعاب القوى';
+    else if (activeTab === 'football') title = 'دوري كرة القدم والرياضات الجماعية';
+
+    const levelLabel = selectedLevel === 'all' ? 'جميع المستويات' : EDUCATIONAL_LEVELS.find(l => l.key === selectedLevel)?.label || selectedLevel;
+    const classLabel = selectedClassFilter === 'all' ? 'جميع الأقسام' : `القسم ${selectedClassFilter}`;
+
+    setPrintPreviewConfig({
+      title: `لائحة المشاركين المعينين - ${title}`,
+      subtitle: `الجمعية الرياضية المدرسية • ${levelLabel} • ${classLabel}`,
+      columns: [
+        { key: 'numeroEleve', label: 'رقم مسار', width: '15%' },
+        { key: 'nomEleve', label: 'الاسم الكامل', width: '30%' },
+        { key: 'sexeLabel', label: 'الجنس', width: '10%', align: 'center' },
+        { key: 'className', label: 'القسم', width: '15%' },
+        { key: 'sportCollectifRole', label: 'التخصص / الفئة', width: '30%' }
+      ],
+      data: filteredRegs.map(r => ({
+        ...r,
+        sexeLabel: r.sexe === 'M' ? 'ذكر' : 'أنثى'
+      })),
+      onExportExcel: () => {
+        exportParticipantsToExcel(filteredRegs, `لوائح_مشاركي_${activeTab}_${levelLabel}`);
+      }
+    });
+    setIsPrintPreviewOpen(true);
+  };
+
+  const handleExportExcel = () => {
+    const levelLabel = selectedLevel === 'all' ? 'جميع_المستويات' : selectedLevel;
+    exportParticipantsToExcel(filteredRegs, `لوائح_مشاركي_${activeTab}_${levelLabel}`);
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-3 sm:p-6 space-y-6">
       
@@ -948,16 +1000,39 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
                 </p>
               </div>
 
-              {/* Word Export Button */}
-              <button
-                type="button"
-                onClick={handleExportWord}
-                disabled={filteredRegs.length === 0}
-                className="px-3.5 py-2.5 text-xs font-black rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-800/80 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
-              >
-                <DocumentTextIcon className="w-4 h-4 shrink-0" />
-                <span>تصدير اللائحة بصيغة Word (منسق للطباعة)</span>
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleOpenPrintPreview}
+                  disabled={filteredRegs.length === 0}
+                  className="px-3 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                  title="معاينة اللائحة قبل الطباعة والتعديل"
+                >
+                  <PrinterIcon className="w-4 h-4 shrink-0" />
+                  <span>معاينة قبل الطباعة / PDF 🖨️</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportExcel}
+                  disabled={filteredRegs.length === 0}
+                  className="px-3 py-2 text-xs font-bold rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                  title="تصدير إلى Excel"
+                >
+                  <ArrowDownTrayIcon className="w-4 h-4 shrink-0" />
+                  <span>Excel 📊</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportWord}
+                  disabled={filteredRegs.length === 0}
+                  className="px-3 py-2 text-xs font-bold rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <DocumentTextIcon className="w-4 h-4 shrink-0" />
+                  <span>Word (.doc)</span>
+                </button>
+              </div>
             </div>
 
             {/* List Subdivision Grid */}
@@ -1125,6 +1200,17 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
         </div>
 
       </div>
+
+      {/* PRINT PREVIEW MODAL */}
+      <PrintPreviewModal
+        isOpen={isPrintPreviewOpen}
+        onClose={() => setIsPrintPreviewOpen(false)}
+        title={printPreviewConfig.title}
+        subtitle={printPreviewConfig.subtitle}
+        columns={printPreviewConfig.columns}
+        data={printPreviewConfig.data}
+        onExportExcel={printPreviewConfig.onExportExcel}
+      />
 
     </div>
   );

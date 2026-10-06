@@ -196,3 +196,25 @@ export interface PedagogicalReport {
   updatedAt: string;
 }
 
+export interface AssociationTransaction {
+  id: string;
+  type: 'revenue' | 'expense';
+  category: string;
+  amount: number;
+  date: string;
+  description: string;
+  receiptNumber?: string;
+  createdAt: string;
+}
+
+export interface AssociationReport {
+  id: string;
+  title: string;
+  type: 'moral' | 'financial';
+  content: string;
+  period: string;
+  imageUrl?: string;
+  createdAt: string;
+}
+
+

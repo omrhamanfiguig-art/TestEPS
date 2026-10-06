@@ -736,7 +736,7 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
 
                     return (
                       <div
-                        key={s.numeroEleve}
+                        key={`${s.numeroEleve}_${idx}`}
                         className={`p-4 rounded-3xl border-2 transition-all shadow-sm flex flex-col justify-between gap-3.5 ${
                           isTested
                             ? 'bg-white dark:bg-gray-800 border-indigo-200 dark:border-indigo-800/80 ring-1 ring-indigo-300/40'
@@ -883,7 +883,7 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
                           const score = isTested ? calculateScore(bestVal, scale, s.sexe || 'M', false) : undefined;
 
                           return (
-                            <tr key={s.numeroEleve} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
+                            <tr key={`${s.numeroEleve}_${idx}`} className="hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
                               <td className="p-2.5 font-bold text-gray-500 font-mono">
                                 #{s.orderIndex || (idx + 1)}
                               </td>
@@ -993,7 +993,7 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {fieldClassRanking.slice(0, 3).map((item, idx) => (
                       <div
-                        key={item.student.numeroEleve}
+                        key={`${item.student.numeroEleve}_${idx}`}
                         className={`p-3 rounded-2xl border-2 flex items-center justify-between gap-3 ${
                           idx === 0
                             ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-400 text-amber-950 dark:text-amber-100 shadow-sm'

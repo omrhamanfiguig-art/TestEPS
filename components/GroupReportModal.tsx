@@ -48,6 +48,28 @@ export const GroupReportModal: React.FC<GroupReportModalProps> = ({
   
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isGeneratingAiNotes, setIsGeneratingAiNotes] = useState(false);
+
+  const handleGenerateAiNotes = async () => {
+    setIsGeneratingAiNotes(true);
+    try {
+      const res = await fetch('/api/generate-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reportType: 'pedagogical',
+          title: reportTitle,
+          period: sessionDate || new Date().toLocaleDateString('ar-MA'),
+          context: `تأطير قسم ${className}. عدد التلاميذ المشمولين بالتقرير: ${selectedStudentNumbers.length}. الملاحظة الحالية: ${notes}`
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.text) {
+        setNotes(data.text);
+      }
+    } catch {}
+    setIsGeneratingAiNotes(false);
+  };
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Compute student cumulative stats
@@ -452,14 +474,14 @@ export const GroupReportModal: React.FC<GroupReportModalProps> = ({
 
             {/* Students Checkbox Matrix */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-56 overflow-y-auto p-2 bg-gray-50/50 dark:bg-gray-800/40 rounded-2xl border border-gray-200 dark:border-gray-700 custom-scrollbar">
-              {students.map(s => {
+              {students.map((s, idx) => {
                 const isSelected = selectedStudentNumbers.includes(s.numeroEleve);
                 const stats = studentsStatsMap[s.numeroEleve] || { present: 0, absent: 0, late: 0, noKit: 0, justified: 0 };
                 const currentStatus = currentRecords[s.numeroEleve]?.status;
 
                 return (
                   <div
-                    key={s.numeroEleve}
+                    key={`${s.numeroEleve}_${idx}`}
                     onClick={() => toggleStudent(s.numeroEleve)}
                     className={`p-2 rounded-xl border flex items-center justify-between gap-2 cursor-pointer transition select-none ${
                       isSelected 
@@ -496,14 +518,25 @@ export const GroupReportModal: React.FC<GroupReportModalProps> = ({
 
           {/* Teacher's Administrative Notes */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-700 dark:text-gray-300">
-              ملاحظات وتوجيهات للإدارة التربوية:
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-gray-700 dark:text-gray-300">
+                ملاحظات وتوجيهات للإدارة التربوية:
+              </label>
+              <button
+                type="button"
+                onClick={handleGenerateAiNotes}
+                disabled={isGeneratingAiNotes}
+                className="px-2.5 py-0.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-lg text-[10px] font-black flex items-center gap-1 shadow-xs transition cursor-pointer disabled:opacity-50"
+              >
+                <SparklesIcon className="w-3 h-3 text-amber-300 animate-pulse" />
+                <span>{isGeneratingAiNotes ? 'جاري الصياغة...' : 'صياغة ذكية بالذكاء الاصطناعي ✨'}</span>
+              </button>
+            </div>
             <textarea
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="اكتب هنا أي توضيحات إضافية أو طلب استدعاء ولي الأمر..."
+              placeholder="اكتب هنا أي توضيحات إضافية أو اضغط على زر الصياغة الذكية لإنشائها بالذكاء الاصطناعي..."
               className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-xs font-medium outline-none leading-relaxed"
             />
           </div>
@@ -527,7 +560,7 @@ export const GroupReportModal: React.FC<GroupReportModalProps> = ({
                     const stats = studentsStatsMap[s.numeroEleve] || { present: 0, absent: 0, late: 0, noKit: 0, justified: 0 };
                     const current = currentRecords[s.numeroEleve]?.status;
                     return (
-                      <tr key={s.numeroEleve} className="hover:bg-gray-50/50 dark:hover:bg-gray-750">
+                      <tr key={`${s.numeroEleve}_${idx}`} className="hover:bg-gray-50/50 dark:hover:bg-gray-750">
                         <td className="p-2 text-center text-gray-400 font-bold">{idx + 1}</td>
                         <td className="p-2 font-bold text-gray-900 dark:text-white">{s.nomEleve}</td>
                         <td className="p-2 text-center">

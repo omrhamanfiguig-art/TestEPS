@@ -1,4 +1,293 @@
-import type { AffinityGroup } from '../types';
+import type { AffinityGroup, TextbookSession } from '../types';
+
+/**
+ * Helper to get Arabic day name from date string
+ */
+const getArabicDayName = (dateStr: string): string => {
+  if (!dateStr) return '';
+  const days = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  const date = new Date(dateStr);
+  return days[date.getDay()] || '';
+};
+
+export interface TextbookWordExportOptions {
+  fontFamily?: string;
+  fontSize?: string;
+  margins?: string;
+  levelFilter?: string;
+  classFilter?: string;
+}
+
+/**
+ * Exports Textbook Sessions into a beautifully formatted Microsoft Word (.doc) document
+ * with custom Mise en page (font, size, margins, scope filters).
+ */
+export const exportTextbookToWord = (
+  sessions: TextbookSession[],
+  teacherName: string = "أستاذ التربية البدنية",
+  className: string = "جميع الأقسام",
+  options: TextbookWordExportOptions = {}
+): boolean => {
+  if (!sessions || sessions.length === 0) {
+    return false;
+  }
+
+  const {
+    fontFamily = "'Segoe UI', Tahoma, Arial, sans-serif",
+    fontSize = '11pt',
+    margins = '1.2cm',
+    levelFilter = 'all',
+    classFilter = 'all'
+  } = options;
+
+  const filteredSessions = sessions.filter(s => {
+    if (classFilter && classFilter !== 'all' && classFilter !== 'my') {
+      if (s.className !== classFilter) return false;
+    }
+    if (levelFilter && levelFilter !== 'all') {
+      const matchLevel = s.className.toLowerCase().includes(levelFilter.toLowerCase());
+      if (!matchLevel) return false;
+    }
+    return true;
+  });
+
+  if (filteredSessions.length === 0) {
+    return false;
+  }
+
+  const currentDate = new Date().toLocaleDateString('ar-MA', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  const yearStr = `${new Date().getFullYear()}/${new Date().getFullYear() + 1}`;
+
+  let htmlContent = `
+    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+    <head>
+      <meta charset='utf-8'>
+      <title>دفتر النصوص الرياضي - ${className}</title>
+      <!--[if gte mso 9]>
+      <xml>
+        <w:WordDocument>
+          <w:View>Print</w:View>
+          <w:Zoom>100</w:Zoom>
+          <w:DoNotOptimizeForBrowser/>
+        </w:WordDocument>
+      </xml>
+      <![endif]-->
+      <style>
+        @page {
+          size: A4 portrait;
+          margin: ${margins};
+          mso-header-margin: 0.5cm;
+          mso-footer-margin: 0.5cm;
+        }
+        body {
+          font-family: ${fontFamily};
+          direction: rtl;
+          text-align: right;
+          color: #0f172a;
+          font-size: ${fontSize};
+          line-height: 1.4;
+        }
+        .header-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 15px;
+          border: none;
+        }
+        .header-cell-right {
+          text-align: right;
+          width: 50%;
+          font-size: ${fontSize};
+          font-weight: bold;
+          color: #1e293b;
+          border: none;
+        }
+        .header-cell-left {
+          text-align: left;
+          width: 50%;
+          font-size: 10pt;
+          color: #475569;
+          border: none;
+        }
+        .doc-title {
+          font-size: 18pt;
+          font-weight: 900;
+          color: #1e3a8a;
+          text-align: center;
+          margin-top: 10px;
+          margin-bottom: 5px;
+          border-bottom: 3px double #1e3a8a;
+          padding-bottom: 8px;
+        }
+        .doc-subtitle {
+          font-size: 10.5pt;
+          color: #475569;
+          text-align: center;
+          margin-bottom: 20px;
+        }
+        .stats-summary {
+          background-color: #f8fafc;
+          border: 1px solid #cbd5e1;
+          border-radius: 8px;
+          padding: 10px 15px;
+          margin-bottom: 15px;
+          font-size: 10pt;
+        }
+        .data-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 10px;
+          margin-bottom: 20px;
+        }
+        .data-table th {
+          background-color: #1e3a8a;
+          color: #ffffff;
+          font-weight: bold;
+          text-align: center;
+          padding: 8px 10px;
+          border: 1px solid #1e3a8a;
+          font-size: 10pt;
+        }
+        .data-table td {
+          padding: 8px 10px;
+          border: 1px solid #cbd5e1;
+          font-size: ${fontSize};
+          vertical-align: middle;
+        }
+        .data-table tr:nth-child(even) td {
+          background-color: #f8fafc;
+        }
+        .text-center { text-align: center !important; }
+        .text-right { text-align: right !important; }
+        .font-mono { font-family: 'Courier New', Courier, monospace; }
+        .font-bold { font-weight: bold; }
+        .signatures-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 30px;
+          border: none;
+        }
+        .signatures-cell {
+          width: 50%;
+          text-align: center;
+          font-size: 10.5pt;
+          font-weight: bold;
+          color: #1e293b;
+          border: none;
+          vertical-align: top;
+          padding-top: 10px;
+        }
+      </style>
+    </head>
+    <body>
+
+      <!-- Letterhead / Header Block -->
+      <table class="header-table">
+        <tr>
+          <td class="header-cell-right">
+            المملكة المغربية<br/>
+            وزارة التربية الوطنية والتعليم الأولي والرياضة<br/>
+            مادة التربية البدنية والرياضية
+          </td>
+          <td class="header-cell-left">
+            السنة الدراسية: ${yearStr}<br/>
+            تاريخ التصدير: ${currentDate}
+          </td>
+        </tr>
+      </table>
+
+      <!-- Document Title -->
+      <div class="doc-title">دفتر النصوص الرياضي (Cahier de Textes)</div>
+      <div class="doc-subtitle">توثيق الحصص الدراسية والأهداف البيداغوجية لمادة التربية البدنية والرياضية</div>
+
+      <!-- Overview Stats -->
+      <div class="stats-summary">
+        📌 <strong>بطاقة تعريفية:</strong> 
+        الأستاذ المؤطر: <strong>${teacherName}</strong> | 
+        نطاق الاستخراج: <strong>${classFilter !== 'all' ? classFilter : (levelFilter !== 'all' ? levelFilter : className)}</strong> | 
+        إجمالي الحصص الموثقة: <strong>${filteredSessions.length} حصة درسية</strong>.
+      </div>
+
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 12%;">رقم الحصة</th>
+            <th style="width: 40%; text-align: right;">الهدف البيداغوجي ومحتوى درس الحصة</th>
+            <th style="width: 12%;">القسم</th>
+            <th style="width: 16%;">التاريخ واليوم</th>
+            <th style="width: 20%;">التوقيت والزمن</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  filteredSessions.forEach((s) => {
+    const dayName = getArabicDayName(s.date);
+    const dateFormatted = s.date ? `${s.date}${dayName ? ` (${dayName})` : ''}` : '-';
+
+    htmlContent += `
+      <tr>
+        <td class="text-center font-bold" style="color: #1e3a8a;">${s.sessionNumber || 'الحصة'}</td>
+        <td class="text-right font-bold">${s.goal || '-'}</td>
+        <td class="text-center font-bold" style="background-color: #eff6ff;">${s.className || className}</td>
+        <td class="text-center font-mono">${dateFormatted}</td>
+        <td class="text-center font-mono">${s.timeSlot || '08:30 - 10:30'}</td>
+      </tr>
+    `;
+  });
+
+  htmlContent += `
+        </tbody>
+      </table>
+
+      <!-- Signatures Block -->
+      <table class="signatures-table">
+        <tr>
+          <td class="signatures-cell">
+            توقيع وأختام الأستاذ المؤطر:<br/><br/><br/>
+            ...................................................
+          </td>
+          <td class="signatures-cell">
+            تأشيرة ومصادقة السيد مدير المؤسسة:<br/><br/><br/>
+            ...................................................
+          </td>
+        </tr>
+      </table>
+
+    </body>
+    </html>
+  `;
+
+  // Download Blob in native Word document format
+  try {
+    const blob = new Blob(['\uFEFF', htmlContent], {
+      type: 'application/msword;charset=utf-8'
+    });
+
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    const safeName = (classFilter !== 'all' ? classFilter : (levelFilter !== 'all' ? levelFilter : className)).replace(/\s+/g, '_');
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `دفتر_النصوص_الرياضي_${safeName}_${new Date().toISOString().split('T')[0]}.doc`);
+    document.body.appendChild(link);
+    link.click();
+    
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+    }, 200);
+
+    return true;
+  } catch (err) {
+    console.error('Error generating Word file for textbook:', err);
+    return false;
+  }
+};
 
 /**
  * Exports Affinity Groups into a beautifully formatted Microsoft Word (.doc) document

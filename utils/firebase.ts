@@ -48,19 +48,25 @@ import {
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 // Initialize Firestore with robust long-polling and modern persistent local cache to bypass WebSocket blocks
-export const db: Firestore = firebaseConfig.firestoreDatabaseId
-  ? initializeFirestore(app, { 
-      experimentalForceLongPolling: true,
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
-      })
-    }, firebaseConfig.firestoreDatabaseId)
-  : initializeFirestore(app, { 
-      experimentalForceLongPolling: true,
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
-      })
-    });
+let dbInstance: Firestore;
+try {
+  dbInstance = firebaseConfig.firestoreDatabaseId
+    ? initializeFirestore(app, { 
+        experimentalForceLongPolling: true,
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager()
+        })
+      }, firebaseConfig.firestoreDatabaseId)
+    : initializeFirestore(app, { 
+        experimentalForceLongPolling: true,
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager()
+        })
+      });
+} catch (e) {
+  dbInstance = getFirestore(app);
+}
+export const db: Firestore = dbInstance;
 
 // Initialize Auth with anonymous fallback
 export const auth = getAuth(app);

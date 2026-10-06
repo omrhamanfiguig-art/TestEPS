@@ -967,7 +967,7 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800 font-bold">
                     {completedResults.map(({ student, timeSec }, idx) => (
-                      <tr key={student.numeroEleve} className="hover:bg-teal-50/40 dark:hover:bg-teal-950/20 transition-colors">
+                      <tr key={`${student.numeroEleve}_${idx}`} className="hover:bg-teal-50/40 dark:hover:bg-teal-950/20 transition-colors">
                         <td className="p-2 text-gray-500">
                           {idx === 0 ? '🥇 1' : idx === 1 ? '🥈 2' : idx === 2 ? '🥉 3' : idx + 1}
                         </td>

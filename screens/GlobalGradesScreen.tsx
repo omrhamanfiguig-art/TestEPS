@@ -467,7 +467,7 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
                         const displayFinal = (nMotrice !== undefined || nComportement !== undefined || nCognitive !== undefined) ? finalGrade.toFixed(2) : '--';
 
                         return (
-                            <tr key={s.numeroEleve} className="hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors">
+                            <tr key={`${s.numeroEleve}_${idx}`} className="hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors">
                                 <td className="p-3 text-center text-gray-400 font-bold">{idx + 1}</td>
                                 <td className="p-3">
                                     <div className="flex items-center gap-2">

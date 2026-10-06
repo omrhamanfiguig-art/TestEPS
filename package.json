@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "tsx server.ts",
+    "start": "node server.ts",
     "build": "vite build",
     "lint": "tsc --noEmit",
     "preview": "vite preview",
@@ -12,15 +13,19 @@
     "pages:deploy": "npm run build && wrangler pages deploy dist"
   },
   "dependencies": {
+    "@google/genai": "^2.27.0",
+    "express": "^5.2.1",
     "firebase": "^12.19.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "sharp": "^0.35.4",
+    "tsx": "^4.23.15",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "vite-plugin-pwa": "^1.3.0"
