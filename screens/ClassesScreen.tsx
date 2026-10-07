@@ -797,8 +797,8 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={
                 searchMode === 'students'
-                  ? (language === 'ar' ? 'ابحث بالاسم الكامل للتلميذ أو رقم مسار في الأقسام...' : 'Recherche élève par nom ou Massar...')
-                  : (language === 'ar' ? 'بحث عن قسم بالاسم...' : 'Rechercher une classe...')
+                  ? (language === 'ar' ? 'ابحث بالاسم الكامل للتلميذ أو رقم مسار في جميع الأقسام...' : 'Recherche élève par nom ou Massar...')
+                  : (language === 'ar' ? 'ابحث عن قسم أو اسم تلميذ (مثال: 1APIC أو أحمد)...' : 'Rechercher une classe ou un élève...')
               }
               className="w-full ps-9 pe-8 py-2 text-xs sm:text-sm rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
@@ -1213,35 +1213,90 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
           </p>
         </div>
       ) : filteredClasses.length === 0 ? (
-        <div className="py-16 px-6 text-center bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 space-y-4">
-          <div className="inline-flex p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950 text-indigo-500">
-            <AcademicCapIcon className="w-10 h-10" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="text-base sm:text-lg font-bold text-gray-800 dark:text-gray-200">
-              {classes.length === 0 
-                ? (language === 'ar' ? 'لا توجد لوائح أقسام مسجلة حالياً' : 'Aucune classe enregistrée')
-                : (language === 'ar' ? 'لا توجد نتائج تطابق بحثك' : 'Aucun résultat correspondant')}
-            </h3>
-            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-              {classes.length === 0 
-                ? (language === 'ar' ? 'قم باستيراد لوائح التلاميذ بصيغة Excel (Massar) للبدء في إجراء القياسات والاختبارات.' : 'Importez vos listes au format Excel pour commencer les évaluations.')
-                : (language === 'ar' ? 'جرب البحث باسم آخر أو إزالة التصفية.' : 'Essayez avec un autre mot-clé.')}
-            </p>
-          </div>
-          {classes.length === 0 && (
+        searchQuery.trim() !== '' && filteredStudentsList.length > 0 ? (
+          <div className="p-6 bg-white dark:bg-gray-800 rounded-2xl border border-indigo-200 dark:border-indigo-800 shadow-md text-center space-y-4 animate-fadeIn">
+            <div className="inline-flex p-3.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold text-2xl">
+              🔍
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="text-base sm:text-lg font-black text-gray-900 dark:text-white">
+                {language === 'ar'
+                  ? `لم نجد قسماً باسم «${searchQuery}»، لكن عثرنا على ${filteredStudentsList.length} تلميذ يطابق هذا الاسم!`
+                  : `Aucune classe, mais ${filteredStudentsList.length} élève(s) trouvé(s) pour «${searchQuery}»`}
+              </h3>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                {language === 'ar'
+                  ? 'انقر على الزر أدناه لعرض نتائج البحث وتفاصيل التلاميذ وأقسامهم فوراً.'
+                  : 'Cliquez ci-dessous pour voir les résultats élèves.'}
+              </p>
+            </div>
             <button
-              onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold shadow-md shadow-indigo-600/20 transition"
+              type="button"
+              onClick={() => setSearchMode('students')}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-black shadow-md shadow-indigo-600/20 active:scale-95 transition cursor-pointer"
             >
-              <ArrowUpTrayIcon />
-              <span>{language === 'ar' ? 'استيراد لائحة تلاميذ (Excel) الآن' : 'Importer des listes maintenant'}</span>
+              <UsersIcon />
+              <span>{language === 'ar' ? 'عرض نتائج البحث عن التلاميذ (👥)' : 'Voir les résultats élèves'}</span>
             </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="py-16 px-6 text-center bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 space-y-4">
+            <div className="inline-flex p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950 text-indigo-500">
+              <AcademicCapIcon className="w-10 h-10" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base sm:text-lg font-bold text-gray-800 dark:text-gray-200">
+                {classes.length === 0 
+                  ? (language === 'ar' ? 'لا توجد لوائح أقسام مسجلة حالياً' : 'Aucune classe enregistrée')
+                  : (language === 'ar' ? 'لا توجد نتائج تطابق بحثك' : 'Aucun résultat correspondant')}
+              </h3>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                {classes.length === 0 
+                  ? (language === 'ar' ? 'قم باستيراد لوائح التلاميذ بصيغة Excel (Massar) للبدء في إجراء القياسات والاختبارات.' : 'Importez vos listes au format Excel pour commencer les évaluations.')
+                  : (language === 'ar' ? 'جرب البحث باسم آخر أو إزالة التصفية.' : 'Essayez avec un autre mot-clé.')}
+              </p>
+            </div>
+            {classes.length === 0 && (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold shadow-md shadow-indigo-600/20 transition"
+              >
+                <ArrowUpTrayIcon />
+                <span>{language === 'ar' ? 'استيراد لائحة تلاميذ (Excel) الآن' : 'Importer des listes maintenant'}</span>
+              </button>
+            )}
+          </div>
+        )
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredClasses.map((item) => {
+        <div className="space-y-4">
+          {searchMode === 'classes' && searchQuery.trim() !== '' && filteredStudentsList.length > 0 && (
+            <div className="p-3.5 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 dark:from-indigo-950/70 dark:via-purple-950/70 dark:to-gray-800 border border-indigo-200 dark:border-indigo-800 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xs animate-fadeIn">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-indigo-600 text-white font-bold text-xs shadow-xs">🔍</span>
+                <div>
+                  <span className="text-xs sm:text-sm font-black text-gray-900 dark:text-white">
+                    {language === 'ar' 
+                      ? `عثرنا على ${filteredStudentsList.length} تلميذ يطابق «${searchQuery}» في الأقسام`
+                      : `${filteredStudentsList.length} élève(s) correspondant à «${searchQuery}»`}
+                  </span>
+                  <p className="text-[11px] text-gray-600 dark:text-gray-300 font-medium">
+                    {language === 'ar' ? 'انقر للانتقال مباشرة لنتائج البحث وتحديد التلميذ' : 'Cliquez pour afficher les résultats élèves'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSearchMode('students')}
+                className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition shadow-sm shadow-indigo-600/20 flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              >
+                <UsersIcon className="w-3.5 h-3.5" />
+                <span>{language === 'ar' ? 'عرض نتائج البحث عن التلاميذ (👥)' : 'Voir les نتائج élèves'}</span>
+              </button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredClasses.map((item) => {
             const isCurrent = selectedClass === item.className;
             const physPercent = item.studentCount > 0 ? Math.round((item.testedCount / item.studentCount) * 100) : 0;
             const vmaPercent = item.studentCount > 0 ? Math.round((item.vmaCount / item.studentCount) * 100) : 0;
@@ -1407,7 +1462,8 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
             );
           })}
         </div>
-      )}
+      </div>
+    )}
 
       {/* MODAL: View Class Roster */}
       {rosterClass && (
