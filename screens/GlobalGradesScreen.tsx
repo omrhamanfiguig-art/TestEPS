@@ -472,7 +472,7 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
                                 <td className="p-3">
                                     <div className="flex items-center gap-2">
                                         <StudentAvatar photoUrl={s.photoUrl} nomEleve={s.nomEleve} sexe={s.sexe} size="xs" />
-                                        <div className="font-bold text-gray-900 dark:text-white truncate">{s.nomEleve}</div>
+                                        <div className="font-bold text-gray-900 dark:text-white break-words">{s.nomEleve}</div>
                                     </div>
                                 </td>
                                 <td className="p-2 text-center font-bold text-gray-500">{test?.vma || '-'}</td>

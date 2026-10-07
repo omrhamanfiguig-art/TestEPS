@@ -1064,7 +1064,7 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
                               <span className="text-[10px] font-mono px-1 rounded bg-pink-50 dark:bg-pink-950 text-pink-700 dark:text-pink-300 border border-pink-200/40 font-bold">
                                 #{r.numeroEleve}
                               </span>
-                              <span className="font-bold text-xs text-gray-900 dark:text-white truncate">
+                              <span className="font-bold text-xs text-gray-900 dark:text-white break-words">
                                 {r.nomEleve}
                               </span>
                               <span className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.1 rounded-sm border border-indigo-100 dark:border-indigo-900">
@@ -1142,7 +1142,7 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
                               <span className="text-[10px] font-mono px-1 rounded bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200/40 font-bold">
                                 #{r.numeroEleve}
                               </span>
-                              <span className="font-bold text-xs text-gray-900 dark:text-white truncate">
+                              <span className="font-bold text-xs text-gray-900 dark:text-white break-words">
                                 {r.nomEleve}
                               </span>
                               <span className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.1 rounded-sm border border-indigo-100 dark:border-indigo-900">

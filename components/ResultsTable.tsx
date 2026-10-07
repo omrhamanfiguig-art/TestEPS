@@ -294,7 +294,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
                     <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-black text-xs flex items-center justify-center shrink-0">
                       #{result.orderIndex}
                     </div>
-                    <span className="font-bold text-sm text-gray-900 dark:text-white truncate" title={result.nomEleve}>
+                    <span className="font-bold text-sm text-gray-900 dark:text-white break-words" title={result.nomEleve}>
                       {result.nomEleve || `تلميذ رقم ${result.numeroEleve}`}
                     </span>
                     {result.sexe && (

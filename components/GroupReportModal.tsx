@@ -497,7 +497,7 @@ export const GroupReportModal: React.FC<GroupReportModalProps> = ({
                         className="rounded text-indigo-600 focus:ring-0 cursor-pointer"
                       />
                       <div className="min-w-0">
-                        <div className="text-xs font-bold truncate">{s.nomEleve}</div>
+                        <div className="text-xs font-bold break-words">{s.nomEleve}</div>
                         <div className="text-[10px] text-gray-400 font-mono flex items-center gap-1">
                           <span>{s.numeroEleve}</span>
                           {currentStatus === 'absent' && <span className="text-rose-600 font-bold">• غائب</span>}

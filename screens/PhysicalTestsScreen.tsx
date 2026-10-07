@@ -1255,7 +1255,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                     <button
                                                         type="button"
                                                         onClick={() => setModalStudentNumber(student.numeroEleve)}
-                                                        className="hover:text-indigo-600 dark:hover:text-indigo-400 transition hover:underline text-right truncate flex items-center gap-2 max-w-[200px]"
+                                                        className="hover:text-indigo-600 dark:hover:text-indigo-400 transition hover:underline text-right flex items-center gap-2 text-xs font-bold whitespace-normal break-words"
                                                         title="انقر لفتح بطاقة التلميذ"
                                                     >
                                                         <StudentAvatar
@@ -1264,7 +1264,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                             sexe={student.sexe}
                                                             size="xs"
                                                         />
-                                                        <span className="truncate">{student.nomEleve}</span>
+                                                        <span className="break-words">{student.nomEleve}</span>
                                                     </button>
                                                     <button
                                                         type="button"

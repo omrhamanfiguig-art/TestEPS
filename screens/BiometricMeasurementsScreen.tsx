@@ -498,7 +498,7 @@ export const BiometricMeasurementsScreen: React.FC<BiometricMeasurementsScreenPr
                                                         sexe={student.sexe}
                                                         size="xs"
                                                     />
-                                                    <span className="group-hover/name:underline truncate">{student.nomEleve}</span>
+                                                    <span className="group-hover/name:underline break-words">{student.nomEleve}</span>
                                                     <PencilSquareIcon className="w-3.5 h-3.5 text-emerald-600 opacity-40 group-hover/name:opacity-100 transition-opacity shrink-0" />
                                                 </button>
                                             </td>

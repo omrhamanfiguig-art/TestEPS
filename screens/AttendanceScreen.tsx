@@ -1261,29 +1261,28 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                 return (
                   <div 
                     key={s.numeroEleve} 
-                    className={`p-3.5 flex flex-col gap-2.5 transition ${
+                    className={`p-3.5 flex flex-col gap-3 transition ${
                       currentStatus === 'absent' ? 'bg-rose-50/20 dark:bg-rose-950/10' : ''
                     }`}
                   >
-                    {/* Upper Row: Info and Quick Statuses */}
-                    <div className="flex items-center justify-between gap-2">
-                      {/* Right: Avatar and Name */}
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-[10px] font-black text-gray-400 shrink-0">#{idx + 1}</span>
+                    {/* Top Section: Full Student Name and Avatar */}
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <span className="text-xs font-black text-gray-400 shrink-0">#{idx + 1}</span>
                         <StudentAvatar
                           photoUrl={s.photoUrl}
                           nomEleve={s.nomEleve}
                           sexe={s.sexe}
-                          size="xs"
+                          size="sm"
                         />
-                        <div className="min-w-0">
-                          <div className="font-bold text-gray-950 dark:text-white text-xs truncate">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-extrabold text-gray-950 dark:text-white text-sm break-words leading-tight">
                             {s.nomEleve}
                           </div>
-                          <div className="text-[9px] font-mono text-gray-400 flex items-center gap-1.5 truncate mt-0.5">
-                            <span>{s.numeroEleve}</span>
-                            <span className={`px-1 py-0.2 rounded-xs text-[8px] font-bold ${
-                              s.sexe === 'F' ? 'bg-pink-100/80 text-pink-700' : 'bg-blue-100/80 text-blue-700'
+                          <div className="text-[10px] font-mono text-gray-400 flex items-center gap-2 mt-1 flex-wrap">
+                            <span>مسار: {s.numeroEleve}</span>
+                            <span className={`px-1.5 py-0.2 rounded-xs text-[9px] font-bold ${
+                              s.sexe === 'F' ? 'bg-pink-100/80 text-pink-700 dark:bg-pink-950/50 dark:text-pink-300' : 'bg-blue-100/80 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300'
                             }`}>
                               {s.sexe === 'F' ? 'أنثى' : 'ذكر'}
                             </span>
@@ -1291,15 +1290,41 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                         </div>
                       </div>
 
-                      {/* Left: Quick Status Buttons + Notes Trigger */}
-                      <div className="flex items-center gap-1 shrink-0">
+                      {/* Student Edit & Delete Actions */}
+                      <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStudentToEdit(s);
+                            setIsAddEditStudentOpen(true);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-indigo-600 rounded-lg transition"
+                          title="تعديل بيانات التلميذ"
+                        >
+                          <PencilSquareIcon className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteStudent(s.numeroEleve, s.nomEleve)}
+                          className="p-1.5 text-gray-400 hover:text-rose-600 rounded-lg transition"
+                          title="مسح التلميذ"
+                        >
+                          <TrashIcon className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Bottom Section: Attendance Status Buttons & Action Triggers */}
+                    <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-gray-100 dark:border-gray-700/50 flex-wrap sm:flex-nowrap">
+                      {/* 5 Status Buttons */}
+                      <div className="flex items-center gap-1.5 flex-1 justify-between">
                         {(['present', 'absent', 'late', 'justified', 'no-kit'] as const).map(status => {
                           const statusDetails = {
-                            present: { key: 'ح', name: 'حاضر', color: 'bg-emerald-600 text-white border-emerald-600' },
-                            absent: { key: 'غ', name: 'غائب', color: 'bg-rose-600 text-white border-rose-600' },
-                            late: { key: 'ت', name: 'تأخر', color: 'bg-amber-500 text-white border-amber-500' },
-                            justified: { key: 'م', name: 'مبرر', color: 'bg-blue-600 text-white border-blue-600' },
-                            'no-kit': { key: 'ب', name: 'بذلة', color: 'bg-purple-600 text-white border-purple-600' },
+                            present: { key: 'ح', name: 'حاضر', color: 'bg-emerald-600 text-white border-emerald-600 shadow-xs' },
+                            absent: { key: 'غ', name: 'غائب', color: 'bg-rose-600 text-white border-rose-600 shadow-xs' },
+                            late: { key: 'ت', name: 'تأخر', color: 'bg-amber-500 text-white border-amber-500 shadow-xs' },
+                            justified: { key: 'م', name: 'مبرر', color: 'bg-blue-600 text-white border-blue-600 shadow-xs' },
+                            'no-kit': { key: 'ب', name: 'بذلة', color: 'bg-purple-600 text-white border-purple-600 shadow-xs' },
                           };
                           const isActive = currentStatus === status;
                           const detail = statusDetails[status];
@@ -1309,56 +1334,57 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                               key={status}
                               type="button"
                               onClick={() => handleStatusChange(s.numeroEleve, status)}
-                              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black transition border active:scale-95 ${
+                              className={`flex-1 h-8 rounded-xl flex items-center justify-center text-xs font-black transition border active:scale-95 ${
                                 isActive 
                                   ? detail.color 
-                                  : 'bg-gray-50 border-gray-150 text-gray-400 dark:bg-gray-700/40 dark:border-gray-600 dark:text-gray-400 hover:bg-gray-100'
+                                  : 'bg-gray-50 border-gray-200 text-gray-500 dark:bg-gray-700/50 dark:border-gray-600 dark:text-gray-300 hover:bg-gray-100'
                               }`}
                               title={detail.name}
                             >
-                              {detail.key}
+                              <span>{detail.key}</span>
                             </button>
                           );
                         })}
+                      </div>
 
-                        {/* Report button */}
+                      {/* Report & Note buttons */}
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
                           onClick={() => {
                             setSelectedStudentForReport(s);
                             setIsReportModalOpen(true);
                           }}
-                          className="px-2 py-1 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 rounded-lg text-[10px] font-bold flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs"
+                          className="px-2.5 py-1.5 bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 rounded-xl text-[10px] font-extrabold flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs"
                           title="تقرير / حالة التلميذ"
                         >
                           <span>📝 تقرير</span>
                         </button>
 
-                        {/* Expand Note Input button */}
                         <button
                           type="button"
                           onClick={() => setExpandedNotes(prev => ({ ...prev, [s.numeroEleve]: !prev[s.numeroEleve] }))}
-                          className={`w-7 h-7 rounded-full flex items-center justify-center border transition active:scale-95 ${
+                          className={`w-8 h-8 rounded-xl flex items-center justify-center border transition active:scale-95 ${
                             rec.note 
                               ? 'bg-indigo-50 border-indigo-200 text-indigo-600 dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-300' 
-                              : 'bg-gray-50 border-gray-150 text-gray-400 dark:bg-gray-700/40 dark:border-gray-600'
+                              : 'bg-gray-50 border-gray-200 text-gray-400 dark:bg-gray-700/50 dark:border-gray-600'
                           }`}
                           title="إضافة ملاحظة"
                         >
-                          <DocumentTextIcon className="w-3.5 h-3.5" />
+                          <DocumentTextIcon className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
 
                     {/* Lower Row: Expandable note text-input */}
                     {isNoteOpen && (
-                      <div className="relative pl-1 pr-6 flex gap-2 items-center">
+                      <div className="relative flex gap-2 items-center pt-1">
                         <input
                           type="text"
                           value={rec.note || ''}
                           onChange={(e) => handleNoteChange(s.numeroEleve, e.target.value)}
                           placeholder="السبب أو الملاحظة..."
-                          className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-150 dark:border-gray-650 rounded-xl px-2.5 py-1 text-[10px] text-gray-900 dark:text-white outline-none focus:ring-1 focus:ring-indigo-500/50"
+                          className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-1.5 text-xs text-gray-900 dark:text-white outline-none focus:ring-1 focus:ring-indigo-500/50 font-medium"
                         />
                         {rec.note && (
                           <button
@@ -1367,7 +1393,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                             className="p-1 rounded-full text-gray-400 hover:text-rose-600 shrink-0"
                             title="مسح الملاحظة"
                           >
-                            <XMarkIcon className="w-3.5 h-3.5" />
+                            <XMarkIcon className="w-4 h-4" />
                           </button>
                         )}
                       </div>
@@ -1552,8 +1578,8 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                       <div className="flex items-center gap-2.5 min-w-0">
                         <span className="text-[10px] font-black text-gray-400 shrink-0">#{idx + 1}</span>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-gray-950 dark:text-white text-xs truncate">{s.nomEleve}</span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-extrabold text-gray-950 dark:text-white text-xs break-words">{s.nomEleve}</span>
                             {abs >= 5 ? (
                               <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0" title="غياب مقلق ومتكرر" />
                             ) : abs >= 3 ? (
@@ -1562,7 +1588,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                               <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="مواظب بانتظام" />
                             )}
                           </div>
-                          <div className="text-[9px] font-mono text-gray-400 flex items-center gap-1.5 mt-0.5 truncate">
+                          <div className="text-[9px] font-mono text-gray-400 flex items-center gap-1.5 mt-0.5 flex-wrap">
                             <span>{s.numeroEleve}</span>
                             <span className={`px-1 py-0.2 rounded-xs text-[8px] font-bold ${
                               s.sexe === 'F' ? 'bg-pink-100/80 text-pink-700' : 'bg-blue-100/80 text-blue-700'

@@ -1091,7 +1091,7 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                                 size="sm"
                               />
                               <div className="flex flex-col min-w-0">
-                                <span className="group-hover/name:underline truncate">{item.student.nomEleve}</span>
+                                <span className="group-hover/name:underline break-words">{item.student.nomEleve}</span>
                                 <span className="text-[10px] font-mono text-gray-400 leading-none">
                                   {item.student.numeroEleve}
                                 </span>
@@ -1561,7 +1561,7 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                                 size="sm"
                               />
                               <div className="flex flex-col min-w-0">
-                                <span className="group-hover/rosterName:underline truncate">{row.student.nomEleve}</span>
+                                <span className="group-hover/rosterName:underline break-words">{row.student.nomEleve}</span>
                                 <span className="text-[10px] font-mono text-gray-400 leading-none">
                                   {row.student.numeroEleve}
                                 </span>
