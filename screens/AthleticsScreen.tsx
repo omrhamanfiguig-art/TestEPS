@@ -9,12 +9,14 @@ import {
     Squares2X2Icon,
     ArrowDownTrayIcon,
     XMarkIcon,
-    InformationCircleIcon
+    InformationCircleIcon,
+    BoltIcon
 } from '../components/Icons';
 import { StudentAvatar } from '../components/StudentAvatar';
 import { AthleticsTestModal } from '../components/AthleticsTestModal';
 import { BaremeSettingsModal } from '../components/BaremeSettingsModal';
 import { Sprint30mTestModal, RaceTestType } from '../components/Sprint30mTestModal';
+import { QuickEvaluationModal } from '../components/QuickEvaluationModal';
 import { 
     calculateScore, 
     getCustomScale,
@@ -42,6 +44,8 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
     const [raceStopwatchType, setRaceStopwatchType] = useState<RaceTestType>('speed');
     const [isBaremeModalOpen, setIsBaremeModalOpen] = useState(false);
     const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const [selectedStudentForQuickEval, setSelectedStudentForQuickEval] = useState<string | null>(null);
+    const [isQuickEvalOpen, setIsQuickEvalOpen] = useState(false);
 
     // Load data when selectedClass changes
     const loadClassData = (className: string) => {
@@ -49,6 +53,23 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
         if (!className) return;
         getStudentList(className).then(list => setStudentList(list));
         getPhysicalTests(className).then(res => setResults(res || []));
+    };
+
+    const handleOpenQuickEval = (studentNum: string) => {
+        setSelectedStudentForQuickEval(studentNum);
+        setIsQuickEvalOpen(true);
+    };
+
+    const handleSaveQuickEvalScores = async (updatedTest: PhysicalTests) => {
+        const updatedList = results.map(t => t.numeroEleve === updatedTest.numeroEleve ? updatedTest : t);
+        if (!results.some(t => t.numeroEleve === updatedTest.numeroEleve)) {
+            updatedList.push(updatedTest);
+        }
+        setResults(updatedList);
+        await savePhysicalTests(selectedClass, updatedList);
+        window.dispatchEvent(new CustomEvent('dbUpdated'));
+        setNotification({ message: `تم حفظ نقط التلميذ (${updatedTest.nomEleve || updatedTest.numeroEleve}) بنجاح!`, type: 'success' });
+        setTimeout(() => setNotification(null), 3000);
     };
 
     useEffect(() => {
@@ -221,20 +242,94 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                                 const r = results.find(res => res.numeroEleve === s.numeroEleve);
                                 return (
                                     <tr key={s.numeroEleve} className="hover:bg-gray-50 dark:hover:bg-indigo-950/20">
-                                        <td className="p-3 text-right font-bold text-gray-800 dark:text-gray-200">
-                                            <div className="flex items-center gap-2">
-                                                <StudentAvatar photoUrl={s.photoUrl} nomEleve={s.nomEleve} sexe={s.sexe} size="xs" />
-                                                <span>{s.nomEleve}</span>
+                                        <td 
+                                            className="p-3 text-right font-bold text-gray-800 dark:text-gray-200 cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 transition-colors group"
+                                            onClick={() => handleOpenQuickEval(s.numeroEleve)}
+                                            title="اضغط لفتح نافذة التقويم السريع"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <StudentAvatar photoUrl={s.photoUrl} nomEleve={s.nomEleve} sexe={s.sexe} size="xs" />
+                                                    <span className="group-hover:text-indigo-600 transition-colors">{s.nomEleve}</span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleOpenQuickEval(s.numeroEleve);
+                                                    }}
+                                                    className="px-2 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-black flex items-center gap-1 active:scale-95 transition cursor-pointer"
+                                                    title="تقويم سريع"
+                                                >
+                                                    <BoltIcon className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                                                    <span>تقويم ⚡</span>
+                                                </button>
                                             </div>
                                         </td>
-                                        <td className="p-3 font-mono">{r?.vitesse30m ? `${r.vitesse30m} ث` : '-'}</td>
-                                        <td className="p-3 font-mono">{(r as any)?.vitesse60m ? `${(r as any).vitesse60m} ث` : '-'}</td>
-                                        <td className="p-3 font-mono">{(r as any)?.vitesse80m ? `${(r as any).vitesse80m} ث` : '-'}</td>
-                                        <td className="p-3 font-mono">{(r as any)?.vitesse100m ? `${(r as any).vitesse100m} ث` : '-'}</td>
-                                        <td className="p-3 font-mono">{(r as any)?.vitesseRelay ? `${(r as any).vitesseRelay} ث` : '-'}</td>
-                                        <td className="p-3 font-mono text-red-600 dark:text-red-400 font-bold">{r?.enduranceTemps ? `${formatSecondsToMinSec(r.enduranceTemps)} د` : '-'}</td>
-                                        <td className="p-3 font-mono">{r?.sautLong ? `${r.sautLong} م` : '-'}</td>
-                                        <td className="p-3 font-mono">{r?.lancerPoids ? `${r.lancerPoids} م` : '-'}</td>
+                                        <td className="p-3 font-mono">
+                                            <div>{r?.vitesse30m ? `${r.vitesse30m} ث` : '-'}</div>
+                                            {(r?.scoreVitesse30m !== undefined || r?.scoreVitesse !== undefined) && (
+                                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800 mt-0.5">
+                                                    {(r.scoreVitesse30m ?? r.scoreVitesse)} / 20
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="p-3 font-mono">
+                                            <div>{(r as any)?.vitesse60m ? `${(r as any).vitesse60m} ث` : '-'}</div>
+                                            {r?.scoreVitesse60m !== undefined && (
+                                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-50 text-orange-700 dark:bg-orange-950/60 dark:text-orange-300 border border-orange-200 dark:border-orange-800 mt-0.5">
+                                                    {r.scoreVitesse60m} / 20
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="p-3 font-mono">
+                                            <div>{(r as any)?.vitesse80m ? `${(r as any).vitesse80m} ث` : '-'}</div>
+                                            {r?.scoreVitesse80m !== undefined && (
+                                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300 border border-orange-300 dark:border-orange-700 mt-0.5">
+                                                    {r.scoreVitesse80m} / 20
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="p-3 font-mono">
+                                            <div>{(r as any)?.vitesse100m ? `${(r as any).vitesse100m} ث` : '-'}</div>
+                                            {r?.scoreVitesse100m !== undefined && (
+                                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800 mt-0.5">
+                                                    {r.scoreVitesse100m} / 20
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="p-3 font-mono">
+                                            <div>{(r as any)?.vitesseRelay ? `${(r as any).vitesseRelay} ث` : '-'}</div>
+                                            {r?.scoreRelay !== undefined && (
+                                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800 mt-0.5">
+                                                    {r.scoreRelay} / 20
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="p-3 font-mono text-red-600 dark:text-red-400 font-bold">
+                                            <div>{r?.enduranceTemps ? `${formatSecondsToMinSec(r.enduranceTemps)} د` : '-'}</div>
+                                            {r?.scoreEndurance !== undefined && (
+                                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300 border border-red-200 dark:border-red-800 mt-0.5">
+                                                    {r.scoreEndurance} / 20
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="p-3 font-mono">
+                                            <div>{r?.sautLong ? `${r.sautLong} م` : '-'}</div>
+                                            {r?.scoreSautLong !== undefined && (
+                                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 mt-0.5">
+                                                    {r.scoreSautLong} / 20
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="p-3 font-mono">
+                                            <div>{r?.lancerPoids ? `${r.lancerPoids} م` : '-'}</div>
+                                            {r?.scoreLancerPoids !== undefined && (
+                                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 dark:bg-slate-900/60 dark:text-slate-300 border border-slate-300 dark:border-slate-700 mt-0.5">
+                                                    {r.scoreLancerPoids} / 20
+                                                </span>
+                                            )}
+                                        </td>
                                     </tr>
                                 );
                             })}
@@ -275,6 +370,23 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                     isOpen={isBaremeModalOpen}
                     onClose={() => setIsBaremeModalOpen(false)}
                     defaultTestKey={athleticsTestType as any}
+                />
+            )}
+
+            {isQuickEvalOpen && (
+                <QuickEvaluationModal
+                    isOpen={isQuickEvalOpen}
+                    onClose={() => {
+                        setIsQuickEvalOpen(false);
+                        setSelectedStudentForQuickEval(null);
+                    }}
+                    selectedClass={selectedClass}
+                    studentNumber={selectedStudentForQuickEval || undefined}
+                    allStudents={studentList}
+                    physicalTests={results}
+                    onSelectStudent={(num) => setSelectedStudentForQuickEval(num)}
+                    onSaveStudentScores={handleSaveQuickEvalScores}
+                    initialMode="athletics"
                 />
             )}
         </div>

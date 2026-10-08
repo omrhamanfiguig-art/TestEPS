@@ -50,6 +50,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         return t.navTeamGames;
       case 'global-grades':
         return t.navGlobalGrades;
+      case 'massar':
+        return language === 'ar' ? 'فضاء ملء لوائح مسار' : 'Fiches Massar EPS';
       case 'talent':
         return t.navTalent;
       case 'attendance':

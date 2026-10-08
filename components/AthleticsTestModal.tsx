@@ -411,8 +411,17 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
     let scale = getCustomScale(testType);
     let lowerIsBetter = true;
 
-    if (testType === 'speed' || testType === 'speed-60' || testType === 'speed-80' || testType === 'speed-100') {
-      actualScoreField = 'scoreVitesse';
+    if (testType === 'speed') {
+      actualScoreField = 'scoreVitesse30m';
+      lowerIsBetter = true;
+    } else if (testType === 'speed-60') {
+      actualScoreField = 'scoreVitesse60m';
+      lowerIsBetter = true;
+    } else if (testType === 'speed-80') {
+      actualScoreField = 'scoreVitesse80m';
+      lowerIsBetter = true;
+    } else if (testType === 'speed-100') {
+      actualScoreField = 'scoreVitesse100m';
       lowerIsBetter = true;
     } else if (testType === 'endurance') {
       actualScoreField = 'scoreEndurance';
@@ -434,6 +443,7 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
       sexe: student.sexe,
       [field]: value,
       [actualScoreField]: score,
+      ...(testType === 'speed' ? { scoreVitesse: score } : {}),
       date: new Date().toISOString()
     };
 

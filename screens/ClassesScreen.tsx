@@ -1449,6 +1449,15 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                     <RulerIcon />
                   </button>
 
+                  {/* Jump to Massar */}
+                  <button
+                    onClick={() => handleJumpToTest(item.className, 'massar')}
+                    title={language === 'ar' ? 'الانتقال لفضاء لوائح مسار' : 'Fiches Massar'}
+                    className="px-2.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 transition text-xs font-black flex items-center gap-1"
+                  >
+                    <span>مسار</span>
+                  </button>
+
                   {/* Delete class */}
                   <button
                     onClick={() => setClassToDelete(item.className)}

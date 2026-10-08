@@ -8,28 +8,77 @@ import {
   getAttendanceSessions
 } from '../utils/db';
 import { getPedagogicalReports } from '../utils/reportsDb';
-import type { StudentIdentity, PhysicalTests } from '../types';
+import type { StudentIdentity, PhysicalTests, SportActivityEvaluation } from '../types';
 import { 
     UserGroupIcon, 
     SparklesIcon, 
     ArrowDownTrayIcon, 
     ChevronDownIcon, 
     XMarkIcon, 
-    MagnifyingGlassIcon,
-    CheckCircleIcon,
-    TableCellsIcon,
-    InformationCircleIcon,
-    ArrowPathIcon,
-    PlusIcon,
-    TrashIcon
+    MagnifyingGlassIcon, 
+    CheckCircleIcon, 
+    TableCellsIcon, 
+    InformationCircleIcon, 
+    ArrowPathIcon, 
+    PlusIcon, 
+    TrashIcon, 
+    BoltIcon 
 } from '../components/Icons';
 import { StudentAvatar } from '../components/StudentAvatar';
+import { QuickEvaluationModal } from '../components/QuickEvaluationModal';
 import { 
   getGradingDistribution,
   GradingDistribution
 } from '../utils/ScoringConstants';
 import { useLanguage } from '../utils/i18n';
 import { useSportsList, SportType } from '../utils/SportsConstants';
+
+export const getStudentSportEvaluation = (
+  test: PhysicalTests | undefined, 
+  sportId: string,
+  defaultSportId: string = 'football'
+): SportActivityEvaluation | undefined => {
+  if (!test) return undefined;
+
+  // 1. Direct check in sportActivities by sportId
+  if (test.sportActivities && test.sportActivities[sportId]) {
+    return test.sportActivities[sportId];
+  }
+
+  // 2. Legacy fallback: ONLY if sportActivities is completely empty/undefined,
+  // and the legacy sportCollectifName explicitly matches this sport or if sportId === 'football' (default sport)
+  if (!test.sportActivities && (test.sportColTechIndiv !== undefined || test.sportColCollectif !== undefined || test.sportCollectifScore !== undefined)) {
+    const legacyName = (test.sportCollectifName || '').toLowerCase();
+    const idLower = sportId.toLowerCase();
+    const isExplicitMatch = legacyName && (
+      legacyName.includes(idLower) ||
+      (idLower === 'basketball' && (legacyName.includes('سلة') || legacyName.includes('basket'))) ||
+      (idLower === 'football' && (legacyName.includes('قدم') || legacyName.includes('foot'))) ||
+      (idLower === 'handball' && (legacyName.includes('يد') || legacyName.includes('hand'))) ||
+      (idLower === 'volleyball' && (legacyName.includes('طائرة') || legacyName.includes('volley'))) ||
+      (idLower === 'rugby' && (legacyName.includes('ريكبي') || legacyName.includes('rugby')))
+    );
+
+    if (isExplicitMatch || (!legacyName && sportId === 'football')) {
+      const calcMotrice = (test.sportColTechIndiv !== undefined || test.sportColCollectif !== undefined)
+        ? Number(((test.sportColTechIndiv || 0) + (test.sportColCollectif || 0)).toFixed(2))
+        : test.noteMotrice;
+      return {
+        sportId,
+        sportName: test.sportCollectifName || 'الرياضة الجماعية',
+        techIndiv: test.sportColTechIndiv,
+        collectif: test.sportColCollectif,
+        motrice: calcMotrice,
+        comportement: test.sportColComportement ?? test.noteComportement,
+        cognitive: test.sportColCognitive ?? test.noteCognitive,
+        totalScore: test.sportCollectifScore,
+        observation: test.sportCollectifNote
+      };
+    }
+  }
+
+  return undefined;
+};
 
 interface TeamGamesScreenProps {
   selectedClass: string;
@@ -63,6 +112,37 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
 
   // Interactive Calculator Modals/States
   const [activeCalculatorStudent, setActiveCalculatorStudent] = useState<string | null>(null);
+
+  // Quick Evaluation Modal State
+  const [isQuickEvalOpen, setIsQuickEvalOpen] = useState(false);
+  const [quickEvalStudentNumber, setQuickEvalStudentNumber] = useState<string | null>(null);
+
+  const handleOpenQuickEval = (studentNum?: string) => {
+    const target = studentNum || (filteredStudents.length > 0 ? filteredStudents[0].numeroEleve : null);
+    if (target) {
+      setQuickEvalStudentNumber(target);
+      setIsQuickEvalOpen(true);
+    } else {
+      showToast('لا يوجد تلاميذ في هذا القسم لتقويمهم', 'error');
+    }
+  };
+
+  const handleSaveStudentScoresFromModal = async (updatedTest: PhysicalTests) => {
+    setPhysicalTests(prev => {
+      const existing = prev.find(t => t.numeroEleve === updatedTest.numeroEleve);
+      let updatedList: PhysicalTests[];
+      if (existing) {
+        updatedList = prev.map(t => t.numeroEleve === updatedTest.numeroEleve ? updatedTest : t);
+      } else {
+        updatedList = [...prev, updatedTest];
+      }
+      savePhysicalTests(selectedClass, updatedList).catch(err => {
+        console.error('Save failed:', err);
+      });
+      return updatedList;
+    });
+    showToast(`تم حفظ نقط التلميذ (${updatedTest.nomEleve || updatedTest.numeroEleve}) بنجاح! ✅`);
+  };
 
   // Grading distribution (Middle school standard: 1AC => 14/3/3, 2AC => 13/4/3, 3AC => 12/5/3)
   const gradingDist = useMemo(() => getGradingDistribution(selectedClass), [selectedClass]);
@@ -159,28 +239,61 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
     setPhysicalTests(prev => {
       const existing = prev.find(t => t.numeroEleve === studentNumber);
       const student = students.find(s => s.numeroEleve === studentNumber);
+      const currentSportName = sports.find(s => s.id === currentSport)?.labelAr || 'الرياضة الجماعية';
       
       const baseObj = existing || {
         numeroEleve: studentNumber,
         nomEleve: student?.nomEleve,
         sexe: student?.sexe,
-        date: new Date().toISOString(),
-        sportCollectifName: sports.find(s => s.id === currentSport)?.labelAr
+        date: new Date().toISOString()
       };
 
-      const updatedObj = { ...baseObj, [field]: val };
+      const existingSportEval = getStudentSportEvaluation(existing, currentSport) || {
+        sportId: currentSport,
+        sportName: currentSportName
+      };
 
-      // Compute Total Note Motrice (الحركي) = Tech Indiv + Collectif
-      const noteM = (updatedObj.sportColTechIndiv || 0) + (updatedObj.sportColCollectif || 0);
-      updatedObj.noteMotrice = Number(Math.min(teamGamesMotriceMax, noteM).toFixed(2));
+      // Map field
+      const evalKey = field === 'sportColTechIndiv' ? 'techIndiv' :
+                      field === 'sportColCollectif' ? 'collectif' :
+                      field === 'sportColComportement' ? 'comportement' : 'cognitive';
 
-      // Map comportement and cognitive to existing generic fields so they integrate nicely in overall scores
-      updatedObj.noteComportement = updatedObj.sportColComportement;
-      updatedObj.noteCognitive = updatedObj.sportColCognitive;
+      const updatedSportEval: SportActivityEvaluation = {
+        ...existingSportEval,
+        sportId: currentSport,
+        sportName: currentSportName,
+        [evalKey]: val
+      };
 
-      // Compute Final Score /20
-      const total = (updatedObj.noteMotrice || 0) + (updatedObj.noteComportement || 0) + (updatedObj.noteCognitive || 0);
-      updatedObj.sportCollectifScore = Number(Math.min(20, total).toFixed(2));
+      // Compute Total Note Motrice (الحركي) for this sport
+      const noteM = (updatedSportEval.techIndiv || 0) + (updatedSportEval.collectif || 0);
+      updatedSportEval.motrice = Number(Math.min(teamGamesMotriceMax, noteM).toFixed(2));
+
+      // Compute Final Score /20 for this sport
+      const totalS = (updatedSportEval.motrice || 0) + (updatedSportEval.comportement || 0) + (updatedSportEval.cognitive || 0);
+      updatedSportEval.totalScore = Number(Math.min(20, totalS).toFixed(2));
+      updatedSportEval.date = new Date().toISOString();
+
+      const updatedSportActivities = {
+        ...(baseObj.sportActivities || {}),
+        [currentSport]: updatedSportEval
+      };
+
+      const updatedObj: PhysicalTests = {
+        ...baseObj,
+        sportActivities: updatedSportActivities,
+        sportCollectifName: currentSportName,
+        // Only keep legacy fields in sync for football to avoid cross-contamination
+        ...(currentSport === 'football' ? {
+          sportColTechIndiv: updatedSportEval.techIndiv,
+          sportColCollectif: updatedSportEval.collectif,
+          sportColComportement: updatedSportEval.comportement,
+          sportColCognitive: updatedSportEval.cognitive,
+          sportCollectifScore: updatedSportEval.totalScore,
+          sportCollectifNote: updatedSportEval.observation,
+        } : {}),
+        date: new Date().toISOString()
+      };
 
       if (existing) {
         return prev.map(t => t.numeroEleve === studentNumber ? updatedObj : t);
@@ -193,18 +306,45 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
   const handleTeamGamesNoteChange = (studentNumber: string, note: string) => {
     setPhysicalTests(prev => {
       const existing = prev.find(t => t.numeroEleve === studentNumber);
+      const student = students.find(s => s.numeroEleve === studentNumber);
+      const currentSportName = sports.find(s => s.id === currentSport)?.labelAr || 'الرياضة الجماعية';
+
+      const baseObj = existing || {
+        numeroEleve: studentNumber,
+        nomEleve: student?.nomEleve,
+        sexe: student?.sexe,
+        date: new Date().toISOString()
+      };
+
+      const existingSportEval = getStudentSportEvaluation(existing, currentSport) || {
+        sportId: currentSport,
+        sportName: currentSportName
+      };
+
+      const updatedSportEval: SportActivityEvaluation = {
+        ...existingSportEval,
+        sportId: currentSport,
+        sportName: currentSportName,
+        observation: note,
+        date: new Date().toISOString()
+      };
+
+      const updatedSportActivities = {
+        ...(baseObj.sportActivities || {}),
+        [currentSport]: updatedSportEval
+      };
+
+      const updatedObj: PhysicalTests = {
+        ...baseObj,
+        sportActivities: updatedSportActivities,
+        sportCollectifName: currentSportName,
+        ...(currentSport === 'football' ? { sportCollectifNote: note } : {})
+      };
+
       if (existing) {
-        return prev.map(t => t.numeroEleve === studentNumber ? { ...t, sportCollectifNote: note } : t);
+        return prev.map(t => t.numeroEleve === studentNumber ? updatedObj : t);
       } else {
-        const student = students.find(s => s.numeroEleve === studentNumber);
-        return [...prev, {
-          numeroEleve: studentNumber,
-          nomEleve: student?.nomEleve,
-          sexe: student?.sexe,
-          sportCollectifNote: note,
-          sportCollectifName: sports.find(s => s.id === currentSport)?.labelAr,
-          date: new Date().toISOString()
-        }];
+        return [...prev, updatedObj];
       }
     });
   };
@@ -337,14 +477,30 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
             const autoScore = Number(Math.max(0, rawScore).toFixed(2));
 
             if (activeTab === 'team_games') {
+              const currentSportName = sports.find(sp => sp.id === currentSport)?.labelAr || 'الرياضة الجماعية';
+              const existingSportEval = getStudentSportEvaluation(existing, currentSport) || {
+                sportId: currentSport,
+                sportName: currentSportName
+              };
+              const updatedSportEval: SportActivityEvaluation = {
+                ...existingSportEval,
+                sportId: currentSport,
+                sportName: currentSportName,
+                comportement: autoScore
+              };
+              const noteM = (updatedSportEval.techIndiv || 0) + (updatedSportEval.collectif || 0);
+              updatedSportEval.motrice = Number(Math.min(teamGamesMotriceMax, noteM).toFixed(2));
+              const total = (updatedSportEval.motrice || 0) + (updatedSportEval.comportement || 0) + (updatedSportEval.cognitive || 0);
+              updatedSportEval.totalScore = Number(Math.min(20, total).toFixed(2));
+              updatedSportEval.date = new Date().toISOString();
+
+              updated.sportActivities = {
+                ...(existing.sportActivities || {}),
+                [currentSport]: updatedSportEval
+              };
               updated.sportColComportement = autoScore;
               updated.noteComportement = autoScore;
-
-              // Recalculate Motrice & Total
-              const noteM = (updated.sportColTechIndiv || 0) + (updated.sportColCollectif || 0);
-              updated.noteMotrice = Number(Math.min(teamGamesMotriceMax, noteM).toFixed(2));
-              const total = (updated.noteMotrice || 0) + (updated.noteComportement || 0) + (updated.noteCognitive || 0);
-              updated.sportCollectifScore = Number(Math.min(20, total).toFixed(2));
+              updated.sportCollectifScore = updatedSportEval.totalScore;
             } else {
               updated.gymNoteComportement = autoScore;
 
@@ -380,6 +536,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
     }
 
     if (activeTab === 'team_games') {
+      const activeSportLabel = sports.find(sp => sp.id === currentSport)?.labelAr || 'الرياضة الجماعية';
       const headers = [
         "الرقم", "الاسم والنسب", "الجنس", "النشاط الجماعي",
         "التقنية الفردية (/6)", "اللعب الجماعي (/" + teamPlayMax + ")",
@@ -389,25 +546,26 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
 
       const rows = students.map((s, idx) => {
         const test = physicalTests.find(t => t.numeroEleve === s.numeroEleve);
+        const sportEval = getStudentSportEvaluation(test, currentSport);
         return [
           s.numeroEleve,
           s.nomEleve,
           s.sexe === 'F' ? 'أنثى' : 'ذكر',
-          test?.sportCollectifName || sports.find(sp => sp.id === currentSport)?.labelAr || '-',
-          test?.sportColTechIndiv !== undefined ? test.sportColTechIndiv : '-',
-          test?.sportColCollectif !== undefined ? test.sportColCollectif : '-',
-          test?.noteMotrice !== undefined ? test.noteMotrice : '-',
-          test?.sportColComportement !== undefined ? test.sportColComportement : '-',
-          test?.sportColCognitive !== undefined ? test.sportColCognitive : '-',
-          test?.sportCollectifScore !== undefined ? test.sportCollectifScore : '-',
-          test?.sportCollectifNote || '-'
+          sportEval?.sportName || activeSportLabel,
+          sportEval?.techIndiv !== undefined ? sportEval.techIndiv : '-',
+          sportEval?.collectif !== undefined ? sportEval.collectif : '-',
+          sportEval?.motrice !== undefined ? sportEval.motrice : '-',
+          sportEval?.comportement !== undefined ? sportEval.comportement : '-',
+          sportEval?.cognitive !== undefined ? sportEval.cognitive : '-',
+          sportEval?.totalScore !== undefined ? sportEval.totalScore : '-',
+          sportEval?.observation || '-'
         ];
       });
 
       const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "الرياضة الجماعية");
-      XLSX.writeFile(wb, `تقويم_الرياضة_الجماعية_${selectedClass.replace(/\s+/g, '_')}.xlsx`);
+      XLSX.utils.book_append_sheet(wb, ws, activeSportLabel);
+      XLSX.writeFile(wb, `تقويم_${activeSportLabel.replace(/\s+/g, '_')}_${selectedClass.replace(/\s+/g, '_')}.xlsx`);
     } else {
       const headers = [
         "الرقم", "الاسم والنسب", "الجنس",
@@ -475,18 +633,36 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
         const updated = { ...existing } as PhysicalTests;
         
         if (activeTab === 'team_games') {
-          if (type === 'comportement') {
-            updated.sportColComportement = val;
-            updated.noteComportement = val;
-          } else {
-            updated.sportColCognitive = val;
-            updated.noteCognitive = val;
-          }
+          const currentSportName = sports.find(sp => sp.id === currentSport)?.labelAr || 'الرياضة الجماعية';
+          const existingSport = getStudentSportEvaluation(existing, currentSport) || {
+            sportId: currentSport,
+            sportName: currentSportName
+          };
+
+          const updatedSport: SportActivityEvaluation = {
+            ...existingSport,
+            sportId: currentSport,
+            sportName: currentSportName,
+            ...(type === 'comportement' ? { comportement: val } : { cognitive: val }),
+            date: new Date().toISOString()
+          };
+
           // Recalculate
-          const noteM = (updated.sportColTechIndiv || 0) + (updated.sportColCollectif || 0);
-          updated.noteMotrice = Number(Math.min(teamGamesMotriceMax, noteM).toFixed(2));
-          const total = (updated.noteMotrice || 0) + (updated.noteComportement || 0) + (updated.noteCognitive || 0);
-          updated.sportCollectifScore = Number(Math.min(20, total).toFixed(2));
+          const noteM = (updatedSport.techIndiv || 0) + (updatedSport.collectif || 0);
+          updatedSport.motrice = Number(Math.min(teamGamesMotriceMax, noteM).toFixed(2));
+          const total = (updatedSport.motrice || 0) + (updatedSport.comportement || 0) + (updatedSport.cognitive || 0);
+          updatedSport.totalScore = Number(Math.min(20, total).toFixed(2));
+
+          updated.sportActivities = {
+            ...(updated.sportActivities || {}),
+            [currentSport]: updatedSport
+          };
+
+          if (currentSport === 'football') {
+            if (type === 'comportement') updated.sportColComportement = val;
+            else updated.sportColCognitive = val;
+            updated.sportCollectifScore = updatedSport.totalScore;
+          }
         } else {
           if (type === 'comportement') {
             updated.gymNoteComportement = val;
@@ -577,6 +753,16 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                 <span className="text-[10px] font-bold">حفظ تلقائي مستمر...</span>
              </div>
           )}
+
+          <button
+            onClick={() => handleOpenQuickEval()}
+            disabled={isLoading || students.length === 0}
+            className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-black rounded-2xl shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50 cursor-pointer"
+            title="فتح نافذة التقويم السريع بالضغط ووضع نقطة كاملة وتوزيعها تلقائياً"
+          >
+            <BoltIcon className="w-4 h-4" />
+            <span>التقويم السريع ⚡</span>
+          </button>
 
           <button
             onClick={handleAutoCalculateBehaviorAll}
@@ -772,24 +958,45 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60 font-bold">
                   {filteredStudents.map((s, idx) => {
                     const test = physicalTests.find(t => t.numeroEleve === s.numeroEleve);
-                    const tech = test?.sportColTechIndiv;
-                    const colScore = test?.sportColCollectif;
-                    const behave = test?.sportColComportement;
-                    const cogn = test?.sportColCognitive;
-                    const motriceSum = test?.noteMotrice;
-                    const finalS = test?.sportCollectifScore;
-                    const obs = test?.sportCollectifNote || '';
+                    const sportEval = getStudentSportEvaluation(test, currentSport);
+                    const tech = sportEval?.techIndiv;
+                    const colScore = sportEval?.collectif;
+                    const behave = sportEval?.comportement;
+                    const cogn = sportEval?.cognitive;
+                    const motriceSum = sportEval?.motrice;
+                    const finalS = sportEval?.totalScore;
+                    const obs = sportEval?.observation || '';
 
                     return (
                       <tr key={s.numeroEleve} className="hover:bg-indigo-50/10 dark:hover:bg-indigo-950/10 transition-colors">
                         <td className="p-4 text-center text-gray-400 font-black">{idx + 1}</td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-3">
-                            <StudentAvatar photoUrl={s.photoUrl} nomEleve={s.nomEleve} sexe={s.sexe} size="sm" />
-                            <div>
-                              <div className="font-extrabold text-gray-900 dark:text-white text-sm">{s.nomEleve}</div>
-                              <div className="text-[10px] text-gray-400 font-mono font-normal">{s.numeroEleve}</div>
+                        <td 
+                          className="p-4 cursor-pointer hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors group"
+                          onClick={() => handleOpenQuickEval(s.numeroEleve)}
+                          title="اضغط لفتح نافذة التقويم السريع ووضع نقطة كاملة"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <StudentAvatar photoUrl={s.photoUrl} nomEleve={s.nomEleve} sexe={s.sexe} size="sm" />
+                              <div>
+                                <div className="font-extrabold text-gray-900 dark:text-white text-sm group-hover:text-indigo-600 transition-colors flex items-center gap-1.5">
+                                  <span>{s.nomEleve}</span>
+                                </div>
+                                <div className="text-[10px] text-gray-400 font-mono font-normal">{s.numeroEleve}</div>
+                              </div>
                             </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenQuickEval(s.numeroEleve);
+                              }}
+                              className="px-2 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition active:scale-95 text-[10px] font-black flex items-center gap-1 shadow-2xs cursor-pointer"
+                              title="تقويم سريع"
+                            >
+                              <BoltIcon className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                              <span>تقويم ⚡</span>
+                            </button>
                           </div>
                         </td>
                         
@@ -1006,13 +1213,33 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                     return (
                       <tr key={s.numeroEleve} className="hover:bg-indigo-50/10 dark:hover:bg-indigo-950/10 transition-colors">
                         <td className="p-4 text-center text-gray-400 font-black">{idx + 1}</td>
-                        <td className="p-4">
-                          <div className="flex items-center gap-3">
-                            <StudentAvatar photoUrl={s.photoUrl} nomEleve={s.nomEleve} sexe={s.sexe} size="sm" />
-                            <div>
-                              <div className="font-extrabold text-gray-900 dark:text-white text-sm">{s.nomEleve}</div>
-                              <div className="text-[10px] text-gray-400 font-mono font-normal">{s.numeroEleve}</div>
+                        <td 
+                          className="p-4 cursor-pointer hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors group"
+                          onClick={() => handleOpenQuickEval(s.numeroEleve)}
+                          title="اضغط لفتح نافذة التقويم السريع ووضع نقطة كاملة للجمباز"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <StudentAvatar photoUrl={s.photoUrl} nomEleve={s.nomEleve} sexe={s.sexe} size="sm" />
+                              <div>
+                                <div className="font-extrabold text-gray-900 dark:text-white text-sm group-hover:text-indigo-600 transition-colors flex items-center gap-1.5">
+                                  <span>{s.nomEleve}</span>
+                                </div>
+                                <div className="text-[10px] text-gray-400 font-mono font-normal">{s.numeroEleve}</div>
+                              </div>
                             </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenQuickEval(s.numeroEleve);
+                              }}
+                              className="px-2 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition active:scale-95 text-[10px] font-black flex items-center gap-1 shadow-2xs cursor-pointer"
+                              title="تقويم سريع"
+                            >
+                              <BoltIcon className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                              <span>تقويم ⚡</span>
+                            </button>
                           </div>
                         </td>
 
@@ -1236,6 +1463,23 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Quick Evaluation Modal */}
+      {isQuickEvalOpen && quickEvalStudentNumber && (
+        <QuickEvaluationModal
+          isOpen={isQuickEvalOpen}
+          onClose={() => setIsQuickEvalOpen(false)}
+          selectedClass={selectedClass}
+          studentNumber={quickEvalStudentNumber}
+          allStudents={filteredStudents.length > 0 ? filteredStudents : students}
+          physicalTests={physicalTests}
+          onSelectStudent={(num) => setQuickEvalStudentNumber(num)}
+          onSaveStudentScores={handleSaveStudentScoresFromModal}
+          initialMode={activeTab === 'team_games' ? 'team_games' : 'gymnastics'}
+          currentSportId={currentSport}
+          currentSportName={activeSportInfo?.labelAr || 'الألعاب الجماعية'}
+        />
       )}
 
       {/* Notification Toast */}

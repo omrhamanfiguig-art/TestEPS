@@ -72,7 +72,7 @@ const findClosestPalier = (vma: number) => {
 };
 
 // Physical test keys
-type PhysicalTestField = 'vma' | 'vitesse30m' | 'vitesse100m' | 'sautHorizontal' | 'sautVertical' | 'lancerMedball' | 'souplesseAssis' | 'souplesseDebout' | 'equilibreStatique' | 'sautLong' | 'lancerPoids' | 'enduranceTemps';
+type PhysicalTestField = 'vma' | 'vitesse30m' | 'vitesse60m' | 'vitesse80m' | 'vitesse100m' | 'sautHorizontal' | 'sautVertical' | 'lancerMedball' | 'souplesseAssis' | 'souplesseDebout' | 'equilibreStatique' | 'sautLong' | 'lancerPoids' | 'enduranceTemps';
 
 export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({ 
     selectedClass, 
@@ -258,9 +258,14 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
             };
             if (selectedStudent && numVal !== undefined && !isNaN(numVal)) {
                 if (field === 'vitesse30m') {
-                    next.scoreVitesse = calculateScore(numVal, getCustomScale('speed'), selectedStudent.sexe || 'M', true);
+                    next.scoreVitesse30m = calculateScore(numVal, getCustomScale('speed'), selectedStudent.sexe || 'M', true);
+                    next.scoreVitesse = next.scoreVitesse30m;
+                } else if (field === 'vitesse60m') {
+                    next.scoreVitesse60m = calculateScore(numVal, getCustomScale('speed-60'), selectedStudent.sexe || 'M', true);
+                } else if (field === 'vitesse80m') {
+                    next.scoreVitesse80m = calculateScore(numVal, getCustomScale('speed-80'), selectedStudent.sexe || 'M', true);
                 } else if (field === 'vitesse100m') {
-                    next.scoreVitesse = calculateScore(numVal, getCustomScale('speed-100'), selectedStudent.sexe || 'M', true);
+                    next.scoreVitesse100m = calculateScore(numVal, getCustomScale('speed-100'), selectedStudent.sexe || 'M', true);
                 } else if (field === 'sautLong') {
                     next.scoreSautLong = calculateScore(numVal, getCustomScale('long-jump'), selectedStudent.sexe || 'M', false);
                 } else if (field === 'lancerPoids') {
@@ -270,10 +275,22 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                 }
             } else {
                 delete next[field];
-                if (field === 'vitesse30m' || field === 'vitesse100m') delete next.scoreVitesse;
-                else if (field === 'sautLong') delete next.scoreSautLong;
-                else if (field === 'lancerPoids') delete next.scoreLancerPoids;
-                else if (field === 'enduranceTemps') delete next.scoreEndurance;
+                if (field === 'vitesse30m') {
+                    delete next.scoreVitesse30m;
+                    delete next.scoreVitesse;
+                } else if (field === 'vitesse60m') {
+                    delete next.scoreVitesse60m;
+                } else if (field === 'vitesse80m') {
+                    delete next.scoreVitesse80m;
+                } else if (field === 'vitesse100m') {
+                    delete next.scoreVitesse100m;
+                } else if (field === 'sautLong') {
+                    delete next.scoreSautLong;
+                } else if (field === 'lancerPoids') {
+                    delete next.scoreLancerPoids;
+                } else if (field === 'enduranceTemps') {
+                    delete next.scoreEndurance;
+                }
             }
             return next;
         });
@@ -380,9 +397,14 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
         if (numVal !== undefined && !isNaN(numVal)) {
             updatedItem[field] = numVal;
             if (field === 'vitesse30m') {
-                updatedItem.scoreVitesse = calculateScore(numVal, getCustomScale('speed'), student.sexe || 'M', true);
+                updatedItem.scoreVitesse30m = calculateScore(numVal, getCustomScale('speed'), student.sexe || 'M', true);
+                updatedItem.scoreVitesse = updatedItem.scoreVitesse30m;
+            } else if (field === 'vitesse60m') {
+                updatedItem.scoreVitesse60m = calculateScore(numVal, getCustomScale('speed-60'), student.sexe || 'M', true);
+            } else if (field === 'vitesse80m') {
+                updatedItem.scoreVitesse80m = calculateScore(numVal, getCustomScale('speed-80'), student.sexe || 'M', true);
             } else if (field === 'vitesse100m') {
-                updatedItem.scoreVitesse = calculateScore(numVal, getCustomScale('speed-100'), student.sexe || 'M', true);
+                updatedItem.scoreVitesse100m = calculateScore(numVal, getCustomScale('speed-100'), student.sexe || 'M', true);
             } else if (field === 'sautLong') {
                 updatedItem.scoreSautLong = calculateScore(numVal, getCustomScale('long-jump'), student.sexe || 'M', false);
             } else if (field === 'lancerPoids') {
@@ -392,10 +414,22 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
             }
         } else {
             delete updatedItem[field];
-            if (field === 'vitesse30m' || field === 'vitesse100m') delete updatedItem.scoreVitesse;
-            else if (field === 'sautLong') delete updatedItem.scoreSautLong;
-            else if (field === 'lancerPoids') delete updatedItem.scoreLancerPoids;
-            else if (field === 'enduranceTemps') delete updatedItem.scoreEndurance;
+            if (field === 'vitesse30m') {
+                delete updatedItem.scoreVitesse30m;
+                delete updatedItem.scoreVitesse;
+            } else if (field === 'vitesse60m') {
+                delete updatedItem.scoreVitesse60m;
+            } else if (field === 'vitesse80m') {
+                delete updatedItem.scoreVitesse80m;
+            } else if (field === 'vitesse100m') {
+                delete updatedItem.scoreVitesse100m;
+            } else if (field === 'sautLong') {
+                delete updatedItem.scoreSautLong;
+            } else if (field === 'lancerPoids') {
+                delete updatedItem.scoreLancerPoids;
+            } else if (field === 'enduranceTemps') {
+                delete updatedItem.scoreEndurance;
+            }
         }
 
         const updatedResults = [...results];

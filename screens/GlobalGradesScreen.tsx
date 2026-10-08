@@ -21,20 +21,24 @@ import {
     RunningManIcon,
     UserGroupIcon,
     CheckCircleIcon,
-    SparklesIcon
+    SparklesIcon,
+    BoltIcon
 } from '../components/Icons';
 import { StudentAvatar } from '../components/StudentAvatar';
+import { QuickEvaluationModal } from '../components/QuickEvaluationModal';
 import { useLanguage } from '../utils/i18n';
 import { getGradingDistribution, calculateBehaviorScore } from '../utils/ScoringConstants';
 
 interface GlobalGradesScreenProps {
   selectedClass: string;
   setSelectedClass: (className: string) => void;
+  onNavigateToScreen?: (screen: any) => void;
 }
 
 export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
   selectedClass,
-  setSelectedClass
+  setSelectedClass,
+  onNavigateToScreen
 }) => {
   const { t, language } = useLanguage();
   const [classList, setClassList] = useState<ClassStats[]>([]);
@@ -48,6 +52,34 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
   // Bulk scoring state
   const [bulkComponent, setBulkComponent] = useState<'motrice' | 'comportement' | 'cognitive'>('comportement');
   const [bulkValue, setBulkValue] = useState<string>('');
+
+  // Quick Evaluation Modal State
+  const [isQuickEvalOpen, setIsQuickEvalOpen] = useState(false);
+  const [quickEvalStudentNumber, setQuickEvalStudentNumber] = useState<string | null>(null);
+
+  const handleOpenQuickEval = (studentNum?: string) => {
+    const target = studentNum || (filteredStudents.length > 0 ? filteredStudents[0].numeroEleve : null);
+    if (target) {
+      setQuickEvalStudentNumber(target);
+      setIsQuickEvalOpen(true);
+    }
+  };
+
+  const handleSaveStudentScoresFromModal = async (updatedTest: PhysicalTests) => {
+    setPhysicalTests(prev => {
+      const existing = prev.find(t => t.numeroEleve === updatedTest.numeroEleve);
+      let updatedList: PhysicalTests[];
+      if (existing) {
+        updatedList = prev.map(t => t.numeroEleve === updatedTest.numeroEleve ? updatedTest : t);
+      } else {
+        updatedList = [...prev, updatedTest];
+      }
+      savePhysicalTests(selectedClass, updatedList).catch(console.error);
+      return updatedList;
+    });
+    setNotification({ message: `تم حفظ نقط التلميذ (${updatedTest.nomEleve || updatedTest.numeroEleve}) بنجاح!`, type: 'success' });
+    setTimeout(() => setNotification(null), 3000);
+  };
 
   const gradingDist = useMemo(() => getGradingDistribution(selectedClass), [selectedClass]);
 
@@ -419,12 +451,32 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
           )}
 
           <button
+            onClick={() => handleOpenQuickEval()}
+            disabled={isLoading || students.length === 0}
+            className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-black rounded-2xl shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2 active:scale-95 cursor-pointer disabled:opacity-50"
+            title="فتح نافذة التقويم السريع ووضع نقطة كاملة وتوزيعها تلقائياً"
+          >
+            <BoltIcon className="w-4 h-4" />
+            <span>التقويم السريع ⚡</span>
+          </button>
+
+          <button
             onClick={handleExportExcel}
             className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2 active:scale-95"
           >
             <ArrowDownTrayIcon className="w-4 h-4" />
             <span>تصدير Excel</span>
           </button>
+
+          {onNavigateToScreen && (
+            <button
+              onClick={() => onNavigateToScreen('massar')}
+              className="px-4 py-2.5 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-black rounded-2xl shadow-sm transition-all flex items-center gap-1.5 active:scale-95"
+              title="الانتقال إلى فضاء ملء لوائح مسار الرسمية بثلاث نقط وتصديرها"
+            >
+              <span>📊 فضاء لوائح مسار</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -559,10 +611,30 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
                         return (
                             <tr key={`${s.numeroEleve}_${idx}`} className="hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors">
                                 <td className="p-3 text-center text-gray-400 font-bold">{idx + 1}</td>
-                                <td className="p-3">
-                                    <div className="flex items-center gap-2">
-                                        <StudentAvatar photoUrl={s.photoUrl} nomEleve={s.nomEleve} sexe={s.sexe} size="xs" />
-                                        <div className="font-bold text-gray-900 dark:text-white break-words">{s.nomEleve}</div>
+                                <td 
+                                    className="p-3 cursor-pointer hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors group"
+                                    onClick={() => handleOpenQuickEval(s.numeroEleve)}
+                                    title="اضغط لفتح نافذة التقويم السريع"
+                                >
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <StudentAvatar photoUrl={s.photoUrl} nomEleve={s.nomEleve} sexe={s.sexe} size="xs" />
+                                            <div className="font-bold text-gray-900 dark:text-white break-words group-hover:text-indigo-600 transition-colors">
+                                                {s.nomEleve}
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleOpenQuickEval(s.numeroEleve);
+                                            }}
+                                            className="px-2 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition active:scale-95 text-[9px] font-black flex items-center gap-1 shadow-2xs shrink-0 cursor-pointer"
+                                            title="تقويم سريع"
+                                        >
+                                            <BoltIcon className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                                            <span>تقويم ⚡</span>
+                                        </button>
                                     </div>
                                 </td>
                                 <td className="p-2 text-center font-bold text-gray-500">{test?.vma || '-'}</td>
@@ -642,6 +714,22 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
               <p className="mt-2">يتم حساب المعدل النهائي بجمع هذه العناصر الثلاثة (المجموع على 20). يمكنك رصد هذه النقط مباشرة هنا وتصديرها بصيغة Excel.</p>
           </div>
       </div>
+
+      {/* Quick Evaluation Modal */}
+      {isQuickEvalOpen && quickEvalStudentNumber && (
+        <QuickEvaluationModal
+          isOpen={isQuickEvalOpen}
+          onClose={() => setIsQuickEvalOpen(false)}
+          selectedClass={selectedClass}
+          studentNumber={quickEvalStudentNumber}
+          allStudents={filteredStudents.length > 0 ? filteredStudents : students}
+          physicalTests={physicalTests}
+          onSelectStudent={(num) => setQuickEvalStudentNumber(num)}
+          onSaveStudentScores={handleSaveStudentScoresFromModal}
+          initialMode="global"
+          currentSportName="المحضر الإجمالي"
+        />
+      )}
 
       {/* Notification */}
       {notification && (

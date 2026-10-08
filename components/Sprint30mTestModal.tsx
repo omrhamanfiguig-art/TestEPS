@@ -110,7 +110,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
           field: 'vitesse60m' as const,
           distanceMeters: 60,
           scale: SPEED_SCALE_60M,
-          scoreField: 'scoreVitesse' as const,
+          scoreField: 'scoreVitesse60m' as const,
           isMinutes: false
         };
       case 'speed-80':
@@ -122,7 +122,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
           field: 'vitesse80m' as const,
           distanceMeters: 80,
           scale: SPEED_SCALE_80M,
-          scoreField: 'scoreVitesse' as const,
+          scoreField: 'scoreVitesse80m' as const,
           isMinutes: false
         };
       case 'speed-100':
@@ -134,7 +134,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
           field: 'vitesse100m' as const,
           distanceMeters: 100,
           scale: SPEED_SCALE_100M,
-          scoreField: 'scoreVitesse' as const,
+          scoreField: 'scoreVitesse100m' as const,
           isMinutes: false
         };
       case 'endurance':
@@ -171,7 +171,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
           field: 'vitesse30m' as const,
           distanceMeters: 30,
           scale: SPEED_SCALE_30M,
-          scoreField: 'scoreVitesse' as const,
+          scoreField: 'scoreVitesse30m' as const,
           isMinutes: false
         };
     }
@@ -407,6 +407,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
         sexe: studentObj.sexe,
         [raceConfig.field]: runner.recordedTime,
         [raceConfig.scoreField]: mark,
+        ...(raceConfig.scoreField === 'scoreVitesse30m' ? { scoreVitesse: mark } : {}),
         date: new Date().toISOString()
       };
 
@@ -434,6 +435,9 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
         const copy: any = { ...p };
         delete copy[raceConfig.field];
         delete copy[raceConfig.scoreField];
+        if (raceConfig.scoreField === 'scoreVitesse30m') {
+          delete copy.scoreVitesse;
+        }
         return copy as PhysicalTests;
       }
       return p;
@@ -475,6 +479,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
       sexe: studentObj?.sexe,
       [raceConfig.field]: timeSec,
       [raceConfig.scoreField]: mark,
+      ...(raceConfig.scoreField === 'scoreVitesse30m' ? { scoreVitesse: mark } : {}),
       date: new Date().toISOString()
     };
 
@@ -689,7 +694,10 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
       .map(s => {
         const res = physicalResults.find(r => String(r.numeroEleve) === String(s.numeroEleve));
         const val = (res as any)?.[raceConfig.field];
-        const score = (res as any)?.[raceConfig.scoreField];
+        let score = (res as any)?.[raceConfig.scoreField];
+        if (score === undefined && raceConfig.scoreField === 'scoreVitesse30m') {
+          score = res?.scoreVitesse;
+        }
         return {
           student: s,
           timeSec: val as number | undefined,

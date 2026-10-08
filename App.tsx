@@ -5,6 +5,7 @@ import { PhysicalTestsScreen } from './screens/PhysicalTestsScreen';
 import { AthleticsScreen } from './screens/AthleticsScreen';
 import { TeamGamesScreen } from './screens/TeamGamesScreen';
 import { GlobalGradesScreen } from './screens/GlobalGradesScreen';
+import { MassarScreen } from './screens/MassarScreen';
 import { TextbookScreen } from './screens/TextbookScreen';
 import { TalentScreen } from './screens/TalentScreen';
 import { BiometricMeasurementsScreen } from './screens/BiometricMeasurementsScreen';
@@ -163,6 +164,14 @@ const MainLayout: React.FC = () => {
 
           {activeScreen === 'global-grades' && (
             <GlobalGradesScreen
+              selectedClass={selectedClass}
+              setSelectedClass={setSelectedClass}
+              onNavigateToScreen={setActiveScreen}
+            />
+          )}
+
+          {activeScreen === 'massar' && (
+            <MassarScreen
               selectedClass={selectedClass}
               setSelectedClass={setSelectedClass}
             />

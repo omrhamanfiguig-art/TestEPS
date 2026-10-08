@@ -32,6 +32,7 @@ export type ActiveScreen =
   | 'athletics'
   | 'team-games'
   | 'global-grades'
+  | 'massar'
   | 'textbook'
   | 'talent'
   | 'attendance'
@@ -107,6 +108,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: t.navGlobalGrades,
       icon: <TableCellsIcon className="w-5 h-5" />,
       badge: language === 'ar' ? 'نقط' : 'Notes'
+    },
+    {
+      id: 'massar' as ActiveScreen,
+      label: language === 'ar' ? 'فضاء لوائح مسار' : 'Fiches Massar EPS',
+      icon: <DocumentTextIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />,
+      badge: language === 'ar' ? 'مسار' : 'Massar'
     },
     {
       id: 'talent' as ActiveScreen,

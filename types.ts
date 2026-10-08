@@ -16,6 +16,8 @@ export interface StudentIdentity {
   sexe?: 'M' | 'F';
   photoUrl?: string; // base64 or URL
   orderIndex?: number;
+  codeMassar?: string;
+  dateNaissance?: string;
 }
 
 export interface StudentResult {
@@ -64,7 +66,11 @@ export interface PhysicalTests {
   vitesseDist?: number;
   enduranceDist?: number;
   enduranceTemps?: number;
-  scoreVitesse?: number;
+  scoreVitesse?: number; // legacy general or 30m
+  scoreVitesse30m?: number; // نقطة سباق 30 م مستقلة
+  scoreVitesse60m?: number; // نقطة سباق 60 م مستقلة
+  scoreVitesse80m?: number; // نقطة سباق 80 م مستقلة
+  scoreVitesse100m?: number; // نقطة سباق 100 م مستقلة
   scoreEndurance?: number;
   scoreRelay?: number;
   scoreSautLong?: number;
@@ -93,6 +99,9 @@ export interface PhysicalTests {
   sportColCollectif?: number; // اللعب الجماعي (المتبقي من الحركي: 1AC=8, 2AC=7, 3AC=6)
   sportColComportement?: number; // الجانب السلوكي للألعاب الجماعية
   sportColCognitive?: number; // الجانب المعرفي للألعاب الجماعية
+
+  // Independent evaluations per specific sport / activity (e.g. basketball, handball, football, etc.)
+  sportActivities?: Record<string, SportActivityEvaluation>;
 
   // Gymnastique (الجمباز) specific scoring fields (Moroccan standards)
   gymDiffCountA?: number; // عدد صعوبات أ المنجزة
@@ -240,6 +249,73 @@ export interface AssociationReport {
   period: string;
   imageUrl?: string;
   createdAt: string;
+}
+
+// Independent sport evaluation for team games & specific activities
+export interface SportActivityEvaluation {
+  sportId: string;
+  sportName?: string;
+  techIndiv?: number; // التقنية الفردية (أقصى 6)
+  collectif?: number; // اللعب الجماعي (المتبقي من الحركي)
+  motrice?: number; // مجموع الحركي
+  comportement?: number; // الجانب السلوكي
+  cognitive?: number; // الجانب المعرفي
+  totalScore?: number; // النقطة الإجمالية من 20
+  observation?: string; // ملاحظات بيداغوجية
+  date?: string;
+}
+
+// Massar (مسار) types
+export type MassarActivityKey =
+  | 'sport_collectif'
+  | 'football'
+  | 'basketball'
+  | 'handball'
+  | 'volleyball'
+  | 'rugby'
+  | 'gymnastique'
+  | 'vitesse'
+  | 'vitesse_30m'
+  | 'vitesse_60m'
+  | 'vitesse_80m'
+  | 'vitesse_100m'
+  | 'endurance'
+  | 'saut_long'
+  | 'lancer_poids'
+  | 'lancer_medball'
+  | 'saut_vertical'
+  | 'souplesse'
+  | 'global_general';
+
+export interface MassarGradeRecord {
+  numeroEleve: string;
+  codeMassar?: string;
+  nomEleve: string;
+  sexe?: 'M' | 'F';
+  dateNaissance?: string;
+  noteDevoir1: number | null; // الفرض 1 (/20)
+  noteDevoir2: number | null; // الفرض 2 (/20)
+  noteDevoir3: number | null; // الفرض 3 (/20)
+  isDispense?: boolean;       // معفى طبياً
+  isAbsent?: boolean;         // غائب
+  remarque?: string;          // ملاحظات الأستاذ
+}
+
+export interface MassarClassConfig {
+  className: string;
+  activity1: MassarActivityKey;
+  activity2: MassarActivityKey;
+  activity3: MassarActivityKey;
+  activity1CustomLabel?: string;
+  activity2CustomLabel?: string;
+  activity3CustomLabel?: string;
+  semestre: '1' | '2';
+  schoolYear: string;
+  schoolName?: string;
+  direction?: string;
+  academie?: string;
+  teacherName?: string;
+  rounding: 'none' | '0.25' | '0.5' | '1';
 }
 
 
