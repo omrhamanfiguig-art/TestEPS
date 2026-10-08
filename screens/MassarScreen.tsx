@@ -578,32 +578,32 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
             </p>
           </div>
 
-          {/* Quick Preset Buttons */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-gray-500 dark:text-gray-400 font-bold">قوالب جاهزة:</span>
+          {/* Quick Preset Buttons - Centered on mobile */}
+          <div className="flex items-center justify-center md:justify-start gap-1.5 flex-wrap">
+            <span className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400 font-bold">قوالب جاهزة:</span>
             <button
               onClick={() => handleApplyPreset('sport_collectif', 'gymnastique', 'vitesse_30m', 'ألعاب جماعية + جمباز + سرعة 30م')}
-              className="px-2.5 py-1 rounded-xl bg-white dark:bg-gray-700 hover:bg-indigo-50 text-xs font-bold text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 transition"
+              className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-xl bg-white dark:bg-gray-700 hover:bg-indigo-50 text-[10px] sm:text-xs font-bold text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 transition"
             >
-              ⚽ ألعاب جماعية + 🤸 جمباز + ⚡ سرعة 30م
+              ⚽ جماعية + 🤸 جمباز + ⚡ 30م
             </button>
             <button
               onClick={() => handleApplyPreset('sport_collectif', 'gymnastique', 'vitesse_60m', 'ألعاب جماعية + جمباز + سرعة 60م')}
-              className="px-2.5 py-1 rounded-xl bg-white dark:bg-gray-700 hover:bg-indigo-50 text-xs font-bold text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 transition"
+              className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-xl bg-white dark:bg-gray-700 hover:bg-indigo-50 text-[10px] sm:text-xs font-bold text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 transition"
             >
-              ⚽ ألعاب جماعية + 🤸 جمباز + ⚡ سرعة 60م
+              ⚽ جماعية + 🤸 جمباز + ⚡ 60م
             </button>
             <button
               onClick={() => handleApplyPreset('vitesse_30m', 'saut_long', 'sport_collectif', 'سرعة 30م + وثب + ألعاب جماعية')}
-              className="px-2.5 py-1 rounded-xl bg-white dark:bg-gray-700 hover:bg-indigo-50 text-xs font-bold text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 transition"
+              className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-xl bg-white dark:bg-gray-700 hover:bg-indigo-50 text-[10px] sm:text-xs font-bold text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 transition"
             >
-              ⚡ سرعة 30م + 🦘 وثب + ⚽ ألعاب
+              ⚡ 30م + 🦘 وثب + ⚽ ألعاب
             </button>
             <button
               onClick={() => handleApplyPreset('endurance', 'gymnastique', 'sport_collectif', 'VMA + جمباز + ألعاب جماعية')}
-              className="px-2.5 py-1 rounded-xl bg-white dark:bg-gray-700 hover:bg-indigo-50 text-xs font-bold text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 transition"
+              className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-xl bg-white dark:bg-gray-700 hover:bg-indigo-50 text-[10px] sm:text-xs font-bold text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 transition"
             >
-              🏃 التحمل/VMA + 🤸 جمباز + ⚽ ألعاب
+              🏃 VMA + 🤸 جمباز + ⚽ ألعاب
             </button>
           </div>
         </div>
@@ -713,57 +713,57 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
           </div>
         </div>
 
-        {/* Auto Fill Button */}
-        <div className="mt-4 flex items-center justify-end">
+        {/* Auto Fill Button - Centered on mobile */}
+        <div className="mt-4 flex items-center justify-center sm:justify-end">
           <button
             onClick={handleAutoPopulate}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-black text-sm shadow-md shadow-indigo-500/25 active:scale-95 transition"
+            className="flex items-center justify-center gap-1.5 px-4 py-2 sm:px-5 sm:py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-black text-xs sm:text-sm shadow-md shadow-indigo-500/25 active:scale-95 transition cursor-pointer w-full sm:w-auto"
           >
-            <BoltIcon className="w-5 h-5 text-amber-300" />
-            <span>ملء تلقائي لنقط الفروض الثلاثة من الأنشطة المختارة ⚡</span>
+            <BoltIcon className="w-4 h-4 text-amber-300 shrink-0" />
+            <span>ملء تلقائي لنقط الفروض الثلاثة ⚡</span>
           </button>
         </div>
       </div>
 
-      {/* Action Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xs">
-        <div className="flex items-center gap-2 flex-wrap">
+      {/* Action Toolbar - Centered Dock on Mobile */}
+      <div className="flex flex-col sm:flex-row flex-wrap items-center justify-between gap-2.5 bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xs">
+        <div className="flex items-center justify-center gap-1.5 sm:gap-2 flex-wrap w-full sm:w-auto">
           {/* Import Empty Massar Excel */}
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 text-sm font-bold transition active:scale-95 shadow-xs"
+            className="inline-flex items-center justify-center gap-1 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 text-[11px] sm:text-xs font-bold transition active:scale-95 shadow-xs cursor-pointer"
           >
-            <ArrowUpTrayIcon />
-            <span>استيراد ورقة مسار فارغة (Excel) 📥</span>
+            <ArrowUpTrayIcon className="w-3.5 h-3.5 shrink-0" />
+            <span>استيراد ورقة مسار</span>
           </button>
 
           {/* Export Filled Massar Excel */}
           <button
             onClick={handleExportMassar}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black transition active:scale-95 shadow-md shadow-emerald-600/25"
+            className="inline-flex items-center justify-center gap-1 px-3 py-1.5 sm:px-5 sm:py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] sm:text-xs font-black transition active:scale-95 shadow-xs shadow-emerald-600/25 cursor-pointer"
           >
-            <ExcelIcon className="w-5 h-5" />
-            <span>تصدير ورقة مسار المملوءة للإرسال للموقع 📤</span>
+            <ExcelIcon className="w-3.5 h-3.5 shrink-0" />
+            <span>تصدير لمسار</span>
           </button>
 
           {/* Download Blank Template */}
           <button
             onClick={handleDownloadBlankTemplate}
-            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-xs font-bold transition"
+            className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-[11px] sm:text-xs font-bold transition cursor-pointer"
             title="تحميل نموذج مسار فارغ للقسم"
           >
-            <ArrowDownTrayIcon />
+            <ArrowDownTrayIcon className="w-3.5 h-3.5 shrink-0" />
             <span>نموذج فارغ</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-center gap-2 w-full sm:w-auto">
           {/* Printable Sheet */}
           <button
             onClick={handlePrint}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-bold transition"
+            className="inline-flex items-center justify-center gap-1 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-[11px] sm:text-xs font-bold transition cursor-pointer"
           >
-            <PrinterIcon className="w-4 h-4" />
+            <PrinterIcon className="w-3.5 h-3.5 shrink-0" />
             <span>طباعة المحضر</span>
           </button>
         </div>

@@ -222,28 +222,43 @@ export const SPEED_SCALE_100M: ScoringScale[] = [
 ];
 
 export const calculateScore = (value: number, scale: ScoringScale[], gender: 'M' | 'F' = 'M', lowerIsBetter: boolean = true): number => {
+  if (value === undefined || value === null || isNaN(Number(value))) return 0;
+  const numValue = Number(value);
+  if (numValue <= 0) return 0;
+  if (!scale || !Array.isArray(scale) || scale.length === 0) return 0;
+
   const genderScale = scale.find(s => s.gender === gender) || scale[0];
-  const sorted = [...genderScale.thresholds].sort((a, b) => lowerIsBetter ? a.value - b.value : b.value - a.value);
+  if (!genderScale || !Array.isArray(genderScale.thresholds) || genderScale.thresholds.length === 0) return 0;
+
+  const validThresholds = genderScale.thresholds.filter(t => t && typeof t.value === 'number' && !isNaN(t.value) && typeof t.score === 'number' && !isNaN(t.score));
+  if (validThresholds.length === 0) return 0;
+
+  const sorted = [...validThresholds].sort((a, b) => lowerIsBetter ? a.value - b.value : b.value - a.value);
   
   if (lowerIsBetter) {
-    if (value <= sorted[0].value) return sorted[0].score;
-    if (value >= sorted[sorted.length - 1].value) return sorted[sorted.length - 1].score;
+    if (numValue <= sorted[0].value) return sorted[0].score;
+    if (numValue >= sorted[sorted.length - 1].value) return sorted[sorted.length - 1].score;
     
     for (let i = 0; i < sorted.length - 1; i++) {
-      if (value >= sorted[i].value && value <= sorted[i+1].value) {
-        // Linear interpolation or closest? Let's do linear for smoothness
-        const ratio = (value - sorted[i].value) / (sorted[i+1].value - sorted[i].value);
-        return parseFloat((sorted[i].score - ratio * (sorted[i].score - sorted[i+1].score)).toFixed(1));
+      if (numValue >= sorted[i].value && numValue <= sorted[i+1].value) {
+        const diff = sorted[i+1].value - sorted[i].value;
+        if (diff === 0) return sorted[i].score;
+        const ratio = (numValue - sorted[i].value) / diff;
+        const res = parseFloat((sorted[i].score - ratio * (sorted[i].score - sorted[i+1].score)).toFixed(1));
+        return isNaN(res) ? 0 : Math.max(0, Math.min(20, res));
       }
     }
   } else {
-    if (value >= sorted[0].value) return sorted[0].score;
-    if (value <= sorted[sorted.length - 1].value) return sorted[sorted.length - 1].score;
+    if (numValue >= sorted[0].value) return sorted[0].score;
+    if (numValue <= sorted[sorted.length - 1].value) return sorted[sorted.length - 1].score;
     
     for (let i = 0; i < sorted.length - 1; i++) {
-      if (value <= sorted[i].value && value >= sorted[i+1].value) {
-        const ratio = (sorted[i].value - value) / (sorted[i].value - sorted[i+1].value);
-        return parseFloat((sorted[i].score - ratio * (sorted[i].score - sorted[i+1].score)).toFixed(1));
+      if (numValue <= sorted[i].value && numValue >= sorted[i+1].value) {
+        const diff = sorted[i].value - sorted[i+1].value;
+        if (diff === 0) return sorted[i].score;
+        const ratio = (sorted[i].value - numValue) / diff;
+        const res = parseFloat((sorted[i].score - ratio * (sorted[i].score - sorted[i+1].score)).toFixed(1));
+        return isNaN(res) ? 0 : Math.max(0, Math.min(20, res));
       }
     }
   }

@@ -320,52 +320,54 @@ export const BiometricMeasurementsScreen: React.FC<BiometricMeasurementsScreenPr
                         </div>
                     </div>
 
-                    <div className="flex items-center bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+                    <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 w-full lg:w-auto bg-gray-50/70 dark:bg-gray-900/40 p-1.5 rounded-2xl border border-gray-200/80 dark:border-gray-700/60 shadow-2xs">
+                        <div className="flex items-center bg-gray-200/80 dark:bg-gray-700 p-0.5 sm:p-1 rounded-xl">
+                            <button
+                                onClick={() => setViewMode('table')}
+                                className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                                    viewMode === 'table' ? 'bg-white dark:bg-gray-800 text-emerald-600 shadow-xs' : 'text-gray-600 dark:text-gray-300'
+                                }`}
+                            >
+                                <ListBulletIcon className="w-3.5 h-3.5" />
+                                <span>{t.quickTableMode}</span>
+                            </button>
+                            <button
+                                onClick={() => setViewMode('cards')}
+                                className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                                    viewMode === 'cards' ? 'bg-white dark:bg-gray-800 text-emerald-600 shadow-xs' : 'text-gray-600 dark:text-gray-300'
+                                }`}
+                            >
+                                <RulerIcon className="w-3.5 h-3.5" />
+                                <span>{t.individualMode}</span>
+                            </button>
+                        </div>
+
+                        {isSaving && (
+                            <div className="flex items-center gap-1 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-100 dark:border-emerald-800">
+                                <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
+                                <span className="text-[10px] font-bold">جاري الحفظ...</span>
+                            </div>
+                        )}
+
+                        {viewMode === 'table' && (
+                            <button
+                                onClick={handleSaveAll}
+                                className="inline-flex items-center justify-center gap-1 px-3 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-emerald-600 hover:bg-emerald-700 transition active:scale-95 cursor-pointer"
+                            >
+                                <SaveIcon className="w-3.5 h-3.5 shrink-0" />
+                                <span>{t.save}</span>
+                            </button>
+                        )}
+
                         <button
-                            onClick={() => setViewMode('table')}
-                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1.5 ${
-                                viewMode === 'table' ? 'bg-white dark:bg-gray-800 text-emerald-600 shadow-sm' : 'text-gray-600 dark:text-gray-300'
-                            }`}
+                            onClick={handleExportMeasurements}
+                            disabled={studentList.length === 0}
+                            className="inline-flex items-center justify-center gap-1 px-3 py-1.5 sm:px-3.5 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 transition active:scale-95 cursor-pointer shadow-xs"
                         >
-                            <ListBulletIcon />
-                            <span>{t.quickTableMode}</span>
-                        </button>
-                        <button
-                            onClick={() => setViewMode('cards')}
-                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1.5 ${
-                                viewMode === 'cards' ? 'bg-white dark:bg-gray-800 text-emerald-600 shadow-sm' : 'text-gray-600 dark:text-gray-300'
-                            }`}
-                        >
-                            <RulerIcon />
-                            <span>{t.individualMode}</span>
+                            <ArrowDownTrayIcon className="w-3.5 h-3.5 shrink-0" />
+                            <span>{t.export}</span>
                         </button>
                     </div>
-
-                    {isSaving && (
-                        <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-lg border border-emerald-100 dark:border-emerald-800">
-                            <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
-                            <span className="text-[10px] font-bold ps-1 pe-1">جاري الحفظ تلقائياً...</span>
-                        </div>
-                    )}
-
-                    {viewMode === 'table' && (
-                        <button
-                            onClick={handleSaveAll}
-                            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 transition"
-                        >
-                            <SaveIcon />
-                            <span>{t.save}</span>
-                        </button>
-                    )}
-
-                    <button
-                        onClick={handleExportMeasurements}
-                        disabled={studentList.length === 0}
-                        className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 transition"
-                    >
-                        <ArrowDownTrayIcon />
-                        <span>{t.export}</span>
-                    </button>
                 </div>
             </div>
 

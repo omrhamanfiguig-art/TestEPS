@@ -309,7 +309,9 @@ export const TalentScreen: React.FC<TalentScreenProps> = ({
           } else {
             // Min-Max percent normalization (0-20 pts)
             const minMax = minMaxMap[mKey];
-            const range = minMax.max - minMax.min;
+            const range = (minMax && typeof minMax.max === 'number' && typeof minMax.min === 'number')
+              ? minMax.max - minMax.min
+              : 0;
             if (range > 0) {
               if (cfg?.lowerIsBetter) {
                 // Lower is better (e.g. Heart rate)
@@ -332,6 +334,7 @@ export const TalentScreen: React.FC<TalentScreenProps> = ({
             else formattedMetricVals[mKey] = `${val}`;
           }
 
+          pts = (typeof pts === 'number' && !isNaN(pts)) ? Math.max(0, Math.min(20, pts)) : 0;
           totalPts += pts;
         } else {
           formattedMetricVals[mKey] = '-';
@@ -339,8 +342,12 @@ export const TalentScreen: React.FC<TalentScreenProps> = ({
       });
 
       // Composite Score Out of 20
-      const averageScoreOut20 = evaluatedCount > 0 ? Number((totalPts / evaluatedCount).toFixed(2)) : 0;
-      const scorePercent = Number(((averageScoreOut20 / 20) * 100).toFixed(1));
+      const calcAvg = (evaluatedCount > 0 && typeof totalPts === 'number' && !isNaN(totalPts))
+        ? Number((totalPts / evaluatedCount).toFixed(2))
+        : 0;
+      const averageScoreOut20 = (typeof calcAvg === 'number' && !isNaN(calcAvg)) ? calcAvg : 0;
+      const calcPercent = Number(((averageScoreOut20 / 20) * 100).toFixed(1));
+      const scorePercent = (typeof calcPercent === 'number' && !isNaN(calcPercent)) ? calcPercent : 0;
 
       // Determine Talent Badge Tag
       let badge = 'مستوى مقبول';
@@ -450,55 +457,55 @@ export const TalentScreen: React.FC<TalentScreenProps> = ({
 
           <button
             onClick={handleExportExcel}
-            className="px-6 py-3.5 bg-white text-indigo-950 font-black rounded-2xl shadow-lg hover:bg-amber-100 active:scale-95 transition flex items-center gap-2 text-sm shrink-0 border border-amber-200"
+            className="px-4 py-2.5 sm:px-6 sm:py-3.5 bg-white text-indigo-950 font-black rounded-2xl shadow-lg hover:bg-amber-100 active:scale-95 transition inline-flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm shrink-0 border border-amber-200 w-full sm:w-auto cursor-pointer"
           >
-            <ArrowDownTrayIcon className="w-5 h-5 text-indigo-600" />
+            <ArrowDownTrayIcon className="w-4 h-4 text-indigo-600 shrink-0" />
             <span>تصدير النتائج (Excel)</span>
           </button>
         </div>
       </div>
 
-      {/* Filter and Control Bar */}
-      <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-lg p-5 border border-gray-100 dark:border-gray-700 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+      {/* Filter and Control Bar - Centered on Mobile */}
+      <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-lg p-4 sm:p-5 border border-gray-100 dark:border-gray-700 flex flex-col lg:flex-row items-center justify-between gap-3 sm:gap-4">
         {/* Analysis Mode Toggle */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">
+        <div className="flex flex-wrap items-center justify-center gap-2 w-full lg:w-auto">
+          <span className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">
             نموذج التحليل:
           </span>
-          <div className="flex items-center bg-gray-100 dark:bg-gray-700 p-1 rounded-2xl border border-gray-200 dark:border-gray-600">
+          <div className="flex items-center justify-center bg-gray-100 dark:bg-gray-700 p-1 rounded-2xl border border-gray-200 dark:border-gray-600 shadow-2xs">
             <button
               onClick={() => {
                 setAnalysisMode('single');
                 if (selectedMetrics.length > 1) setSelectedMetrics([selectedMetrics[0]]);
               }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition cursor-pointer ${
                 analysisMode === 'single'
                   ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
                   : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
               }`}
             >
-              📊 تحليل اختبار فردي واحد
+              📊 اختبار فردي
             </button>
             <button
               onClick={() => setAnalysisMode('multi')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition cursor-pointer ${
                 analysisMode === 'multi'
                   ? 'bg-amber-500 text-white shadow-xs'
                   : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
               }`}
             >
-              ⭐ مجمع أكثر من اختبار (3 أو 4+)
+              ⭐ مجمع (3 أو 4+)
             </button>
           </div>
         </div>
 
         {/* Class / Level Selector */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center justify-center lg:justify-end gap-2 sm:gap-3 w-full lg:w-auto">
           <div className="relative">
             <select
               value={filterClass}
               onChange={(e) => setFilterClass(e.target.value)}
-              className="appearance-none bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3.5 py-2 pe-8 text-xs font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+              className="appearance-none bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-1.5 pe-8 text-xs font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
             >
               <option value="ALL">جميع الأقسام (الكل)</option>
               {academicLevels.map(lvl => (
@@ -514,8 +521,8 @@ export const TalentScreen: React.FC<TalentScreenProps> = ({
                 ))}
               </optgroup>
             </select>
-            <div className="absolute end-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-              <ChevronDownIcon className="w-4 h-4" />
+            <div className="absolute end-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+              <ChevronDownIcon className="w-3.5 h-3.5" />
             </div>
           </div>
 
@@ -523,7 +530,7 @@ export const TalentScreen: React.FC<TalentScreenProps> = ({
           <div className="flex items-center bg-gray-100 dark:bg-gray-700 p-1 rounded-xl border border-gray-200 dark:border-gray-600">
             <button
               onClick={() => setGenderFilter('all')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                 genderFilter === 'all'
                   ? 'bg-indigo-600 text-white'
                   : 'text-gray-600 dark:text-gray-300'
@@ -533,7 +540,7 @@ export const TalentScreen: React.FC<TalentScreenProps> = ({
             </button>
             <button
               onClick={() => setGenderFilter('M')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                 genderFilter === 'M'
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-600 dark:text-gray-300'
@@ -543,7 +550,7 @@ export const TalentScreen: React.FC<TalentScreenProps> = ({
             </button>
             <button
               onClick={() => setGenderFilter('F')}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                 genderFilter === 'F'
                   ? 'bg-pink-600 text-white'
                   : 'text-gray-600 dark:text-gray-300'
@@ -560,14 +567,14 @@ export const TalentScreen: React.FC<TalentScreenProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="بحث بالاسم..."
-              className="text-xs px-3.5 py-2 pe-7 rounded-xl border border-gray-300 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-36 sm:w-44"
+              className="text-xs px-3 py-1.5 pe-7 rounded-xl border border-gray-300 dark:bg-gray-700 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-32 sm:w-40"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
                 className="absolute inset-y-0 end-0 pe-2 flex items-center text-gray-400 hover:text-gray-600"
               >
-                <XMarkIcon className="w-4 h-4" />
+                <XMarkIcon className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -585,23 +592,23 @@ export const TalentScreen: React.FC<TalentScreenProps> = ({
           </div>
 
           {analysisMode === 'multi' && (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center justify-center sm:justify-end gap-1.5 sm:gap-2">
               <span className="text-xs text-indigo-300 font-bold">اختيار سريع:</span>
               <button
                 onClick={selectPresetPhysicalFour}
-                className="px-3 py-1.5 rounded-xl bg-indigo-800 hover:bg-indigo-700 text-white text-xs font-bold border border-indigo-600 transition flex items-center gap-1"
+                className="px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-indigo-800 hover:bg-indigo-700 text-white text-[11px] sm:text-xs font-bold border border-indigo-600 transition flex items-center gap-1 cursor-pointer"
               >
                 <span>⭐ 4 اختبارات بدنية</span>
               </button>
               <button
                 onClick={selectPresetPhysicalAndAnthrop}
-                className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-xs transition flex items-center gap-1"
+                className="px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-[11px] sm:text-xs font-bold shadow-xs transition flex items-center gap-1 cursor-pointer"
               >
                 <span>⭐ بدنية + أنثروبومترية</span>
               </button>
               <button
                 onClick={selectPresetAll12}
-                className="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold transition flex items-center gap-1"
+                className="px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-[11px] sm:text-xs font-bold transition flex items-center gap-1 cursor-pointer"
               >
                 <span>🎯 شامل للكل (12 قياساً)</span>
               </button>
@@ -692,7 +699,7 @@ export const TalentScreen: React.FC<TalentScreenProps> = ({
             <h3 className="font-black text-sm text-gray-900 dark:text-white mt-2 truncate w-full">{top2.student.nomEleve}</h3>
             <span className="text-xs text-indigo-600 dark:text-indigo-400 font-bold">{top2.className}</span>
             <div className="mt-3 px-4 py-1.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 text-slate-800 dark:text-slate-200 font-black text-lg border border-slate-200">
-              {top2.averageScoreOut20} / 20 <span className="text-xs font-bold text-gray-500">({top2.scorePercent}%)</span>
+              {top2.averageScoreOut20 ?? 0} / 20 <span className="text-xs font-bold text-gray-500">({top2.scorePercent ?? 0}%)</span>
             </div>
           </div>
 
@@ -707,7 +714,7 @@ export const TalentScreen: React.FC<TalentScreenProps> = ({
             <h3 className="font-black text-base text-gray-900 dark:text-white mt-2 truncate w-full">{top1.student.nomEleve}</h3>
             <span className="text-xs text-amber-800 dark:text-amber-300 font-bold">{top1.className}</span>
             <div className="mt-3 px-5 py-2 rounded-2xl bg-amber-400 text-amber-950 font-black text-xl shadow-md">
-              {top1.averageScoreOut20} / 20 <span className="text-xs text-amber-900">({top1.scorePercent}%)</span>
+              {top1.averageScoreOut20 ?? 0} / 20 <span className="text-xs text-amber-900">({top1.scorePercent ?? 0}%)</span>
             </div>
             <span className="mt-2 text-[11px] font-extrabold px-3 py-0.5 rounded-full bg-amber-200 text-amber-900">
               {top1.badge}
@@ -723,7 +730,7 @@ export const TalentScreen: React.FC<TalentScreenProps> = ({
             <h3 className="font-black text-sm text-gray-900 dark:text-white mt-2 truncate w-full">{top3.student.nomEleve}</h3>
             <span className="text-xs text-indigo-600 dark:text-indigo-400 font-bold">{top3.className}</span>
             <div className="mt-3 px-4 py-1.5 rounded-2xl bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 font-black text-lg border border-amber-200">
-              {top3.averageScoreOut20} / 20 <span className="text-xs font-bold text-gray-500">({top3.scorePercent}%)</span>
+              {top3.averageScoreOut20 ?? 0} / 20 <span className="text-xs font-bold text-gray-500">({top3.scorePercent ?? 0}%)</span>
             </div>
           </div>
         </div>
@@ -804,7 +811,7 @@ export const TalentScreen: React.FC<TalentScreenProps> = ({
                   ))}
 
                   <td className="p-3 font-mono font-black text-sm text-indigo-700 dark:text-indigo-300 bg-amber-50/50 dark:bg-amber-950/20">
-                    {item.averageScoreOut20} <span className="text-[11px] font-normal text-gray-400">({item.scorePercent}%)</span>
+                    {item.averageScoreOut20 ?? 0} <span className="text-[11px] font-normal text-gray-400">({item.scorePercent ?? 0}%)</span>
                   </td>
 
                   <td className="p-3">

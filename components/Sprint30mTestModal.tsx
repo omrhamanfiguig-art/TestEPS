@@ -1006,7 +1006,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                                   ({runner.speedKmH} كم/س)
                                 </span>
                               )}
-                              {runner.score !== undefined && (
+                              {typeof runner.score === 'number' && !isNaN(runner.score) && (
                                 <span className="text-xs font-black text-amber-600 dark:text-amber-400 bg-white/70 dark:bg-gray-800 px-2 py-0.5 rounded-lg border border-amber-300/60">
                                   {runner.score}/20
                                 </span>
@@ -1235,7 +1235,7 @@ export const Sprint30mTestModal: React.FC<Sprint30mTestModalProps> = ({
                             {speedKmH}
                           </td>
                           <td className="p-2 font-bold text-amber-600 dark:text-amber-400">
-                            {score !== undefined ? `${score}/20` : '-'}
+                            {typeof score === 'number' && !isNaN(score) ? `${score}/20` : '-'}
                           </td>
                           <td className="p-2">
                             <button

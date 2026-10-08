@@ -694,15 +694,15 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
         </div>
 
         {/* Top Controls: Teacher, Level, Class Select & Side-by-Side Actions */}
-        <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5 w-full lg:w-auto">
+        <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center lg:justify-end gap-2.5 w-full lg:w-auto">
           {/* Teacher Filter Dropdown */}
           {teacherProfiles.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600">
-              <span className="text-xs font-bold text-gray-500 dark:text-gray-400 ps-1.5">الأستاذ:</span>
+            <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600">
+              <span className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 ps-1.5">الأستاذ:</span>
               <select
                 value={teacherFilter}
                 onChange={(e) => setTeacherFilter(e.target.value)}
-                className="bg-white dark:bg-gray-800 border-none font-bold text-xs text-gray-900 dark:text-white rounded-xl px-2.5 py-1.5 focus:ring-0 shadow-xs cursor-pointer w-full sm:w-auto"
+                className="bg-white dark:bg-gray-800 border-none font-bold text-[11px] sm:text-xs text-gray-900 dark:text-white rounded-xl px-2 py-1 focus:ring-0 shadow-xs cursor-pointer max-w-[120px] sm:max-w-none truncate"
               >
                 <option value="ALL">جميع الأساتذة</option>
                 {teacherProfiles.map(tp => (
@@ -714,8 +714,8 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
 
           {/* Level Filter Dropdown */}
           {academicLevels.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600">
-              <span className="text-xs font-bold text-gray-500 dark:text-gray-400 ps-1.5">المستوى:</span>
+            <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600">
+              <span className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 ps-1.5">المستوى:</span>
               <select
                 value={levelFilter}
                 onChange={(e) => {
@@ -727,7 +727,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                     setSelectedClass(matchingClasses[0].className);
                   }
                 }}
-                className="bg-white dark:bg-gray-800 border-none font-bold text-xs text-gray-900 dark:text-white rounded-xl px-2.5 py-1.5 focus:ring-0 shadow-xs cursor-pointer w-full sm:w-auto"
+                className="bg-white dark:bg-gray-800 border-none font-bold text-[11px] sm:text-xs text-gray-900 dark:text-white rounded-xl px-2 py-1 focus:ring-0 shadow-xs cursor-pointer max-w-[110px] sm:max-w-none truncate"
               >
                 <option value="ALL">جميع المستويات</option>
                 {academicLevels.map(lvl => (
@@ -738,66 +738,67 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
           )}
 
           {/* Class Select Dropdown */}
-          <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600">
-            <span className="text-xs font-bold text-gray-500 dark:text-gray-400 ps-1.5">القسم:</span>
+          <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600">
+            <span className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 ps-1.5">القسم:</span>
             <select
               value={selectedClass}
               onChange={(e) => setSelectedClass(e.target.value)}
-              className="bg-white dark:bg-gray-800 border-none font-bold text-xs text-gray-900 dark:text-white rounded-xl px-2.5 py-1.5 focus:ring-0 shadow-xs cursor-pointer w-full sm:w-auto"
+              className="bg-white dark:bg-gray-800 border-none font-bold text-[11px] sm:text-xs text-gray-900 dark:text-white rounded-xl px-2 py-1 focus:ring-0 shadow-xs cursor-pointer"
             >
               {filteredClassList.map(cls => (
                 <option key={cls.className} value={cls.className}>
-                  {cls.className} ({cls.studentCount} تلميذ)
+                  {cls.className} ({cls.studentCount} ت)
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Side-by-side Action Buttons: Add Student & Roll Call */}
-          <div className="grid grid-cols-2 gap-2.5 w-full sm:w-auto">
+          {/* Centered Unified Action Dock on Mobile with Small Icons */}
+          <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 bg-gray-50/70 dark:bg-gray-900/40 p-1.5 rounded-2xl border border-gray-200/80 dark:border-gray-700/60 shadow-2xs w-full sm:w-auto">
             <button
               type="button"
               onClick={() => {
                 setStudentToEdit(null);
                 setIsAddEditStudentOpen(true);
               }}
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-2xl text-xs font-black text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-md shadow-emerald-600/20 active:scale-95 transition cursor-pointer"
+              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs active:scale-95 transition cursor-pointer"
               title="إضافة تلميذ جديد للقسم الحالية"
             >
-              <UserPlusIcon className="w-4 h-4 shrink-0" />
+              <UserPlusIcon className="w-3.5 h-3.5 shrink-0" />
               <span>إضافة تلميذ</span>
             </button>
 
             <button
               type="button"
               onClick={startRollCall}
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-2xl text-xs font-black text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-md shadow-indigo-600/20 active:scale-95 transition cursor-pointer"
+              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-xs active:scale-95 transition cursor-pointer"
               title="بدء المناداة السريعة تلميذاً تلو الآخر"
             >
-              <span>📢</span>
+              <span className="text-xs">📢</span>
               <span>بدء المناداة</span>
             </button>
 
             <button
               type="button"
               onClick={() => setIsGroupReportModalOpen(true)}
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-2xl text-xs font-black text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 shadow-md shadow-indigo-600/20 active:scale-95 transition cursor-pointer"
+              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 shadow-xs active:scale-95 transition cursor-pointer"
               title="إنشاء تقرير إداري جماعي وإرساله بالواتساب أو كصورة للإدارة"
             >
-              <UserGroupIcon className="w-4 h-4 shrink-0" />
-              <span>تقرير جماعي للإدارة (WhatsApp / صورة)</span>
+              <UserGroupIcon className="w-3.5 h-3.5 shrink-0" />
+              <span>تقرير الإدارة</span>
             </button>
+
             <button
               type="button"
               onClick={() => handleSaveSession(false)}
               disabled={isSaving}
-              className={`inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black text-white shadow-lg shadow-emerald-600/25 active:scale-95 transition cursor-pointer ${
-                isSaving ? 'bg-emerald-700 opacity-80 cursor-wait' : 'bg-emerald-600 hover:bg-emerald-700'
+              className={`inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white shadow-xs active:scale-95 transition cursor-pointer ${
+                isSaving ? 'bg-emerald-800 opacity-80 cursor-wait' : 'bg-emerald-700 hover:bg-emerald-800'
               }`}
               title="حفظ ورقة حضور الحصة يدوياً في السجل وقاعدة البيانات السحابية"
             >
-              <CheckCircleIcon className={`w-4 h-4 text-white ${isSaving ? 'animate-spin' : ''}`} />
-              <span>{isSaving ? 'جاري الحفظ والمزامنة...' : '💾 حفظ ورقة الحضور'}</span>
+              <CheckCircleIcon className={`w-3.5 h-3.5 shrink-0 ${isSaving ? 'animate-spin' : ''}`} />
+              <span>{isSaving ? 'حفظ...' : 'حفظ الورقة'}</span>
             </button>
           </div>
         </div>

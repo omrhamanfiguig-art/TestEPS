@@ -429,13 +429,13 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600 flex items-center gap-2">
-             <span className="text-xs font-bold text-gray-500 dark:text-gray-400 ps-2">القسم:</span>
+        <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center md:justify-end gap-2.5 w-full md:w-auto">
+          <div className="bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600 flex items-center justify-center gap-2 w-full sm:w-auto">
+             <span className="text-xs font-bold text-gray-500 dark:text-gray-400 ps-1.5">القسم:</span>
              <select
                 value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
-                className="bg-white dark:bg-gray-800 border-none font-bold text-xs text-gray-900 dark:text-white rounded-xl px-3 py-1.5 focus:ring-0 shadow-sm"
+                className="bg-white dark:bg-gray-800 border-none font-bold text-xs text-gray-900 dark:text-white rounded-xl px-2.5 py-1.5 focus:ring-0 shadow-xs flex-1 sm:flex-initial cursor-pointer"
              >
                 {classList.map(c => (
                     <option key={c.className} value={c.className}>{c.className}</option>
@@ -444,43 +444,47 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
           </div>
 
           {isSaving && (
-             <div className="flex items-center gap-2 px-3 py-1 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-lg border border-indigo-100 dark:border-indigo-800">
+             <div className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-xl border border-indigo-100 dark:border-indigo-800">
                 <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
-                <span className="text-[10px] font-bold">جاري الحفظ تلقائياً...</span>
+                <span className="text-[10px] font-bold">جاري الحفظ...</span>
              </div>
           )}
 
-          <button
-            onClick={() => handleOpenQuickEval()}
-            disabled={isLoading || students.length === 0}
-            className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-black rounded-2xl shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2 active:scale-95 cursor-pointer disabled:opacity-50"
-            title="فتح نافذة التقويم السريع ووضع نقطة كاملة وتوزيعها تلقائياً"
-          >
-            <BoltIcon className="w-4 h-4" />
-            <span>التقويم السريع ⚡</span>
-          </button>
-
-          <button
-            onClick={handleExportExcel}
-            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-2 active:scale-95"
-          >
-            <ArrowDownTrayIcon className="w-4 h-4" />
-            <span>تصدير Excel</span>
-          </button>
-
-          {onNavigateToScreen && (
+          {/* Centered Unified Action Dock on Mobile with Small Icons */}
+          <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 bg-gray-50/70 dark:bg-gray-900/40 p-1.5 rounded-2xl border border-gray-200/80 dark:border-gray-700/60 shadow-2xs w-full sm:w-auto">
             <button
-              onClick={() => onNavigateToScreen('massar')}
-              className="px-4 py-2.5 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-black rounded-2xl shadow-sm transition-all flex items-center gap-1.5 active:scale-95"
-              title="الانتقال إلى فضاء ملء لوائح مسار الرسمية بثلاث نقط وتصديرها"
+              onClick={() => handleOpenQuickEval()}
+              disabled={isLoading || students.length === 0}
+              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-[11px] sm:text-xs font-black rounded-xl shadow-xs transition active:scale-95 cursor-pointer disabled:opacity-50"
+              title="فتح نافذة التقويم السريع ووضع نقطة كاملة وتوزيعها تلقائياً"
             >
-              <span>📊 فضاء لوائح مسار</span>
+              <BoltIcon className="w-3.5 h-3.5 shrink-0" />
+              <span>التقويم السريع</span>
             </button>
-          )}
+
+            <button
+              onClick={handleExportExcel}
+              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] sm:text-xs font-black rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
+            >
+              <ArrowDownTrayIcon className="w-3.5 h-3.5 shrink-0" />
+              <span>Excel</span>
+            </button>
+
+            {onNavigateToScreen && (
+              <button
+                onClick={() => onNavigateToScreen('massar')}
+                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] sm:text-xs font-black rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
+                title="الانتقال إلى فضاء ملء لوائح مسار الرسمية بثلاث نقط وتصديرها"
+              >
+                <span className="text-xs">📊</span>
+                <span>لوائح مسار</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Bulk Scoring & Filter Bar */}
+      {/* Bulk Scoring & Filter Bar - Centered on Mobile */}
       <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 flex flex-col xl:flex-row items-center justify-between gap-4">
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
                 <div className="relative w-full sm:w-64">
@@ -489,79 +493,75 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="بحث باسم التلميذ..."
-                        className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-xs focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
+                        className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-xs focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
                     />
-                    <MagnifyingGlassIcon className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                    <MagnifyingGlassIcon className="absolute left-3 top-2.5 w-3.5 h-3.5 text-gray-400" />
                 </div>
-                <div className="flex items-center gap-4 text-[10px] font-bold text-gray-400 uppercase w-full justify-center sm:justify-start">
+                <div className="flex items-center gap-3 text-[10px] font-bold text-gray-400 uppercase w-full justify-center sm:justify-start">
                     <div className="flex items-center gap-1"><RunningManIcon className="w-3.5 h-3.5 text-indigo-500"/> ألعاب قوى</div>
                     <div className="flex items-center gap-1"><UserGroupIcon className="w-3.5 h-3.5 text-orange-500"/> رياضة جماعية</div>
                 </div>
             </div>
 
-            {/* Bulk Action UI - Responsive layout */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 bg-indigo-50/50 dark:bg-indigo-900/10 p-2 rounded-2xl border border-indigo-100 dark:border-indigo-800/40 w-full xl:w-auto">
-                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-between w-full sm:w-auto">
-                    <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 whitespace-nowrap">نقطة موحدة:</span>
-                        <select 
-                            value={bulkComponent}
-                            onChange={(e) => setBulkComponent(e.target.value as any)}
-                            className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1 text-[10px] font-bold focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                        >
-                            <option value="motrice">حركي</option>
-                            <option value="comportement">سلوكي</option>
-                            <option value="cognitive">معرفي</option>
-                        </select>
-                        <input 
-                            type="number"
-                            step="0.25"
-                            placeholder="نقطة"
-                            value={bulkValue}
-                            onChange={(e) => setBulkValue(e.target.value)}
-                            className="w-16 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1 text-[10px] font-bold focus:ring-1 focus:ring-indigo-500"
-                        />
-                    </div>
+            {/* Bulk Action UI - Centered dock on Mobile */}
+            <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 bg-indigo-50/50 dark:bg-indigo-900/10 p-2 rounded-2xl border border-indigo-100 dark:border-indigo-800/40 w-full xl:w-auto">
+                <div className="flex items-center justify-center gap-1.5 flex-wrap sm:flex-nowrap">
+                    <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 whitespace-nowrap">نقطة موحدة:</span>
+                    <select 
+                        value={bulkComponent}
+                        onChange={(e) => setBulkComponent(e.target.value as any)}
+                        className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1 text-[10px] font-bold focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                    >
+                        <option value="motrice">حركي</option>
+                        <option value="comportement">سلوكي</option>
+                        <option value="cognitive">معرفي</option>
+                    </select>
+                    <input 
+                        type="number"
+                        step="0.25"
+                        placeholder="نقطة"
+                        value={bulkValue}
+                        onChange={(e) => setBulkValue(e.target.value)}
+                        className="w-14 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-1.5 py-1 text-[10px] font-bold focus:ring-1 focus:ring-indigo-500 text-center"
+                    />
                     <button 
                         onClick={handleApplyBulkScore}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-lg text-[10px] font-black shadow-sm transition-all active:scale-95 shrink-0 whitespace-nowrap cursor-pointer"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 rounded-lg text-[10px] font-black shadow-xs transition active:scale-95 shrink-0 whitespace-nowrap cursor-pointer"
                     >
-                        تطبيق على الكل
+                        تطبيق
                     </button>
                 </div>
 
-                <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1 shrink-0"></div>
+                <div className="hidden sm:block w-px h-5 bg-gray-200 dark:bg-gray-700 mx-0.5 shrink-0"></div>
 
-                <div className="flex gap-2 flex-wrap items-center">
+                <div className="flex gap-1.5 flex-wrap items-center justify-center">
                     <button 
                         onClick={handleCopyTeamGamesToFinal}
-                        className="bg-orange-600 hover:bg-orange-700 text-white px-3.5 py-1.5 rounded-lg text-[10px] font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+                        className="bg-orange-600 hover:bg-orange-700 text-white px-2.5 py-1 rounded-lg text-[10px] font-black shadow-xs transition active:scale-95 flex items-center justify-center gap-1 shrink-0 cursor-pointer"
                         title="تعبئة نقط المحضر النهائي من فضاء الألعاب الجماعية"
                     >
                         <span>🏀</span>
-                        <span>نسخ من الجماعية</span>
+                        <span>نسخ الجماعية</span>
                     </button>
 
                     <button 
                         onClick={handleCopyGymnasticsToFinal}
-                        className="bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-1.5 rounded-lg text-[10px] font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+                        className="bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1 rounded-lg text-[10px] font-black shadow-xs transition active:scale-95 flex items-center justify-center gap-1 shrink-0 cursor-pointer"
                         title="تعبئة نقط المحضر النهائي من فضاء الجمباز"
                     >
                         <span>🤸</span>
-                        <span>نسخ من الجمباز</span>
+                        <span>نسخ الجمباز</span>
+                    </button>
+
+                    <button 
+                        onClick={handleAutoCalculateBehavior}
+                        className="bg-amber-500 hover:bg-amber-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-black shadow-xs transition active:scale-95 flex items-center justify-center gap-1 shrink-0 whitespace-nowrap cursor-pointer"
+                        title="حساب نقط السلوك تلقائياً من سجل الغياب"
+                    >
+                        <SparklesIcon className="w-3.5 h-3.5 shrink-0" />
+                        <span>السلوك آلياً</span>
                     </button>
                 </div>
-
-                <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1 shrink-0"></div>
-
-                <button 
-                    onClick={handleAutoCalculateBehavior}
-                    className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 sm:py-1.5 rounded-lg text-[10px] font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer"
-                    title="حساب نقط السلوك تلقائياً من سجل الغياب"
-                >
-                    <SparklesIcon className="w-3.5 h-3.5 shrink-0" />
-                    <span>حساب السلوك آلياً</span>
-                </button>
             </div>
       </div>
 

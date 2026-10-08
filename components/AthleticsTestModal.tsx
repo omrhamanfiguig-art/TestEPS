@@ -777,7 +777,7 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
                           </div>
 
                           {/* Score Badge */}
-                          {score !== undefined ? (
+                          {typeof score === 'number' && !isNaN(score) ? (
                             <div className={`px-2.5 py-1 rounded-xl text-xs font-black border flex items-center gap-1 ${
                               score >= 10
                                 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300'
@@ -964,7 +964,7 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
 
                               {/* Score */}
                               <td className="p-2.5 font-mono font-black text-emerald-600 dark:text-emerald-400">
-                                {score !== undefined ? `${score} / 20` : '-'}
+                                {typeof score === 'number' && !isNaN(score) ? `${score} / 20` : '-'}
                               </td>
 
                               {/* Clear */}
@@ -1025,7 +1025,7 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
                             {item.bestVal} م
                           </div>
                           <div className="text-[10px] font-bold text-emerald-600">
-                            {item.score !== undefined ? `${item.score}/20` : ''}
+                            {typeof item.score === 'number' && !isNaN(item.score) ? `${item.score}/20` : ''}
                           </div>
                         </div>
                       </div>

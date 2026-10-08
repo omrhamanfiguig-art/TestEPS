@@ -132,14 +132,14 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                     </div>
                 </div>
                 
-                <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-end gap-2.5 w-full lg:w-auto">
-                    <div className="col-span-2 sm:flex-initial">
-                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">{t.class}</label>
-                        <div className="relative">
+                <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-end gap-2.5 w-full lg:w-auto">
+                    <div className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600">
+                        <label className="text-[11px] sm:text-xs font-bold text-gray-600 dark:text-gray-300 shrink-0 ps-1.5">🏫 {t.class}:</label>
+                        <div className="relative flex-1 sm:w-48">
                             <select
                                 value={selectedClass}
                                 onChange={(e) => setSelectedClass(e.target.value)}
-                                className="appearance-none w-full sm:w-48 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 pe-8 text-sm font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs cursor-pointer"
+                                className="appearance-none w-full bg-white dark:bg-gray-800 border-none rounded-xl px-2.5 py-1.5 pe-7 text-xs sm:text-sm font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs cursor-pointer"
                             >
                                 <option value="" disabled>{t.classNamePlaceholder}</option>
                                 {classList.map(cls => (
@@ -148,27 +148,29 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                                     </option>
                                 ))}
                             </select>
-                            <div className="absolute end-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                                <ChevronDownIcon className="w-4 h-4" />
+                            <div className="absolute end-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                <ChevronDownIcon className="w-3.5 h-3.5" />
                             </div>
                         </div>
                     </div>
 
-                    <button
-                        onClick={() => setIsBaremeModalOpen(true)}
-                        className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 text-xs sm:text-sm font-bold rounded-xl shadow-xs text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 transition active:scale-95 cursor-pointer"
-                    >
-                        <TrophyIcon className="w-4 h-4 shrink-0" />
-                        <span>سلم التنقيط</span>
-                    </button>
+                    <div className="flex items-center justify-center gap-2 w-full sm:w-auto bg-gray-50/70 dark:bg-gray-900/40 p-1.5 rounded-2xl border border-gray-200/80 dark:border-gray-700/60 shadow-2xs">
+                        <button
+                            onClick={() => setIsBaremeModalOpen(true)}
+                            className="inline-flex items-center justify-center gap-1 px-3 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 transition active:scale-95 cursor-pointer"
+                        >
+                            <TrophyIcon className="w-3.5 h-3.5 shrink-0" />
+                            <span>سلم التنقيط</span>
+                        </button>
 
-                    <button
-                        onClick={handleExport}
-                        className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2 text-xs sm:text-sm font-bold rounded-xl shadow-xs text-white bg-emerald-600 hover:bg-emerald-700 transition active:scale-95 cursor-pointer"
-                    >
-                        <ArrowDownTrayIcon className="w-4 h-4 shrink-0" />
-                        <span>تصدير Excel</span>
-                    </button>
+                        <button
+                            onClick={handleExport}
+                            className="inline-flex items-center justify-center gap-1 px-3 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-emerald-600 hover:bg-emerald-700 transition active:scale-95 cursor-pointer"
+                        >
+                            <ArrowDownTrayIcon className="w-3.5 h-3.5 shrink-0" />
+                            <span>تصدير Excel</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -268,15 +270,15 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                                         </td>
                                         <td className="p-3 font-mono">
                                             <div>{r?.vitesse30m ? `${r.vitesse30m} ث` : '-'}</div>
-                                            {(r?.scoreVitesse30m !== undefined || r?.scoreVitesse !== undefined) && (
+                                            {typeof (r?.scoreVitesse30m ?? r?.scoreVitesse) === 'number' && !isNaN(Number(r?.scoreVitesse30m ?? r?.scoreVitesse)) && (
                                                 <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800 mt-0.5">
-                                                    {(r.scoreVitesse30m ?? r.scoreVitesse)} / 20
+                                                    {(r?.scoreVitesse30m ?? r?.scoreVitesse)} / 20
                                                 </span>
                                             )}
                                         </td>
                                         <td className="p-3 font-mono">
                                             <div>{(r as any)?.vitesse60m ? `${(r as any).vitesse60m} ث` : '-'}</div>
-                                            {r?.scoreVitesse60m !== undefined && (
+                                            {typeof r?.scoreVitesse60m === 'number' && !isNaN(r.scoreVitesse60m) && (
                                                 <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-50 text-orange-700 dark:bg-orange-950/60 dark:text-orange-300 border border-orange-200 dark:border-orange-800 mt-0.5">
                                                     {r.scoreVitesse60m} / 20
                                                 </span>
@@ -284,7 +286,7 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                                         </td>
                                         <td className="p-3 font-mono">
                                             <div>{(r as any)?.vitesse80m ? `${(r as any).vitesse80m} ث` : '-'}</div>
-                                            {r?.scoreVitesse80m !== undefined && (
+                                            {typeof r?.scoreVitesse80m === 'number' && !isNaN(r.scoreVitesse80m) && (
                                                 <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300 border border-orange-300 dark:border-orange-700 mt-0.5">
                                                     {r.scoreVitesse80m} / 20
                                                 </span>
@@ -292,7 +294,7 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                                         </td>
                                         <td className="p-3 font-mono">
                                             <div>{(r as any)?.vitesse100m ? `${(r as any).vitesse100m} ث` : '-'}</div>
-                                            {r?.scoreVitesse100m !== undefined && (
+                                            {typeof r?.scoreVitesse100m === 'number' && !isNaN(r.scoreVitesse100m) && (
                                                 <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800 mt-0.5">
                                                     {r.scoreVitesse100m} / 20
                                                 </span>
@@ -300,7 +302,7 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                                         </td>
                                         <td className="p-3 font-mono">
                                             <div>{(r as any)?.vitesseRelay ? `${(r as any).vitesseRelay} ث` : '-'}</div>
-                                            {r?.scoreRelay !== undefined && (
+                                            {typeof r?.scoreRelay === 'number' && !isNaN(r.scoreRelay) && (
                                                 <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800 mt-0.5">
                                                     {r.scoreRelay} / 20
                                                 </span>
@@ -308,7 +310,7 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                                         </td>
                                         <td className="p-3 font-mono text-red-600 dark:text-red-400 font-bold">
                                             <div>{r?.enduranceTemps ? `${formatSecondsToMinSec(r.enduranceTemps)} د` : '-'}</div>
-                                            {r?.scoreEndurance !== undefined && (
+                                            {typeof r?.scoreEndurance === 'number' && !isNaN(r.scoreEndurance) && (
                                                 <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300 border border-red-200 dark:border-red-800 mt-0.5">
                                                     {r.scoreEndurance} / 20
                                                 </span>
@@ -316,7 +318,7 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                                         </td>
                                         <td className="p-3 font-mono">
                                             <div>{r?.sautLong ? `${r.sautLong} م` : '-'}</div>
-                                            {r?.scoreSautLong !== undefined && (
+                                            {typeof r?.scoreSautLong === 'number' && !isNaN(r.scoreSautLong) && (
                                                 <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 mt-0.5">
                                                     {r.scoreSautLong} / 20
                                                 </span>
@@ -324,7 +326,7 @@ export const AthleticsScreen: React.FC<AthleticsScreenProps> = ({
                                         </td>
                                         <td className="p-3 font-mono">
                                             <div>{r?.lancerPoids ? `${r.lancerPoids} م` : '-'}</div>
-                                            {r?.scoreLancerPoids !== undefined && (
+                                            {typeof r?.scoreLancerPoids === 'number' && !isNaN(r.scoreLancerPoids) && (
                                                 <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 dark:bg-slate-900/60 dark:text-slate-300 border border-slate-300 dark:border-slate-700 mt-0.5">
                                                     {r.scoreLancerPoids} / 20
                                                 </span>

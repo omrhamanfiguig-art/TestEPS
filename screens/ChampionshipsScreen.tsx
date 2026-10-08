@@ -790,7 +790,7 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
               {filteredNonRegisteredStudents.length > 0 ? (
                 filteredNonRegisteredStudents.map(s => {
                   const isSelected = selectedStudent?.student.numeroEleve === s.student.numeroEleve && selectedStudent?.className === s.className;
-                  const vmaSpeed = s.vmaVal || 0;
+                  const vmaSpeed = typeof s.vmaVal === 'number' && !isNaN(s.vmaVal) ? s.vmaVal : 0;
                   const hasVma = vmaSpeed > 0;
 
                   return (
@@ -1000,26 +1000,26 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center justify-center sm:justify-end gap-1.5 sm:gap-2 flex-wrap bg-gray-50/70 dark:bg-gray-900/40 p-1.5 rounded-2xl border border-gray-200/80 dark:border-gray-750/60 shadow-2xs w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={handleOpenPrintPreview}
                   disabled={filteredRegs.length === 0}
-                  className="px-3 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                  className="px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-xs active:scale-95"
                   title="معاينة اللائحة قبل الطباعة والتعديل"
                 >
-                  <PrinterIcon className="w-4 h-4 shrink-0" />
-                  <span>معاينة قبل الطباعة / PDF 🖨️</span>
+                  <PrinterIcon className="w-3.5 h-3.5 shrink-0" />
+                  <span>معاينة / PDF</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleExportExcel}
                   disabled={filteredRegs.length === 0}
-                  className="px-3 py-2 text-xs font-bold rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                  className="px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-xs active:scale-95"
                   title="تصدير إلى Excel"
                 >
-                  <ArrowDownTrayIcon className="w-4 h-4 shrink-0" />
+                  <ArrowDownTrayIcon className="w-3.5 h-3.5 shrink-0" />
                   <span>Excel 📊</span>
                 </button>
 
@@ -1027,10 +1027,10 @@ export const ChampionshipsScreen: React.FC<ChampionshipsScreenProps> = ({
                   type="button"
                   onClick={handleExportWord}
                   disabled={filteredRegs.length === 0}
-                  className="px-3 py-2 text-xs font-bold rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-xs active:scale-95"
                 >
-                  <DocumentTextIcon className="w-4 h-4 shrink-0" />
-                  <span>Word (.doc)</span>
+                  <DocumentTextIcon className="w-3.5 h-3.5 shrink-0" />
+                  <span>Word</span>
                 </button>
               </div>
             </div>

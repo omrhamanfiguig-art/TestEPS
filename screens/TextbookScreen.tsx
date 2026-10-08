@@ -821,7 +821,7 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
                 أنت تعمل حالياً بملف: <strong>{activeTeacher.name}</strong> ({activeTeacher.assignedClasses.length} أقسام مخصصة)
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 w-full sm:w-auto bg-white/60 dark:bg-gray-900/40 p-1.5 rounded-2xl border border-indigo-100/60 dark:border-gray-700/60 shadow-2xs">
               <button
                 onClick={() => {
                   setEditingSessionId(null);
@@ -835,26 +835,26 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
                   }
                   setIsFormOpen(true);
                 }}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-2xl shadow-lg shadow-indigo-600/10 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer w-full sm:w-auto justify-center"
+                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] sm:text-xs font-bold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
               >
-                <PlusIcon className="w-4 h-4" />
-                <span>تسجيل حصة جديدة</span>
+                <PlusIcon className="w-3.5 h-3.5 shrink-0" />
+                <span>تسجيل حصة</span>
               </button>
 
               <button
                 onClick={handleExportExcel}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-2xl shadow-lg shadow-emerald-600/10 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer w-full sm:w-auto justify-center"
+                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] sm:text-xs font-bold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
               >
-                <ArrowDownTrayIcon className="w-4 h-4" />
-                <span>تصدير دفتر النصوص Excel</span>
+                <ArrowDownTrayIcon className="w-3.5 h-3.5 shrink-0" />
+                <span>Excel</span>
               </button>
 
               <button
                 onClick={handleExportWord}
-                className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white text-xs font-black rounded-2xl shadow-lg shadow-blue-700/10 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer w-full sm:w-auto justify-center"
+                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-blue-700 hover:bg-blue-800 text-white text-[11px] sm:text-xs font-bold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
               >
-                <DocumentTextIcon className="w-4 h-4" />
-                <span>تصدير دفتر النصوص Word</span>
+                <DocumentTextIcon className="w-3.5 h-3.5 shrink-0" />
+                <span>Word</span>
               </button>
             </div>
           </div>
@@ -872,13 +872,13 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
               <DocumentTextIcon className="absolute right-3 top-2.5 w-4 h-4 text-gray-400" />
             </div>
 
-            <div className="flex flex-wrap items-center gap-4 w-full md:w-auto justify-end">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-gray-500">فلترة الأقسام:</span>
+            <div className="flex flex-wrap items-center justify-center md:justify-end gap-2.5 w-full md:w-auto">
+              <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600">
+                <span className="text-[11px] sm:text-xs font-bold text-gray-500 ps-1">فلترة الأقسام:</span>
                 <select
                   value={classFilter}
                   onChange={(e) => setClassFilter(e.target.value)}
-                  className="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 font-bold text-xs text-gray-900 dark:text-white rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  className="bg-white dark:bg-gray-800 border-none font-bold text-xs text-gray-900 dark:text-white rounded-xl px-2.5 py-1 focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-xs"
                 >
                   <option value="all">جميع أقسام المؤسسة</option>
                   <option value="my">أقسام الأستاذ الحالي فقط</option>

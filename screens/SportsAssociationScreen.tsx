@@ -621,25 +621,25 @@ export const SportsAssociationScreen: React.FC<SportsAssociationScreenProps> = (
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center justify-center sm:justify-end gap-1.5 sm:gap-2 flex-wrap bg-gray-50/70 dark:bg-gray-900/40 p-1.5 rounded-2xl border border-gray-200/80 dark:border-gray-700/60 shadow-2xs w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={handleOpenFinancePrintPreview}
-                  className="py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                  className="px-2.5 py-1.5 sm:px-3 sm:py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
                   title="معاينة وطباعة التقرير المالي"
                 >
-                  <PrinterIcon className="w-4 h-4" />
-                  <span>معاينة قبل الطباعة / PDF 🖨️</span>
+                  <PrinterIcon className="w-3.5 h-3.5 shrink-0" />
+                  <span>معاينة / PDF</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => exportTransactionsToExcel(transactions, 'التقرير_المالي_للجمعية_الرياضية')}
-                  className="py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                  className="px-2.5 py-1.5 sm:px-3 sm:py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
                   title="تصدير السجل المالي إلى ملف Excel"
                 >
-                  <ArrowDownTrayIcon className="w-4 h-4" />
-                  <span>تصدير Excel 📊</span>
+                  <ArrowDownTrayIcon className="w-3.5 h-3.5 shrink-0" />
+                  <span>Excel 📊</span>
                 </button>
 
                 <button
@@ -653,10 +653,10 @@ export const SportsAssociationScreen: React.FC<SportsAssociationScreenProps> = (
                     setTxReceipt('');
                     setIsTxModalOpen(true);
                   }}
-                  className="py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition cursor-pointer"
+                  className="px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
                 >
-                  <PlusIcon className="w-4 h-4" />
-                  <span>إضافة معاملة مالية جديد</span>
+                  <PlusIcon className="w-3.5 h-3.5 shrink-0" />
+                  <span>إضافة معاملة</span>
                 </button>
               </div>
             </div>
@@ -862,11 +862,11 @@ export const SportsAssociationScreen: React.FC<SportsAssociationScreenProps> = (
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center justify-center sm:justify-end gap-1.5 sm:gap-2 flex-wrap bg-gray-50/70 dark:bg-gray-900/40 p-1.5 rounded-2xl border border-gray-200/80 dark:border-gray-700/60 shadow-2xs w-full sm:w-auto">
                 <select
                   value={selectedChampionship}
                   onChange={(e) => setSelectedChampionship(e.target.value)}
-                  className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 font-bold text-xs text-gray-900 dark:text-white cursor-pointer"
+                  className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl px-2.5 py-1.5 font-bold text-[11px] sm:text-xs text-gray-900 dark:text-white cursor-pointer shadow-xs"
                 >
                   <option value="cross_country">بطولة العدو الريفي المدرسي (Cross Country)</option>
                   <option value="athletics">البطولة الإقليمية لألعاب القوى (مضمار وميدان)</option>
@@ -876,30 +876,30 @@ export const SportsAssociationScreen: React.FC<SportsAssociationScreenProps> = (
                 <button
                   type="button"
                   onClick={handleOpenChampionshipPrintPreview}
-                  className="py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                  className="px-2.5 py-1.5 sm:px-3 sm:py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
                   title="معاينة وطباعة لائحة المشاركين"
                 >
-                  <PrinterIcon className="w-4 h-4" />
-                  <span>معاينة قبل الطباعة / PDF 🖨️</span>
+                  <PrinterIcon className="w-3.5 h-3.5 shrink-0" />
+                  <span>معاينة / PDF</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleExportChampionshipExcel}
-                  className="py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                  className="px-2.5 py-1.5 sm:px-3 sm:py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
                   title="تصدير اللائحة إلى Excel"
                 >
-                  <ArrowDownTrayIcon className="w-4 h-4" />
-                  <span>تصدير Excel 📊</span>
+                  <ArrowDownTrayIcon className="w-3.5 h-3.5 shrink-0" />
+                  <span>Excel 📊</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setIsSelectorOpen(true)}
-                  className="py-2 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md shadow-amber-500/25 transition cursor-pointer"
+                  className="px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[11px] sm:text-xs font-bold flex items-center gap-1 shadow-xs transition active:scale-95 cursor-pointer"
                 >
-                  <SparklesIcon className="w-4 h-4" />
-                  <span>⚡ انتقاء من الروائز</span>
+                  <SparklesIcon className="w-3.5 h-3.5 shrink-0" />
+                  <span>انتقاء من الروائز</span>
                 </button>
               </div>
             </div>
