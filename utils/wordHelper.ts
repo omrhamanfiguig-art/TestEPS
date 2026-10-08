@@ -45,8 +45,16 @@ export const exportTextbookToWord = (
       if (s.className !== classFilter) return false;
     }
     if (levelFilter && levelFilter !== 'all') {
-      const matchLevel = s.className.toLowerCase().includes(levelFilter.toLowerCase());
-      if (!matchLevel) return false;
+      if (levelFilter === '1_2APIC') {
+        const isMatch = s.className.toLowerCase().includes('1ac') || 
+                        s.className.toLowerCase().includes('1apic') || 
+                        s.className.toLowerCase().includes('2ac') || 
+                        s.className.toLowerCase().includes('2apic');
+        if (!isMatch) return false;
+      } else {
+        const matchLevel = s.className.toLowerCase().includes(levelFilter.toLowerCase());
+        if (!matchLevel) return false;
+      }
     }
     return true;
   });
@@ -550,4 +558,202 @@ export const exportGroupsToWord = (groups: AffinityGroup[], className: string) =
   
   URL.revokeObjectURL(url);
   document.body.removeChild(link);
+};
+
+export interface CahierGridRow {
+  seanceNumber: number; // 1 to 10
+  title: string; // e.g. "Évaluer le niveau initial et prendre des repères de course d'élan"
+  situation?: string; // e.g. "Situation: Test de performance et prise de marques"
+  classDates: Record<string, string>; // className -> date/time string
+  observation?: string;
+}
+
+export interface OfficialCahierGridExportData {
+  etablissement: string;
+  professeur: string;
+  aps: string;
+  competence: string;
+  classes: string[]; // e.g. ["3APIC 1", "3APIC 2", "3APIC 3", "3APIC 4", "3APIC 5", "3APIC 6", "3APIC 7", "3APIC 8"]
+  rows: CahierGridRow[];
+  colsPerPage?: number; // e.g. 4 (default 4)
+  levelTitle?: string;
+}
+
+/**
+ * Exports Official EPS Cahier de Texte Grid in Landscape (Paysage) format matching official Moroccan inspectors' model.
+ * Automatically chunks large numbers of classes (e.g. 8 classes) into multiple pages of N columns each.
+ */
+export const exportOfficialCahierGridToWord = (data: OfficialCahierGridExportData): boolean => {
+  if (!data || !data.rows || data.rows.length === 0) {
+    return false;
+  }
+
+  const colsPerPage = data.colsPerPage && data.colsPerPage > 0 ? data.colsPerPage : 4;
+  const allClasses = data.classes && data.classes.length > 0 ? data.classes : ['القسم 1'];
+
+  // Chunk classes into pages of size colsPerPage
+  const classChunks: string[][] = [];
+  for (let i = 0; i < allClasses.length; i += colsPerPage) {
+    classChunks.push(allClasses.slice(i, i + colsPerPage));
+  }
+
+  let sheetsHtml = '';
+
+  classChunks.forEach((chunk, pageIndex) => {
+    const classesCount = chunk.length || 1;
+    const classColWidth = Math.floor(40 / classesCount);
+
+    let classHeadersHtml = '';
+    chunk.forEach(cName => {
+      classHeadersHtml += `<th style="width: ${classColWidth}%; text-align: center;">${cName || 'القسم'}</th>`;
+    });
+
+    let rowsHtml = '';
+    data.rows.forEach(row => {
+      let datesCellsHtml = '';
+      chunk.forEach(cName => {
+        const val = row.classDates[cName] || '';
+        datesCellsHtml += `<td style="text-align: center; font-weight: bold; font-size: 8.5pt;">${val}</td>`;
+      });
+
+      rowsHtml += `
+        <tr>
+          <td style="text-align: center; font-weight: bold; font-size: 11pt; vertical-align: middle;">${row.seanceNumber}</td>
+          <td style="vertical-align: top;">
+            <div style="font-weight: bold; font-size: 9pt;">${row.title || ''}</div>
+            ${row.situation ? `<div style="font-style: italic; font-size: 8pt; color: #374151; margin-top: 2px;">${row.situation}</div>` : ''}
+          </td>
+          ${datesCellsHtml}
+          <td style="vertical-align: top; font-size: 8.5pt;">${row.observation || ''}</td>
+        </tr>
+      `;
+    });
+
+    const isLastPage = pageIndex === classChunks.length - 1;
+
+    sheetsHtml += `
+      <div class="sheet-page" style="page-break-after: always; break-after: page; margin-bottom: 20px;">
+        <table class="header-table">
+          <tr>
+            <td style="width: 60%;">Établissement: <span style="font-weight: normal;">${data.etablissement || 'Collège Oued Za'}</span> ${data.levelTitle ? ` | <span style="font-weight: bold;">${data.levelTitle}</span>` : ''}</td>
+            <td style="width: 40%;">Professeur: <span style="font-weight: normal;">${data.professeur || ''}</span> ${classChunks.length > 1 ? `<span style="float: left; font-weight: bold;">(Page ${pageIndex + 1}/${classChunks.length})</span>` : ''}</td>
+          </tr>
+          <tr>
+            <td colspan="2">APS: <span style="font-weight: normal;">${data.aps || ''}</span></td>
+          </tr>
+          <tr>
+            <td colspan="2">Compétence: <span style="font-weight: normal;">${data.competence || ''}</span></td>
+          </tr>
+        </table>
+
+        <table class="grid-table">
+          <thead>
+            <tr>
+              <th style="width: 6%;">SÉANCE</th>
+              <th style="width: 40%; text-align: center;">OBJECTIF / SITUATION D'APPRENTISSAGE</th>
+              ${classHeadersHtml}
+              <th style="width: 12%;">OBSERVATION</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+
+        <div class="footer-legend">
+          <b><u>Légende:</u></b> Ti: Terrain impraticable &nbsp;&nbsp;&nbsp; F: Formation &nbsp;&nbsp;&nbsp; C: Compétition &nbsp;&nbsp;&nbsp; V: Vacances &nbsp;&nbsp;&nbsp; G: Grève &nbsp;&nbsp;&nbsp; Abs: Absence &nbsp;&nbsp;&nbsp; M: Maladie
+        </div>
+      </div>
+      ${!isLastPage ? `<br style="page-break-before: always; clear: both; mso-break-type: page-break;" />` : ''}
+    `;
+  });
+
+  const htmlContent = `
+    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+    <head>
+      <meta charset='utf-8'>
+      <title>Cahier de textes - ${data.aps}</title>
+      <!--[if gte mso 9]>
+      <xml>
+        <w:WordDocument>
+          <w:View>Print</w:View>
+          <w:Zoom>100</w:Zoom>
+          <w:DoNotOptimizeForBrowser/>
+        </w:WordDocument>
+      </xml>
+      <![endif]-->
+      <style>
+        @page {
+          size: A4 landscape;
+          margin: 0.8cm;
+          mso-header-margin: 0.5cm;
+          mso-footer-margin: 0.5cm;
+        }
+        body {
+          font-family: Arial, 'Segoe UI', Tahoma, sans-serif;
+          font-size: 9.5pt;
+          color: #000000;
+          margin: 0;
+          padding: 0;
+        }
+        .header-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 10px;
+        }
+        .header-table td {
+          border: 1.5pt solid #000000;
+          padding: 6px 10px;
+          font-size: 9.5pt;
+          font-weight: bold;
+        }
+        .grid-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 10px;
+        }
+        .grid-table th {
+          border: 1.5pt solid #000000;
+          padding: 6px 4px;
+          font-size: 9pt;
+          text-align: center;
+          text-transform: uppercase;
+          font-weight: bold;
+          background-color: #f3f4f6;
+        }
+        .grid-table td {
+          border: 1pt solid #000000;
+          padding: 6px 6px;
+          font-size: 8.5pt;
+        }
+        .footer-legend {
+          font-size: 8.5pt;
+          font-weight: bold;
+          border-top: 1.5pt solid #000000;
+          padding-top: 4px;
+          margin-top: 6px;
+        }
+      </style>
+    </head>
+    <body>
+      ${sheetsHtml}
+    </body>
+    </html>
+  `;
+
+  const blob = new Blob(['\uFEFF', htmlContent], {
+    type: 'application/msword;charset=utf-8'
+  });
+
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  const safeAps = (data.aps || 'cahier_de_textes').replace(/[^a-zA-Z0-9_\u0600-\u06FF]/g, '_');
+  
+  link.setAttribute('download', `Cahier_de_Textes_${safeAps}_Paysage.doc`);
+  document.body.appendChild(link);
+  link.click();
+  
+  URL.revokeObjectURL(url);
+  document.body.removeChild(link);
+  return true;
 };

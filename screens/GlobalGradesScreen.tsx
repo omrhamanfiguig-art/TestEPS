@@ -7,6 +7,7 @@ import {
   getAllClasses, 
   ClassStats 
 } from '../utils/db';
+import { getPedagogicalReports } from '../utils/reportsDb';
 import type { StudentIdentity, PhysicalTests } from '../types';
 import { 
     TableCellsIcon, 
@@ -195,9 +196,13 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
     if (!selectedClass || students.length === 0) return;
     setIsLoading(true);
     try {
-        const attendance = await getAttendanceSessions(selectedClass);
-        if (attendance.length === 0) {
-            setNotification({ message: "لا توجد حصص غياب مسجلة لهذا القسم لحساب النقط تلقائياً.", type: 'error' });
+        const [attendance, reports] = await Promise.all([
+            getAttendanceSessions(selectedClass),
+            getPedagogicalReports(selectedClass)
+        ]);
+
+        if (attendance.length === 0 && reports.length === 0) {
+            setNotification({ message: "لا توجد حصص غياب أو تقارير سلوكية مسجلة لهذا القسم لحساب النقط تلقائياً.", type: 'error' });
             setTimeout(() => setNotification(null), 3500);
             setIsLoading(false);
             return;
@@ -219,12 +224,11 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
                 }
             });
 
-            const autoScore = calculateBehaviorScore(
-                gradingDist.comportement,
-                absences,
-                noKits,
-                lates
-            );
+            const badBehaviorReportsCount = reports.filter(r => r.studentNumber === s.numeroEleve && r.caseType === 'behavior').length;
+
+            // Compute behavior score: starting with maxPoints, deduct 1.0 per absence, 0.5 per session without kit, 0.25 per late, and 1.0 per recorded bad behavior issue
+            const rawScore = gradingDist.comportement - (absences * 1.0 + noKits * 0.5 + lates * 0.25 + badBehaviorReportsCount * 1.0);
+            const autoScore = Number(Math.max(0, rawScore).toFixed(2));
 
             const existing = testMap.get(s.numeroEleve);
             if (existing) {
@@ -257,6 +261,63 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
     }
   };
 
+  const handleCopyTeamGamesToFinal = async () => {
+    if (students.length === 0) return;
+    setIsLoading(true);
+    try {
+      const updatedTests = physicalTests.map(t => {
+        const student = students.find(s => s.numeroEleve === t.numeroEleve);
+        if (!student) return t;
+        
+        // Compute Team Games motrice if not set
+        const motriceVal = t.noteMotrice ?? Number(Math.min(gradingDist.motrice, (t.sportColTechIndiv || 0) + (t.sportColCollectif || 0)).toFixed(2));
+        
+        return {
+          ...t,
+          noteMotrice: motriceVal || undefined,
+          noteComportement: t.noteComportement !== undefined ? t.noteComportement : t.sportColComportement,
+          noteCognitive: t.noteCognitive !== undefined ? t.noteCognitive : t.sportColCognitive
+        };
+      });
+      setPhysicalTests(updatedTests);
+      await savePhysicalTests(selectedClass, updatedTests);
+      setNotification({ message: "تمت تعبئة نقط المعدل النهائي من الرياضات الجماعية بنجاح! 🏀", type: 'success' });
+    } catch (err) {
+      console.error(err);
+      setNotification({ message: "خطأ أثناء نسخ النقط", type: 'error' });
+    } finally {
+      setIsLoading(false);
+      setTimeout(() => setNotification(null), 3500);
+    }
+  };
+
+  const handleCopyGymnasticsToFinal = async () => {
+    if (students.length === 0) return;
+    setIsLoading(true);
+    try {
+      const updatedTests = physicalTests.map(t => {
+        const student = students.find(s => s.numeroEleve === t.numeroEleve);
+        if (!student) return t;
+
+        return {
+          ...t,
+          noteMotrice: t.gymNoteMotrice !== undefined ? t.gymNoteMotrice : t.noteMotrice,
+          noteComportement: t.noteComportement !== undefined ? t.noteComportement : t.gymNoteComportement,
+          noteCognitive: t.noteCognitive !== undefined ? t.noteCognitive : t.gymNoteCognitive
+        };
+      });
+      setPhysicalTests(updatedTests);
+      await savePhysicalTests(selectedClass, updatedTests);
+      setNotification({ message: "تمت تعبئة نقط المعدل النهائي من رياضة الجمباز بنجاح! 🤸", type: 'success' });
+    } catch (err) {
+      console.error(err);
+      setNotification({ message: "خطأ أثناء نسخ النقط", type: 'error' });
+    } finally {
+      setIsLoading(false);
+      setTimeout(() => setNotification(null), 3500);
+    }
+  };
+
   const handleExportExcel = () => {
     if (students.length === 0) return;
     const XLSX = (window as any).XLSX;
@@ -270,6 +331,7 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
       "الرقم", "الاسم والنسب", "الجنس",
       "VMA", "سرعة", "قفز", "جلة", "تحمل",
       "رياضة جماعية", "نقطة الرياضة الجماعية",
+      "الجمباز (الحركي)", "الجمباز (الإجمالي)",
       "الجانب الحركي", "الجانب السلوكي", "الجانب المعرفي",
       "المعدل النهائي /20"
     ];
@@ -295,6 +357,8 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
         test?.scoreEndurance || '-',
         test?.sportCollectifName || '-',
         test?.sportCollectifScore || '-',
+        test?.gymNoteMotrice !== undefined ? test.gymNoteMotrice : '-',
+        test?.gymScoreTotal !== undefined ? test.gymScoreTotal : '-',
         nMotrice !== undefined ? nMotrice : '-',
         nComportement !== undefined ? nComportement : '-',
         nCognitive !== undefined ? nCognitive : '-',
@@ -416,6 +480,28 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
 
                 <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1 shrink-0"></div>
 
+                <div className="flex gap-2 flex-wrap items-center">
+                    <button 
+                        onClick={handleCopyTeamGamesToFinal}
+                        className="bg-orange-600 hover:bg-orange-700 text-white px-3.5 py-1.5 rounded-lg text-[10px] font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+                        title="تعبئة نقط المحضر النهائي من فضاء الألعاب الجماعية"
+                    >
+                        <span>🏀</span>
+                        <span>نسخ من الجماعية</span>
+                    </button>
+
+                    <button 
+                        onClick={handleCopyGymnasticsToFinal}
+                        className="bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-1.5 rounded-lg text-[10px] font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+                        title="تعبئة نقط المحضر النهائي من فضاء الجمباز"
+                    >
+                        <span>🤸</span>
+                        <span>نسخ من الجمباز</span>
+                    </button>
+                </div>
+
+                <div className="hidden sm:block w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1 shrink-0"></div>
+
                 <button 
                     onClick={handleAutoCalculateBehavior}
                     className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 sm:py-1.5 rounded-lg text-[10px] font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer"
@@ -437,6 +523,7 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
                         <th className="p-3 min-w-[180px]" rowSpan={2}>الاسم والنسب</th>
                         <th className="p-3 text-center" colSpan={5}>معدلات الأنشطة (ألعاب قوى + VMA)</th>
                         <th className="p-3 text-center bg-orange-100 dark:bg-orange-900/40 text-orange-950 dark:text-orange-100" colSpan={2}>رياضة جماعية</th>
+                        <th className="p-3 text-center bg-rose-100 dark:bg-rose-900/40 text-rose-950 dark:text-rose-100" colSpan={2}>الجمباز</th>
                         <th className="p-3 text-center bg-indigo-100 dark:bg-indigo-900/40 text-indigo-950 dark:text-indigo-100" colSpan={4}>عناصر التنقيط (حسب المستوى)</th>
                     </tr>
                     <tr className="border-t border-gray-200 dark:border-gray-700">
@@ -448,6 +535,9 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
                         
                         <th className="p-2 text-center bg-orange-50/50 dark:bg-orange-900/20">النوع</th>
                         <th className="p-2 text-center bg-orange-50/50 dark:bg-orange-900/20">النقطة</th>
+                        
+                        <th className="p-2 text-center bg-rose-50/50 dark:bg-rose-900/20 font-normal text-rose-900 dark:text-rose-100">الحركي</th>
+                        <th className="p-2 text-center bg-rose-50/50 dark:bg-rose-900/20 font-normal text-rose-900 dark:text-rose-100">الإجمالي</th>
                         
                         <th className="p-2 text-center bg-indigo-50/50 dark:bg-indigo-900/20">حركي (/{gradingDist.motrice})</th>
                         <th className="p-2 text-center bg-indigo-50/50 dark:bg-indigo-900/20">سلوكي (/{gradingDist.comportement})</th>
@@ -486,6 +576,13 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
                                 </td>
                                 <td className="p-2 text-center bg-orange-50/20 dark:bg-orange-950/10 font-black text-orange-600">
                                     {test?.sportCollectifScore || '-'}
+                                </td>
+
+                                <td className="p-2 text-center bg-rose-50/20 dark:bg-rose-950/10 font-bold text-rose-600">
+                                    {test?.gymNoteMotrice !== undefined ? test.gymNoteMotrice : '-'}
+                                </td>
+                                <td className="p-2 text-center bg-rose-50/20 dark:bg-rose-950/10 font-black text-rose-700">
+                                    {test?.gymScoreTotal !== undefined ? test.gymScoreTotal : '-'}
                                 </td>
                                 
                                 <td className="p-2 text-center bg-indigo-50/20 dark:bg-indigo-900/10">

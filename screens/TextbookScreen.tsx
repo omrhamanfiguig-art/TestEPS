@@ -7,6 +7,7 @@ import {
 } from '../utils/textbookDb';
 import { 
   getAllClasses, 
+  getAttendanceSessions,
   ClassStats 
 } from '../utils/db';
 import { 
@@ -23,14 +24,86 @@ import {
   UserGroupIcon,
   UserCircleIcon,
   AcademicCapIcon,
-  SparklesIcon
+  SparklesIcon,
+  TableCellsIcon,
+  PrinterIcon
 } from '../components/Icons';
 import { useLanguage } from '../utils/i18n';
-import { exportTextbookToWord } from '../utils/wordHelper';
+import { 
+  exportTextbookToWord, 
+  exportOfficialCahierGridToWord, 
+  CahierGridRow, 
+  OfficialCahierGridExportData 
+} from '../utils/wordHelper';
 import { 
   saveTeacherProfileToCloud, 
   fetchTeacherProfilesFromCloud 
 } from '../utils/firebase';
+
+const SAUT_LONGUEUR_ROWS: CahierGridRow[] = [
+  { seanceNumber: 1, title: "Évaluer le niveau initial et prendre des repères de course d'élan", situation: "Situation: Test de performance et prise de marques", classDates: {} },
+  { seanceNumber: 2, title: "Stabiliser la course d'élan pour une prise d'appel efficace", situation: "Situation: Le couloir des foulées bondissantes", classDates: {} },
+  { seanceNumber: 3, title: "Améliorer l'efficacité de la phase d'appel", situation: "Situation: Ateliers de franchissement d'obstacles bas", classDates: {} },
+  { seanceNumber: 4, title: "Travailler la coordination impulsion-envol", situation: "Situation: Sauts en longueur avec surélévation (plinth)", classDates: {} },
+  { seanceNumber: 5, title: "Optimiser la trajectoire de vol et l'équilibration", situation: "Situation: Saut dans le sable avec cerceaux de réception", classDates: {} },
+  { seanceNumber: 6, title: "Améliorer la réception pour maximiser la distance", situation: "Situation: Parcours de saut avec zone de chute ciblée", classDates: {} },
+  { seanceNumber: 7, title: "Associer la vitesse d'élan et la précision de l'appel", situation: "Situation: Le duel du sauteur (progression de vitesse)", classDates: {} },
+  { seanceNumber: 8, title: "Gestion de l'effort et concentration en contexte de compétition", situation: "Situation: Compétition par équipe : le record cumulé", classDates: {} },
+  { seanceNumber: 9, title: "Régularité de la performance sur plusieurs essais", situation: "Situation: Simulacre de rencontre sportive officielle", classDates: {} },
+  { seanceNumber: 10, title: "Évaluation finale et bilan des acquis", situation: "Situation: Passage noté en situation de concours", classDates: {} },
+];
+
+const BASKETBALL_ROWS: CahierGridRow[] = [
+  { seanceNumber: 1, title: "Évaluation diagnostique et organisation du jeu collectif", situation: "Situation: Matchs réduits 3v3 et prise de repères", classDates: {} },
+  { seanceNumber: 2, title: "Maîtriser le drible de progression et la protection de balle", situation: "Situation: Parcours de drible sous pression défensive", classDates: {} },
+  { seanceNumber: 3, title: "Améliorer la précision des passes courtes et longues (poitrine/à terre)", situation: "Situation: Conservations de balle à 4v2", classDates: {} },
+  { seanceNumber: 4, title: "Développer le tir en course (double pas) côté droit et gauche", situation: "Situation: Ateliers d'accès au panier en vitesse", classDates: {} },
+  { seanceNumber: 5, title: "Organiser la contre-attaque rapide après récupération", situation: "Situation: Exercices de supériorité numérique 3v1 puis 3v2", classDates: {} },
+  { seanceNumber: 6, title: "Mise en place de la défense individuelle et سرعة Démarquage", situation: "Situation: Dualité attaquant/défenseur sur demi-terrain", classDates: {} },
+  { seanceNumber: 7, title: "Occupation rationnelle de l'espace et jeu sans ballon", situation: "Situation: Jeu placé avec zones d'attaque obligatoires", classDates: {} },
+  { seanceNumber: 8, title: "Application des règles du jeu et arbitrage autonome", situation: "Situation: Tournoi interne avec rôles d'arbitres et marqueurs", classDates: {} },
+  { seanceNumber: 9, title: "Régulation tactique et mise au point des systèmes simples", situation: "Situation: Matchs à thèmes (panier compté double)", classDates: {} },
+  { seanceNumber: 10, title: "Évaluation sommative en situation de rencontre officielle", situation: "Situation: Tournoi d'évaluation finale noté", classDates: {} },
+];
+
+const HANDBALL_ROWS: CahierGridRow[] = [
+  { seanceNumber: 1, title: "Évaluation initiale du niveau technico-tactique", situation: "Situation: Matchs 4v4 et observation des choix de jeu", classDates: {} },
+  { seanceNumber: 2, title: "Développer la passe en suspension et la réception en mouvement", situation: "Situation: Circuit de passes en vagues à 3 joueurs", classDates: {} },
+  { seanceNumber: 3, title: "Mise en œuvre du tir en extension au-dessus de la défense", situation: "Situation: Tirs aux 6m avec franchissement d'obstacles", classDates: {} },
+  { seanceNumber: 4, title: "Organisation de la défense alignée 6-0 ou 5-1", situation: "Situation: Glissements défensifs et entraide sur la zone", classDates: {} },
+  { seanceNumber: 5, title: "Création et exploitation des espaces libres (débordement)", situation: "Situation: Attaque placées 3v2 sur secteur central", classDates: {} },
+  { seanceNumber: 6, title: "L'enclenchement de la contre-attaque sur ballon récupéré", situation: "Situation: Relance rapide du gardien vers les ailier(e)s", classDates: {} },
+  { seanceNumber: 7, title: "Combinaisons tactiques simples (croisé, passe et va)", situation: "Situation: Ateliers de jeu combiné à deux et trois", classDates: {} },
+  { seanceNumber: 8, title: "Gestion du score et respect des règles (3 pas, zone)", situation: "Situation: Rencontres arbitrées par les élèves", classDates: {} },
+  { seanceNumber: 9, title: "Préparation collective au tournoi final", situation: "Situation: Matchs de cadrage à thèmes stratégiques", classDates: {} },
+  { seanceNumber: 10, title: "Évaluation finale des apprentissages et du fair-play", situation: "Situation: Tournoi de bilan noté sur grille", classDates: {} },
+];
+
+const COURSE_VITESSE_ROWS: CahierGridRow[] = [
+  { seanceNumber: 1, title: "Évaluation diagnostique du temps de réaction et vitesse maximale", situation: "Situation: Chronométrage 50m départ debout/accroupi", classDates: {} },
+  { seanceNumber: 2, title: "Optimiser le départ accroupi (starting-blocks)", situation: "Situation: Signal sonore et poussée explosive sur 15m", classDates: {} },
+  { seanceNumber: 3, title: "Travailler la fréquence et l'amplitude des foulées", situation: "Situation: Le couloir de lattes graduées à vitesse élevée", classDates: {} },
+  { seanceNumber: 4, title: "Améliorer le maintien de la vitesse maximale (mise en action)", situation: "Situation: Courses lancées de 30m avec prise de temps", classDates: {} },
+  { seanceNumber: 5, title: "Posture du corps et coordination bras/jambes en sprint", situation: "Situation: Ateliers éducatifs de course et gainage dynamique", classDates: {} },
+  { seanceNumber: 6, title: "Coopération et transmission du témoin en relais 4x100m", situation: "Situation: Zone de passage du témoin à grande vitesse", classDates: {} },
+  { seanceNumber: 7, title: "Gestion de la fin de course et franchissement de la ligne", situation: "Situation: Duels de sprinteurs sur 60m avec cassé de buste", classDates: {} },
+  { seanceNumber: 8, title: "Entraînement en conditions de compétition", situation: "Situation: Séries qualificatives et finales par poules de niveau", classDates: {} },
+  { seanceNumber: 9, title: "Régularité du chrono et ajustements individuels", situation: "Situation: Répétition de sprints avec récupération optimale", classDates: {} },
+  { seanceNumber: 10, title: "Évaluation sommative finale chronométrée", situation: "Situation: Test noté sur 60m et efficacité du départ", classDates: {} },
+];
+
+const GYMNASTIQUE_ROWS: CahierGridRow[] = [
+  { seanceNumber: 1, title: "Évaluation diagnostique des éléments gymniques de base", situation: "Situation: Parcours de découverte roulements et équilibres", classDates: {} },
+  { seanceNumber: 2, title: "Maîtriser la roulade avant et arrière avec alignement", situation: "Situation: Ateliers sur plans inclinés et tapis de réception", classDates: {} },
+  { seanceNumber: 3, title: "Travailler l'Appui Tendu Renversé (ATR) et le maintien", situation: "Situation: Éléments contre le mur et parade par partenaire", classDates: {} },
+  { seanceNumber: 4, title: "Réaliser la roue (renversement latéral)", situation: "Situation: Couloirs tracés au sol et franchissement d'obstacles", classDates: {} },
+  { seanceNumber: 5, title: "Apprendre les éléments de liaison et sauts gymniques", situation: "Situation: Enchaînements de saut extension et demi-tour", classDates: {} },
+  { seanceNumber: 6, title: "Création d'un enchaînement individuel de 4 éléments", situation: "Situation: Composition sur grille de niveau A/B/C", classDates: {} },
+  { seanceNumber: 7, title: "Mise en valeur de la posture et des réceptions stabilisées", situation: "Situation: Passage à blanc devant juges élèves", classDates: {} },
+  { seanceNumber: 8, title: "Harmonie et fluidité du mouvement dans l'espace", situation: "Situation: Répétitions personnalisées avec corrections vidéo", classDates: {} },
+  { seanceNumber: 9, title: "Répétition générale de l'enchaînement noté", situation: "Situation: Simulation d'examen avec fiche d'arbitrage", classDates: {} },
+  { seanceNumber: 10, title: "Évaluation finale de l'enchaînement gymnique au sol", situation: "Situation: Passage individuel noté devant l'enseignant", classDates: {} },
+];
 
 interface TextbookScreenProps {
   selectedClass: string;
@@ -109,8 +182,31 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  // Tab State: sessions feed vs timetable setup
-  const [activeTab, setActiveTab] = useState<'sessions' | 'timetable'>('sessions');
+  // Tab State: sessions feed vs timetable setup vs official landscape grid
+  const [activeTab, setActiveTab] = useState<'sessions' | 'timetable' | 'grid_landscape'>('sessions');
+
+  // State for Official Landscape Grid (Matching official Moroccan Inspectors Cahier de texte sheet)
+  const [gridEtablissement, setGridEtablissement] = useState('collège oued za');
+  const [gridProfesseur, setGridProfesseur] = useState('Omar HAMANI');
+  const [gridAps, setGridAps] = useState('Saut longueur (3ème Année Collégiale)');
+  const [gridCompetence, setGridCompetence] = useState('Envie d\'appliquer les acquis dans différentes situations.');
+  const [gridSelectedLevel, setGridSelectedLevel] = useState<string>('3APIC');
+  const [gridColsPerPage, setGridColsPerPage] = useState<number>(4);
+  const [gridClasses, setGridClasses] = useState<string[]>([
+    '3APIC 1', '3APIC 2', '3APIC 3', '3APIC 4', '3APIC 5', '3APIC 6', '3APIC 7', '3APIC 8'
+  ]);
+  const [gridRows, setGridRows] = useState<CahierGridRow[]>(SAUT_LONGUEUR_ROWS);
+
+  // Compute multi-sheet chunking for landscape pages (e.g. 8 classes = 2 sheets of 4 classes)
+  const gridSheets = useMemo(() => {
+    const cols = gridColsPerPage && gridColsPerPage > 0 ? gridColsPerPage : 4;
+    const chunks: string[][] = [];
+    const sourceClasses = gridClasses.length > 0 ? gridClasses : ['القسم 1'];
+    for (let i = 0; i < sourceClasses.length; i += cols) {
+      chunks.push(sourceClasses.slice(i, i + cols));
+    }
+    return chunks;
+  }, [gridClasses, gridColsPerPage]);
 
   // Teachers State
   const [teachers, setTeachers] = useState<TeacherProfile[]>(DEFAULT_TEACHERS);
@@ -165,8 +261,170 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
       setEditingTeacherName(activeTeacher.name);
       setEditingAssignedClasses(activeTeacher.assignedClasses || []);
       setEditingTimetable(JSON.parse(JSON.stringify(activeTeacher.timetable || {})));
+      if (activeTeacher.name) setGridProfesseur(activeTeacher.name);
+      if (activeTeacher.assignedClasses && activeTeacher.assignedClasses.length > 0) {
+        setGridClasses(activeTeacher.assignedClasses.slice(0, 4));
+      }
     }
   }, [activeTeacherId, teachers]);
+
+  const handleApplyPreset = (presetName: 'saut' | 'basketball' | 'handball' | 'vitesse' | 'gymnastique') => {
+    if (presetName === 'saut') {
+      setGridAps('Saut longueur (3ème Année Collégiale)');
+      setGridCompetence('Envie d\'appliquer les acquis dans différentes situations.');
+      setGridRows(JSON.parse(JSON.stringify(SAUT_LONGUEUR_ROWS)));
+    } else if (presetName === 'basketball') {
+      setGridAps('Basketball (الرياضات الجماعية)');
+      setGridCompetence('Rechercher le gain du match par la maîtrise des fondamentaux technico-tactiques.');
+      setGridRows(JSON.parse(JSON.stringify(BASKETBALL_ROWS)));
+    } else if (presetName === 'handball') {
+      setGridAps('Handball (الرياضات الجماعية)');
+      setGridCompetence('Accéder à la cible adverse par une circulation rapide du ballon et un démarquage efficace.');
+      setGridRows(JSON.parse(JSON.stringify(HANDBALL_ROWS)));
+    } else if (presetName === 'vitesse') {
+      setGridAps('Course de vitesse 60m (السرعة)');
+      setGridCompetence('Développer la vitesse maximale aérobie et le temps de réaction au départ.');
+      setGridRows(JSON.parse(JSON.stringify(COURSE_VITESSE_ROWS)));
+    } else if (presetName === 'gymnastique') {
+      setGridAps('Gymnastique au sol (الجمباز)');
+      setGridCompetence('Composer et exécuter un enchaînement individuel fluide avec maîtrise corporelle.');
+      setGridRows(JSON.parse(JSON.stringify(GYMNASTIQUE_ROWS)));
+    }
+    setNotification({ message: 'تم تطبيق تتابع الحصص والأهداف البيداغوجية للنشاط بنجاح! ✨', type: 'success' });
+  };
+
+  const handleClearGridDates = () => {
+    const updatedRows = gridRows.map(row => ({
+      ...row,
+      classDates: {}
+    }));
+    setGridRows(updatedRows);
+    setNotification({ message: 'تم تفريغ جميع خانات التواريخ والتوقيت لتكون جاهزة للكتابة اليدوية أو الطباعة! 🧹', type: 'success' });
+  };
+
+  const handleFillBlankPlaceholders = () => {
+    const updatedRows = gridRows.map(row => {
+      const nextDates: Record<string, string> = {};
+      gridClasses.forEach(cName => {
+        if (cName) {
+          nextDates[cName] = row.classDates[cName] || '___/___  ___h___';
+        }
+      });
+      return { ...row, classDates: nextDates };
+    });
+    setGridRows(updatedRows);
+    setNotification({ message: 'تم وضع أسطر للتاريخ والتوقيت في الخانات الفارغة! ✏️', type: 'success' });
+  };
+
+  const handleSetGridClassesCount = (count: number) => {
+    const safeCount = Math.max(1, Math.min(16, count));
+    let nextClasses = [...gridClasses];
+    if (nextClasses.length < safeCount) {
+      const remainingClasses = classList.map(c => c.className).filter(cn => !nextClasses.includes(cn));
+      while (nextClasses.length < safeCount) {
+        nextClasses.push(remainingClasses.shift() || `القسم ${nextClasses.length + 1}`);
+      }
+    } else if (nextClasses.length > safeCount) {
+      nextClasses = nextClasses.slice(0, safeCount);
+    }
+    setGridClasses(nextClasses);
+    setNotification({ message: `تم ضبط عدد أرقام الأقسام بالشبكة على ${safeCount} أقسام! 📐`, type: 'success' });
+  };
+
+  const handleAutoFillGridDates = async () => {
+    setIsLoading(true);
+    try {
+      const updatedRows = JSON.parse(JSON.stringify(gridRows)) as CahierGridRow[];
+      
+      for (const cName of gridClasses) {
+        if (!cName) continue;
+        const attSessions = await getAttendanceSessions(cName);
+        
+        updatedRows.forEach(row => {
+          if (!row.classDates) row.classDates = {};
+          
+          const targetNumStr = `${row.seanceNumber}`;
+          const targetNumAr = `الحصة ${row.seanceNumber}`;
+
+          const matchTb = sessions.find(s => 
+            s.className === cName && 
+            (s.sessionNumber === targetNumAr || s.sessionNumber === targetNumStr || (s.sessionNumber && s.sessionNumber.includes(targetNumStr)))
+          );
+          
+          const matchAtt = attSessions.find(a => 
+            a.className === cName && 
+            (a.sessionNumber === targetNumAr || a.sessionNumber === targetNumStr || (a.sessionNumber && a.sessionNumber.includes(targetNumStr)))
+          );
+
+          if (matchTb) {
+            const shortDate = matchTb.date ? matchTb.date.slice(5) : '';
+            const slot = matchTb.timeSlot ? matchTb.timeSlot.split('-')[0].trim() : '';
+            row.classDates[cName] = `${shortDate} ${slot}`.trim();
+          } else if (matchAtt) {
+            const shortDate = matchAtt.date ? matchAtt.date.slice(5) : '';
+            const slot = matchAtt.timeSlot ? matchAtt.timeSlot.split('-')[0].trim() : '';
+            row.classDates[cName] = `${shortDate} ${slot}`.trim();
+          }
+        });
+      }
+
+      setGridRows(updatedRows);
+      setNotification({ message: 'تم تعبئة تواريخ الحصص المسجلة للأقسام المحددة تلقائياً! ⚡', type: 'success' });
+    } catch (e) {
+      console.warn('Auto fill grid notice:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLevelChange = (levelKey: string) => {
+    setGridSelectedLevel(levelKey);
+    if (levelKey === '3APIC') {
+      const match = classList.filter(c => c.className.startsWith('3') || c.className.includes('3APIC')).map(c => c.className);
+      setGridClasses(match.length > 0 ? match : ['3APIC 1', '3APIC 2', '3APIC 3', '3APIC 4', '3APIC 5', '3APIC 6', '3APIC 7', '3APIC 8']);
+    } else if (levelKey === '2APIC') {
+      const match = classList.filter(c => c.className.startsWith('2') || c.className.includes('2APIC')).map(c => c.className);
+      setGridClasses(match.length > 0 ? match : ['2APIC 1', '2APIC 2', '2APIC 3', '2APIC 4']);
+    } else if (levelKey === '1APIC') {
+      const match = classList.filter(c => c.className.startsWith('1') || c.className.includes('1APIC')).map(c => c.className);
+      setGridClasses(match.length > 0 ? match : ['1APIC 1', '1APIC 2', '1APIC 3', '1APIC 4']);
+    } else if (levelKey === '1_2APIC') {
+      const match = classList.filter(c => 
+        c.className.startsWith('1') || c.className.includes('1APIC') || c.className.startsWith('2') || c.className.includes('2APIC')
+      ).map(c => c.className);
+      setGridClasses(match.length > 0 ? match : ['1APIC 1', '1APIC 2', '2APIC 1', '2APIC 2']);
+    } else if (levelKey === 'TC') {
+      const match = classList.filter(c => c.className.toUpperCase().includes('TC') || c.className.includes('جذع')).map(c => c.className);
+      setGridClasses(match.length > 0 ? match : ['TCS 1', 'TCS 2', 'TCL 1', 'TCL 2']);
+    } else if (levelKey === 'BAC') {
+      const match = classList.filter(c => c.className.includes('BAC') || c.className.includes('باك')).map(c => c.className);
+      setGridClasses(match.length > 0 ? match : ['1BAC 1', '1BAC 2', '2BAC 1', '2BAC 2']);
+    } else {
+      const allNames = classList.map(c => c.className);
+      setGridClasses(allNames.length > 0 ? allNames : ['3APIC 1', '3APIC 2', '3APIC 3', '3APIC 4', '3APIC 5', '3APIC 6', '3APIC 7', '3APIC 8']);
+    }
+    setNotification({ message: `تم تصفية الأقسام حسب مستوى ${levelKey === 'all' ? 'جميع المستويات' : (levelKey === '1_2APIC' ? 'الأولى والثانية إعدادي' : levelKey)}! 🏫`, type: 'success' });
+  };
+
+  const handleExportGridWord = () => {
+    const data: OfficialCahierGridExportData = {
+      etablissement: gridEtablissement,
+      professeur: gridProfesseur,
+      aps: gridAps,
+      competence: gridCompetence,
+      classes: gridClasses,
+      rows: gridRows,
+      colsPerPage: gridColsPerPage,
+      levelTitle: gridSelectedLevel !== 'all' ? `المستوى: ${gridSelectedLevel}` : ''
+    };
+
+    const ok = exportOfficialCahierGridToWord(data);
+    if (ok) {
+      setNotification({ message: `تم تصدير دفتر النصوص (${gridSheets.length} أوراق / ${gridClasses.length} أقسام) بصيغة Word Landscape بنجاح! 📄`, type: 'success' });
+    } else {
+      setNotification({ message: 'حدث خطأ أثناء التصدير.', type: 'error' });
+    }
+  };
 
   useEffect(() => {
     if (selectedClass && !formClassName) {
@@ -512,21 +770,35 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
       </div>
 
       {/* Tabs Control */}
-      <div className="flex border-b border-gray-100 dark:border-gray-700 gap-2">
+      <div className="flex border-b border-gray-100 dark:border-gray-700 gap-2 overflow-x-auto">
         <button
           onClick={() => setActiveTab('sessions')}
-          className={`pb-3 px-4 font-black text-xs transition relative flex items-center gap-1.5 ${
+          className={`pb-3 px-4 font-black text-xs transition relative flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
             activeTab === 'sessions'
               ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
               : 'text-gray-400 dark:text-gray-500 hover:text-gray-600'
           }`}
         >
           <DocumentTextIcon className="w-4 h-4" />
-          <span>سجل دفتر النصوص</span>
+          <span>سجل دفتر النصوص اليومي</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('grid_landscape')}
+          className={`pb-3 px-4 font-black text-xs transition relative flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+            activeTab === 'grid_landscape'
+              ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
+              : 'text-gray-400 dark:text-gray-500 hover:text-gray-600'
+          }`}
+        >
+          <TableCellsIcon className="w-4 h-4 text-emerald-600" />
+          <span>النموذج الرسمي (شبكة 4 أقسام - Paysage)</span>
+          <span className="px-1.5 py-0.5 rounded-full text-[9px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 font-bold border border-emerald-300 dark:border-emerald-800">رسمي ✨</span>
+        </button>
+
         <button
           onClick={() => setActiveTab('timetable')}
-          className={`pb-3 px-4 font-black text-xs transition relative flex items-center gap-1.5 ${
+          className={`pb-3 px-4 font-black text-xs transition relative flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
             activeTab === 'timetable'
               ? 'text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
               : 'text-gray-400 dark:text-gray-500 hover:text-gray-600'
@@ -1015,6 +1287,519 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
         </form>
       )}
 
+      {/* TAB 3: OFFICIAL LANDSCAPE GRID VIEW (Matching Moroccan Inspectors Official Model) */}
+      {activeTab === 'grid_landscape' && (
+        <div className="space-y-6" dir="rtl">
+          {/* Level Filter & Sheet Capacity Bar */}
+          <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-blue-900 text-white p-5 rounded-3xl shadow-lg space-y-4">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-white/10 pb-4">
+              <div>
+                <h2 className="text-base sm:text-lg font-black flex items-center gap-2">
+                  <span>📊</span>
+                  <span>تخصيص دفتر النصوص حسب المستوى والأقسام (A4 Landscape)</span>
+                </h2>
+                <p className="text-xs text-indigo-200 mt-1">
+                  توزيع استخراج دفتر النصوص حسب المستوى الدراسي (الثالثة إعدادي، الثانية، الأولى...) مع تقسيم تلقائي للأوراق بـ 4 أقسام لكل ورقة
+                </p>
+              </div>
+
+              {/* Capacities & Columns Configuration */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                {/* Sheet Capacity Selector */}
+                <div className="flex items-center gap-2 bg-white/10 p-2 rounded-2xl border border-white/10">
+                  <span className="text-xs font-bold text-indigo-100">سعة الورقة الواحدة:</span>
+                  <div className="flex items-center gap-1">
+                    {[2, 3, 4, 5, 6, 8].map(num => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setGridColsPerPage(num)}
+                        className={`px-2 py-0.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                          gridColsPerPage === num
+                            ? 'bg-white text-indigo-950 shadow-md scale-105'
+                            : 'bg-white/10 text-white hover:bg-white/20'
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Total Classes Selector */}
+                <div className="flex items-center gap-2 bg-white/10 p-2 rounded-2xl border border-white/10">
+                  <span className="text-xs font-bold text-indigo-100 font-sans">إجمالي الأقسام:</span>
+                  <div className="flex items-center gap-1">
+                    {[3, 4, 8, 12].map(num => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => handleSetGridClassesCount(num)}
+                        className={`px-2 py-0.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                          gridClasses.length === num
+                            ? 'bg-amber-400 text-slate-950 shadow-md scale-105'
+                            : 'bg-white/10 text-white hover:bg-white/20'
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                    <input
+                      type="number"
+                      min="1"
+                      max="16"
+                      value={gridClasses.length}
+                      onChange={(e) => handleSetGridClassesCount(Number(e.target.value))}
+                      className="w-10 text-center bg-white/25 text-white border border-white/20 rounded-xl py-0.5 px-0.5 font-bold text-[10px]"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Level Selector Tabs */}
+            <div className="space-y-2">
+              <label className="block text-xs font-black text-indigo-200">
+                اختيار المستوى الدراسي المطلوبة طباعته أو تصديره:
+              </label>
+              <div className="flex items-center gap-2 flex-wrap">
+                {[
+                  { id: '3APIC', label: '🎓 السنة الثالثة إعدادي (3APIC)' },
+                  { id: '2APIC', label: '📘 السنة الثانية إعدادي (2APIC)' },
+                  { id: '1APIC', label: '📗 السنة الأولى إعدادي (1APIC)' },
+                  { id: '1_2APIC', label: '📗 الأولى والثانية إعدادي (1AC + 2AC)' },
+                  { id: 'TC', label: '🏛️ الجذوع المشتركة (TC)' },
+                  { id: 'BAC', label: '🎒 الأولى / الثانية باكالوريا' },
+                  { id: 'all', label: '🏫 جميع المستويات (عرض الكل)' }
+                ].map(lvl => (
+                  <button
+                    key={lvl.id}
+                    type="button"
+                    onClick={() => handleLevelChange(lvl.id)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
+                      gridSelectedLevel === lvl.id
+                        ? 'bg-amber-400 text-slate-950 shadow-lg scale-105'
+                        : 'bg-white/10 text-white hover:bg-white/20'
+                    }`}
+                  >
+                    {lvl.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Controls & Options Bar */}
+          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 space-y-5 text-right">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-100 dark:border-gray-700 pb-4">
+              <div>
+                <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-3 py-1 rounded-xl">
+                  المستوى الحالي: {gridSelectedLevel === 'all' ? 'جميع المستويات' : gridSelectedLevel} • عدد الأقسام الإجمالي: {gridClasses.length} • عدد الأوراق المستخرجة: {gridSheets.length}
+                </span>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleAutoFillGridDates}
+                  disabled={isLoading}
+                  className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  title="تعبئة تواريخ وحصص الأقسام تلقائياً من غيابات ودروس الأقسام المسجلة"
+                >
+                  <span>⚡</span>
+                  <span>تعبئة التواريخ تلقائياً</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleClearGridDates}
+                  className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  title="تفريغ كافة خانات التواريخ بياضاً للكتابة اليدوية بعد الطباعة"
+                >
+                  <span>🧹</span>
+                  <span>تفريغ الخانات (مسح)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleFillBlankPlaceholders}
+                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  title="وضع أسطر منقطة للتاريخ والتوقيت في الخانات الفارغة"
+                >
+                  <span>✏️</span>
+                  <span>أسطر للتنقيط</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportGridWord}
+                  className="px-3.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  title="تصدير المستند المنسق بصيغة Word (A4 Landscape / Paysage)"
+                >
+                  <DocumentTextIcon className="w-4 h-4" />
+                  <span>تصدير Word ({gridSheets.length} أوراق)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3.5 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 text-white text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  title="طباعة جميع الأوراق العرضية مباشرة"
+                >
+                  <PrinterIcon className="w-4 h-4" />
+                  <span>طباعة ({gridSheets.length} أوراق)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Presets Bar */}
+            <div className="bg-indigo-50/50 dark:bg-indigo-950/30 p-3.5 rounded-2xl border border-indigo-100 dark:border-indigo-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <span className="text-xs font-black text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5 shrink-0">
+                <span>🎯</span>
+                <span>تطبيق أهداف وحصص النشاط (Presets):</span>
+              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('saut')}
+                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-700 hover:bg-indigo-50 transition cursor-pointer"
+                >
+                  🏃 Saut en longueur
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('basketball')}
+                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-700 hover:bg-indigo-50 transition cursor-pointer"
+                >
+                  🏀 Basketball
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('handball')}
+                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-700 hover:bg-indigo-50 transition cursor-pointer"
+                >
+                  🤾 Handball
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('vitesse')}
+                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-700 hover:bg-indigo-50 transition cursor-pointer"
+                >
+                  ⚡ Sprint / Course vitesse
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyPreset('gymnastique')}
+                  className="px-3 py-1.5 rounded-xl bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-700 hover:bg-indigo-50 transition cursor-pointer"
+                >
+                  🤸 Gymnastique au sol
+                </button>
+              </div>
+            </div>
+
+            {/* Header Inputs Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-bold">
+              <div>
+                <label className="block text-gray-600 dark:text-gray-400 mb-1">Établissement (المؤسسة):</label>
+                <input
+                  type="text"
+                  value={gridEtablissement}
+                  onChange={(e) => setGridEtablissement(e.target.value)}
+                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-xs font-bold"
+                  placeholder="Collège Oued Za..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-600 dark:text-gray-400 mb-1">Professeur (الأستاذ):</label>
+                <input
+                  type="text"
+                  value={gridProfesseur}
+                  onChange={(e) => setGridProfesseur(e.target.value)}
+                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-xs font-bold"
+                  placeholder="Omar HAMANI..."
+                />
+              </div>
+
+              <div className="lg:col-span-2">
+                <label className="block text-gray-600 dark:text-gray-400 mb-1">APS / النشاط والمستوى الدراسي:</label>
+                <input
+                  type="text"
+                  value={gridAps}
+                  onChange={(e) => setGridAps(e.target.value)}
+                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-xs font-bold"
+                  placeholder="Saut longueur (3ème Année Collégiale)..."
+                />
+              </div>
+
+              <div className="lg:col-span-4">
+                <label className="block text-gray-600 dark:text-gray-400 mb-1">Compétence (الكفاية المستهدفة):</label>
+                <input
+                  type="text"
+                  value={gridCompetence}
+                  onChange={(e) => setGridCompetence(e.target.value)}
+                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-xs font-bold"
+                  placeholder="Envie d'appliquer les acquis dans différentes situations..."
+                />
+              </div>
+            </div>
+
+            {/* Selecting Classes for Grid Columns */}
+            <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <label className="block text-xs font-black text-gray-700 dark:text-gray-300">
+                  قائمة الأقسام المحددة في هذا المستوى ({gridClasses.length} أقسام):
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGridClasses(prev => [...prev, `قسم ${prev.length + 1}`]);
+                      setNotification({ message: 'تم إضافة قسم جديد إلى القائمة! ➕', type: 'success' });
+                    }}
+                    className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 rounded-lg text-xs font-bold border border-indigo-200 cursor-pointer"
+                  >
+                    + إضافة قسم آخر
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {gridClasses.map((cName, colIdx) => (
+                  <div key={colIdx} className="bg-gray-50 dark:bg-gray-700/60 p-2 rounded-xl border border-gray-200 dark:border-gray-600 flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-black text-indigo-600 shrink-0">قسم {colIdx + 1}:</span>
+                    <input
+                      type="text"
+                      value={cName || ''}
+                      onChange={(e) => {
+                        const newVal = e.target.value;
+                        setGridClasses(prev => {
+                          const next = [...prev];
+                          next[colIdx] = newVal;
+                          return next;
+                        });
+                      }}
+                      placeholder="اسم القسم..."
+                      className="w-full text-xs font-bold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1 text-black dark:text-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGridClasses(prev => prev.filter((_, idx) => idx !== colIdx));
+                      }}
+                      className="text-rose-500 hover:text-rose-700 font-bold px-1 text-xs"
+                      title="حذف هذا القسم"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Printable Official Sheet View (Renders Multiple Pages cleanly if e.g. 8 classes = 2 pages) */}
+          <div className="space-y-8" dir="ltr">
+            <style>{`
+              @media print {
+                @page {
+                  size: A4 landscape;
+                  margin: 0.6cm;
+                }
+                body * {
+                  visibility: hidden;
+                }
+                .cahier-official-grid-print, .cahier-official-grid-print * {
+                  visibility: visible;
+                }
+                .cahier-official-grid-print {
+                  position: relative !important;
+                  width: 100% !important;
+                  margin: 0 0 20px 0 !important;
+                  padding: 0 !important;
+                  border: none !important;
+                  box-shadow: none !important;
+                  background: white !important;
+                  color: black !important;
+                  page-break-after: always;
+                  break-after: page;
+                }
+                .no-print-input {
+                  border: none !important;
+                  background: transparent !important;
+                  padding: 0 !important;
+                }
+                .no-print {
+                  display: none !important;
+                }
+              }
+            `}</style>
+
+            {gridSheets.map((sheetClasses, sheetIdx) => (
+              <div key={sheetIdx} className="cahier-official-grid-print bg-white text-black p-5 sm:p-8 rounded-2xl border-2 border-black shadow-xl overflow-x-auto">
+                {/* Multi-Page Indicator Badge */}
+                <div className="mb-3 pb-2 border-b border-gray-200 flex items-center justify-between font-bold text-xs no-print text-indigo-900" dir="rtl">
+                  <span className="bg-indigo-50 border border-indigo-200 px-3 py-1 rounded-xl text-xs font-black">
+                    📄 الورقة رقم {sheetIdx + 1} من أصل {gridSheets.length} ({sheetClasses.length} أقسام)
+                  </span>
+                  <span className="text-xs text-gray-600">
+                    الأقسام المضمنة في هذه الورقة: <strong className="text-indigo-700 font-mono">{sheetClasses.join(' • ')}</strong>
+                  </span>
+                </div>
+
+                {/* 1. Header Box */}
+                <table className="w-full border-collapse border-2 border-black text-xs font-sans mb-3 text-black">
+                  <tbody>
+                    <tr className="border-b border-black">
+                      <td className="p-2 border-e border-black font-bold w-3/5">
+                        <span>Établissement: </span>
+                        <span className="font-normal">{gridEtablissement}</span>
+                        {gridSelectedLevel !== 'all' && <span className="ms-2 font-bold text-indigo-900">({gridSelectedLevel})</span>}
+                      </td>
+                      <td className="p-2 font-bold w-2/5">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <span>Professeur: </span>
+                            <span className="font-normal">{gridProfesseur}</span>
+                          </div>
+                          {gridSheets.length > 1 && (
+                            <span className="text-[10px] font-black border border-black px-1.5 py-0.5 rounded">
+                              Page {sheetIdx + 1}/{gridSheets.length}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                    <tr className="border-b border-black">
+                      <td colSpan={2} className="p-2 font-bold">
+                        <span>APS: </span>
+                        <span className="font-normal">{gridAps}</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colSpan={2} className="p-2 font-bold">
+                        <span>Compétence: </span>
+                        <span className="font-normal">{gridCompetence}</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* 2. Main 10-Séance Grid */}
+                <table className="w-full border-collapse border-2 border-black text-xs font-sans mb-3 text-black">
+                  <thead>
+                    <tr className="bg-gray-100 border-b-2 border-black text-[11px] font-black uppercase text-center">
+                      <th className="p-2 border-e border-black w-12 text-center">SÉANCE</th>
+                      <th className="p-2 border-e border-black text-center min-w-[240px] w-2/5">
+                        OBJECTIF / SITUATION D'APPRENTISSAGE
+                      </th>
+                      {sheetClasses.map((cName, idx) => (
+                        <th key={idx} className="p-2 border-e border-black text-center font-bold">
+                          {cName || `Classe ${idx + 1}`}
+                        </th>
+                      ))}
+                      <th className="p-2 text-center w-28">OBSERVATION</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black">
+                    {gridRows.map((row, idx) => (
+                      <tr key={idx} className="border-b border-black text-xs">
+                        {/* Séance Number */}
+                        <td className="p-2 border-e border-black text-center font-black text-base">
+                          {row.seanceNumber}
+                        </td>
+
+                        {/* Objectif / Situation */}
+                        <td className="p-2 border-e border-black leading-tight">
+                          <input
+                            type="text"
+                            value={row.title}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setGridRows(prev => {
+                                const next = [...prev];
+                                next[idx] = { ...next[idx], title: val };
+                                return next;
+                              });
+                            }}
+                            className="w-full font-bold text-xs bg-transparent border-none focus:bg-amber-50 focus:ring-1 focus:ring-indigo-500 rounded p-0.5 no-print-input text-black"
+                          />
+                          <input
+                            type="text"
+                            value={row.situation || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setGridRows(prev => {
+                                const next = [...prev];
+                                next[idx] = { ...next[idx], situation: val };
+                                return next;
+                              });
+                            }}
+                            className="w-full text-[11px] italic text-gray-700 bg-transparent border-none focus:bg-amber-50 focus:ring-1 focus:ring-indigo-500 rounded p-0.5 mt-0.5 no-print-input"
+                            placeholder="Situation..."
+                          />
+                        </td>
+
+                        {/* Class Date Cells */}
+                        {sheetClasses.map((cName, cIdx) => (
+                          <td key={cIdx} className="p-1.5 border-e border-black text-center font-bold text-xs align-middle">
+                            <input
+                              type="text"
+                              value={row.classDates[cName] || ''}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setGridRows(prev => {
+                                  const next = [...prev];
+                                  const nextDates = { ...next[idx].classDates, [cName]: val };
+                                  next[idx] = { ...next[idx], classDates: nextDates };
+                                  return next;
+                                });
+                              }}
+                              placeholder="التاريخ/التوقيت"
+                              className="w-full text-center font-mono font-bold text-xs bg-transparent border-none focus:bg-amber-50 focus:ring-1 focus:ring-indigo-500 rounded p-0.5 no-print-input text-black"
+                            />
+                          </td>
+                        ))}
+
+                        {/* Observation */}
+                        <td className="p-1.5 text-center text-xs align-middle">
+                          <input
+                            type="text"
+                            value={row.observation || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setGridRows(prev => {
+                                const next = [...prev];
+                                next[idx] = { ...next[idx], observation: val };
+                                return next;
+                              });
+                            }}
+                            className="w-full text-center text-xs bg-transparent border-none focus:bg-amber-50 focus:ring-1 focus:ring-indigo-500 rounded p-0.5 no-print-input text-black"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {/* 3. Footer Legend */}
+                <div className="pt-2 border-t-2 border-black text-[11px] font-bold text-black flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <span className="underline font-black">Légende:</span>
+                  <span><strong>Ti:</strong> Terrain impraticable</span>
+                  <span><strong>F:</strong> Formation</span>
+                  <span><strong>C:</strong> Compétition</span>
+                  <span><strong>V:</strong> Vacances</span>
+                  <span><strong>G:</strong> Grève</span>
+                  <span><strong>Abs:</strong> Absence</span>
+                  <span><strong>M:</strong> Maladie</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Word Export Settings & Mise en Page Modal */}
       {isWordSettingsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in" dir="rtl">
@@ -1130,6 +1915,7 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
                     <option value="all">🏫 جميع المستويات</option>
                     <option value="1APIC">الأولى إعدادي (1APIC)</option>
                     <option value="2APIC">الثانية إعدادي (2APIC)</option>
+                    <option value="1_2APIC">الأولى والثانية إعدادي (1AC + 2AC)</option>
                     <option value="3APIC">الثالثة إعدادي (3APIC)</option>
                     <option value="1BAC">الأولى باكالوريا (1BAC)</option>
                     <option value="2BAC">الثانية باكالوريا (2BAC)</option>

@@ -97,6 +97,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: language === 'ar' ? 'تقويم' : 'Éval'
     },
     {
+      id: 'team-games' as ActiveScreen,
+      label: language === 'ar' ? 'الألعاب الجماعية والجمباز' : 'Sports Collectifs & Gym',
+      icon: <UserGroupIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />,
+      badge: language === 'ar' ? 'ألعاب/جمباز' : 'Sports/Gym'
+    },
+    {
       id: 'global-grades' as ActiveScreen,
       label: t.navGlobalGrades,
       icon: <TableCellsIcon className="w-5 h-5" />,

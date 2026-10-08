@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { StudentIdentity, AttendanceSession, AttendanceRecord, AttendanceStatus } from '../types';
+import { StudentIdentity, AttendanceSession, AttendanceRecord, AttendanceStatus, TextbookSession } from '../types';
 import { 
   getStudentList, 
   saveStudentList,
@@ -9,6 +9,7 @@ import {
   saveAttendanceSession, 
   deleteAttendanceSession 
 } from '../utils/db';
+import { saveTextbookSession } from '../utils/textbookDb';
 import { 
   CalendarDaysIcon, 
   ClockIcon, 
@@ -111,6 +112,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
   const [date, setDate] = useState<string>(initialDate || todayStr);
   const [timeSlot, setTimeSlot] = useState<string>("08:00 - 09:00");
   const [topic, setTopic] = useState<string>("ألعاب القوى والتربية البدنية");
+  const [sessionGoal, setSessionGoal] = useState<string>("");
   const [sessionNumber, setSessionNumber] = useState<string>("الحصة 1");
   const [sessionId, setSessionId] = useState<string>(() => `${Date.now()}`);
 
@@ -253,6 +255,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
       setSessionId(existing.id);
       setTimeSlot(existing.timeSlot || "08:00 - 09:00");
       setTopic(existing.topic || "ألعاب القوى والتربية البدنية");
+      setSessionGoal(existing.sessionGoal || "");
       setSessionNumber(existing.sessionNumber || "الحصة 1");
       const recMap: Record<string, AttendanceRecord> = {};
       (existing.records || []).forEach(r => {
@@ -269,6 +272,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
       // New session: default all students to present
       const freshId = `sess_${className.replace(/\s+/g, '_')}_${date}_${Date.now()}`;
       setSessionId(freshId);
+      setSessionGoal("");
       if (!sessionNumber) setSessionNumber("الحصة 1");
       const freshMap: Record<string, AttendanceRecord> = {};
       stds.forEach(s => {
@@ -286,6 +290,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
       setSessionId(existing.id);
       setTimeSlot(existing.timeSlot);
       setTopic(existing.topic || '');
+      setSessionGoal(existing.sessionGoal || '');
       setSessionNumber(existing.sessionNumber || "الحصة 1");
       const recMap: Record<string, AttendanceRecord> = {};
       existing.records.forEach(r => { recMap[r.studentNumber] = r; });
@@ -298,6 +303,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
     } else {
       const freshId = `sess_${selectedClass.replace(/\s+/g, '_')}_${newDate}_${Date.now()}`;
       setSessionId(freshId);
+      setSessionGoal('');
       const freshMap: Record<string, AttendanceRecord> = {};
       students.forEach(s => {
         freshMap[s.numeroEleve] = { studentNumber: s.numeroEleve, status: 'present' };
@@ -317,6 +323,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
       setDate(existing.date);
       setTimeSlot(existing.timeSlot || "08:00 - 09:00");
       if (existing.topic) setTopic(existing.topic);
+      setSessionGoal(existing.sessionGoal || '');
       const recMap: Record<string, AttendanceRecord> = {};
       (existing.records || []).forEach(r => { recMap[r.studentNumber] = r; });
       students.forEach(s => {
@@ -328,6 +335,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
     } else {
       const freshId = `sess_${selectedClass.replace(/\s+/g, '_')}_${newSessionNumber.replace(/\s+/g, '_')}_${date}_${Date.now()}`;
       setSessionId(freshId);
+      setSessionGoal('');
     }
   };
 
@@ -337,6 +345,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
     setDate(session.date);
     setTimeSlot(session.timeSlot);
     setTopic(session.topic || '');
+    setSessionGoal(session.sessionGoal || '');
     setSessionNumber(session.sessionNumber || `الحصة ${previousSessions.indexOf(session) >= 0 ? previousSessions.length - previousSessions.indexOf(session) : 1}`);
     const recMap: Record<string, AttendanceRecord> = {};
     (session.records || []).forEach(r => { recMap[r.studentNumber] = r; });
@@ -440,6 +449,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
       date,
       timeSlot,
       topic: topic.trim(),
+      sessionGoal: sessionGoal.trim(),
       sessionNumber: sessionNumber.trim(),
       records: recordsList,
       summary: {
@@ -456,11 +466,30 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
 
     try {
       await saveAttendanceSession(sessionObj);
+
+      // Auto-sync into Textbook (دفتر النصوص) with Class, Date, Time, and Lesson Goal
+      const formattedGoal = sessionGoal.trim()
+        ? (topic.trim() ? `${topic.trim()} - ${sessionGoal.trim()}` : sessionGoal.trim())
+        : (topic.trim() || 'التربية البدنية والرياضية');
+
+      const textbookEntry: TextbookSession = {
+        id: `tb_${sessionObj.id}`,
+        sessionNumber: sessionNumber.trim() || 'الحصة 1',
+        goal: formattedGoal,
+        className: selectedClass,
+        date: date,
+        timeSlot: timeSlot,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      await saveTextbookSession(textbookEntry);
+
       const updated = await getAttendanceSessions(selectedClass);
       setPreviousSessions(updated);
 
       setNotification({
-        message: `تم حفظ ورقة غياب حصة ${date} (${timeSlot}) ومزامنتها محلياً وسحابياً بنجاح! 💾☁️`,
+        message: `تم حفظ ورقة الحضور (${date} - ${timeSlot}) ودمج هدف الحصة تلقائياً في دفتر النصوص! 📖💾`,
         type: 'success'
       });
       setTimeout(() => setNotification(null), 3500);
@@ -839,7 +868,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
           <div className="lg:col-span-2">
             <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1.5 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
-                <span>🎯</span>
+                <span>⚽</span>
                 <span>النشاط / موضوع الحصة:</span>
               </span>
               <button
@@ -879,6 +908,46 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                 {COMMON_TOPICS.map(top => (
                   <option key={top} value={top}>{top}</option>
                 ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Session Goal Input (Auto-synced into Textbook) */}
+          <div className="lg:col-span-5 pt-2 border-t border-gray-100 dark:border-gray-700/80">
+            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center justify-between flex-wrap gap-2">
+              <span className="flex items-center gap-1.5">
+                <span className="text-base">🎯</span>
+                <span>هدف الحصة البيداغوجي (يُدمج تلقائياً في دفتر النصوص مع القسم والتاريخ والتوقيت):</span>
+              </span>
+              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 font-black bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-lg border border-emerald-300 dark:border-emerald-800">
+                <span>📖</span>
+                <span>دمج وتحديث تلقائي لدفتر النصوص</span>
+              </span>
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                value={sessionGoal}
+                onChange={(e) => setSessionGoal(e.target.value)}
+                placeholder="أدخل هدف الحصة (مثال: التمرير والاستقبال الدقيق، الجري السريع، أو القدرة الهوائية...)"
+                className="flex-1 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3.5 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+              />
+              <select
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSessionGoal(e.target.value);
+                  }
+                }}
+                className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500 cursor-pointer sm:max-w-[210px]"
+                value=""
+              >
+                <option value="" disabled>أهداف بيداغوجية مقترحة...</option>
+                <option value="التحكم في الكرة والتمرير والاستقبال المتقن">⚽ التحكم في الكرة والتمرير المتقن</option>
+                <option value="تطوير السرعة والتوافق والانطلاق السريع">🏃 السرعة والتوافق والانطلاق السريع</option>
+                <option value="تطوير القدرة الهوائية والتحمل الدوري التنفسي">🫁 القدرة الهوائية والتحمل الدوري</option>
+                <option value="الالتزام بالقوانين والتنظيم والانسجام الجماعي">🤝 التنظيم والعمل والانسجام الجماعي</option>
+                <option value="الارتقاء والقفز والمهارات البدنية الأساسية">🤸 الارتقاء والقفز والمهارات البدنية</option>
+                <option value="إجراء التقويم التشخيصي والاختبارات البدنية الميدانية">📊 تقويم تشخيصي واختبارات بدنية</option>
               </select>
             </div>
           </div>

@@ -87,6 +87,30 @@ export interface PhysicalTests {
   noteMotrice?: number;
   noteComportement?: number;
   noteCognitive?: number;
+
+  // Team Games specific detailed grading (Moroccan standards: Individual tech /6 + Collective play)
+  sportColTechIndiv?: number; // التقنية الفردية (أقصى 6)
+  sportColCollectif?: number; // اللعب الجماعي (المتبقي من الحركي: 1AC=8, 2AC=7, 3AC=6)
+  sportColComportement?: number; // الجانب السلوكي للألعاب الجماعية
+  sportColCognitive?: number; // الجانب المعرفي للألعاب الجماعية
+
+  // Gymnastique (الجمباز) specific scoring fields (Moroccan standards)
+  gymDiffCountA?: number; // عدد صعوبات أ المنجزة
+  gymDiffCountB?: number; // عدد صعوبات ب المنجزة
+  gymDiffCountC?: number; // عدد صعوبات ج المنجزة
+  gymScoreDifficultes?: number; // نقطة الصعوبة الإجمالية (أقصى 6 ن)
+  gymScoreExigences?: number; // نقطة المتطلبات الخاصة (أقصى 1.5 ن)
+  gymScoreEnchainement?: number; // نقطة جودة الربط والتركيب (أقصى 4.5 ن أو 3.5 ن أو 2.5 ن)
+  gymScoreExecution?: number; // نقطة الأداء والتنفيذ (أقصى 2 ن)
+  gymExecutionFaultsPetite?: number; // أخطاء طفيفة (-0.1 لكل خطأ)
+  gymExecutionFaultsMoyenne?: number; // أخطاء متوسطة (-0.2 لكل خطأ)
+  gymExecutionFaultsGrossiere?: number; // أخطاء جسيمة (-0.3 لكل خطأ)
+  gymExecutionFaultsChutes?: number; // سقطات (-0.5 لكل سقطة)
+  gymNoteMotrice?: number; // النقطة الحركية للجمباز (مجموع الصعوبات والتركيب والأداء - أقصى 14 ن أو 13 ن أو 12 ن)
+  gymNoteComportement?: number; // النقطة السلوكية للجمباز
+  gymNoteCognitive?: number; // النقطة المعرفية للجمباز
+  gymScoreTotal?: number; // النقطة الإجمالية لرياضة الجمباز من 20 ن
+  gymNoteObservation?: string; // ملاحظات الجمباز الخاصة بكل تلميذ
   date?: string;
 }
 
@@ -130,6 +154,7 @@ export interface AttendanceSession {
   date: string; // YYYY-MM-DD
   timeSlot: string; // e.g. "08:00 - 10:00"
   topic?: string;
+  sessionGoal?: string; // هدف الحصة (البيداغوجي / التعليمي)
   sessionNumber?: string; // رقم الحصة (مثال: الحصة الأولى، الحصة الثانية، إلخ)
   records: AttendanceRecord[];
   summary: {
