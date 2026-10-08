@@ -31,7 +31,6 @@ export type ActiveScreen =
   | 'physical-tests'
   | 'athletics'
   | 'team-games'
-  | 'global-grades'
   | 'massar'
   | 'textbook'
   | 'talent'
@@ -102,12 +101,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: language === 'ar' ? 'الألعاب الجماعية والجمباز' : 'Sports Collectifs & Gym',
       icon: <UserGroupIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />,
       badge: language === 'ar' ? 'ألعاب/جمباز' : 'Sports/Gym'
-    },
-    {
-      id: 'global-grades' as ActiveScreen,
-      label: t.navGlobalGrades,
-      icon: <TableCellsIcon className="w-5 h-5" />,
-      badge: language === 'ar' ? 'نقط' : 'Notes'
     },
     {
       id: 'massar' as ActiveScreen,
@@ -320,7 +313,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           { id: 'physical-tests' as ActiveScreen, label: language === 'ar' ? 'الروائز' : 'Tests', icon: <TrophyIcon className="w-5 h-5" /> },
           { id: 'attendance' as ActiveScreen, label: language === 'ar' ? 'الغياب والنصوص' : 'Suivi', icon: <CalendarDaysIcon className="w-5 h-5" /> },
           { id: 'talent' as ActiveScreen, label: language === 'ar' ? 'المواهب' : 'Talents', icon: <SparklesIcon className="w-5 h-5" /> },
-          { id: 'global-grades' as ActiveScreen, label: language === 'ar' ? 'المحضر' : 'Bilan', icon: <TableCellsIcon className="w-5 h-5" /> },
         ].map(item => {
           const isActive = activeScreen === item.id;
           return (

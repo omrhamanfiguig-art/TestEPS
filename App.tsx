@@ -4,7 +4,6 @@ import { TopHeader } from './components/TopHeader';
 import { PhysicalTestsScreen } from './screens/PhysicalTestsScreen';
 import { AthleticsScreen } from './screens/AthleticsScreen';
 import { TeamGamesScreen } from './screens/TeamGamesScreen';
-import { GlobalGradesScreen } from './screens/GlobalGradesScreen';
 import { MassarScreen } from './screens/MassarScreen';
 import { TextbookScreen } from './screens/TextbookScreen';
 import { TalentScreen } from './screens/TalentScreen';
@@ -159,14 +158,6 @@ const MainLayout: React.FC = () => {
             <TeamGamesScreen
               selectedClass={selectedClass}
               setSelectedClass={setSelectedClass}
-            />
-          )}
-
-          {activeScreen === 'global-grades' && (
-            <GlobalGradesScreen
-              selectedClass={selectedClass}
-              setSelectedClass={setSelectedClass}
-              onNavigateToScreen={setActiveScreen}
             />
           )}
 
