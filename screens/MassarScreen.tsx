@@ -568,7 +568,7 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
           students: students.filter(s => (s as any).className === cName),
           records: records.filter(r => (r.className || '').trim() === cName)
         }));
-        generateOfficialMassarExcelForLevel(activeLevel, classesData, config, true);
+        generateOfficialMassarExcelForLevel(activeLevel, classesData, config, false);
         setNotification({ 
           message: `تم تصدير لوائح مسار للمستوى ${activeLevel.shortName} بنجاح!`, 
           type: 'success' 

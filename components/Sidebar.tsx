@@ -98,9 +98,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'team-games' as ActiveScreen,
-      label: language === 'ar' ? 'الألعاب الجماعية والجمباز' : 'Sports Collectifs & Gym',
+      label: language === 'ar' ? 'الفروض' : 'Évaluations',
       icon: <UserGroupIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />,
-      badge: language === 'ar' ? 'ألعاب/جمباز' : 'Sports/Gym'
+      badge: language === 'ar' ? 'الفروض' : 'Devoirs'
     },
     {
       id: 'massar' as ActiveScreen,

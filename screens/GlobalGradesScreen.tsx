@@ -605,8 +605,10 @@ export const GlobalGradesScreen: React.FC<GlobalGradesScreenProps> = ({
                         const nComportement = test?.noteComportement;
                         const nCognitive = test?.noteCognitive;
                         
-                        const finalGrade = (nMotrice || 0) + (nComportement || 0) + (nCognitive || 0);
-                        const displayFinal = (nMotrice !== undefined || nComportement !== undefined || nCognitive !== undefined) ? finalGrade.toFixed(2) : '--';
+                        const finalGrade = (Number(nMotrice) || 0) + (Number(nComportement) || 0) + (Number(nCognitive) || 0);
+                        const displayFinal = (nMotrice !== undefined || nComportement !== undefined || nCognitive !== undefined) 
+                            ? (isNaN(finalGrade) ? '--' : finalGrade.toFixed(2)) 
+                            : '--';
 
                         return (
                             <tr key={`${s.numeroEleve}_${idx}`} className="hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 transition-colors">

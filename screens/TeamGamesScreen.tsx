@@ -28,7 +28,14 @@ import { StudentAvatar } from '../components/StudentAvatar';
 import { QuickEvaluationModal } from '../components/QuickEvaluationModal';
 import { 
   getGradingDistribution,
-  GradingDistribution
+  GradingDistribution,
+  calculateScore,
+  SPEED_SCALE_30M,
+  SPEED_SCALE_60M,
+  SPEED_SCALE_80M,
+  SPEED_SCALE_100M,
+  LONG_JUMP_SCALE,
+  SHOT_PUT_SCALE
 } from '../utils/ScoringConstants';
 import { useLanguage } from '../utils/i18n';
 import { useSportsList, SportType } from '../utils/SportsConstants';
@@ -104,8 +111,9 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Evaluation Sub-space state: 'team_games' or 'gymnastics'
-  const [activeTab, setActiveTab] = useState<'team_games' | 'gymnastics'>('team_games');
+  // Evaluation Sub-space state
+  const [activeTab, setActiveTab] = useState<'team_games' | 'gymnastics' | 'athletics_sprint' | 'athletics_shot_put' | 'athletics_long_jump'>('team_games');
+  const [sprintDistance, setSprintDistance] = useState<'60m' | '80m' | '100m' | '30m'>('60m');
 
   // Add Sport modal/state
   const [isAddSportOpen, setIsAddSportOpen] = useState(false);
@@ -443,6 +451,131 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
     });
   };
 
+  const handleSprintScoreChange = (studentNumber: string, timeValStr: string) => {
+    const val = timeValStr === '' ? undefined : Number(timeValStr);
+    setPhysicalTests(prev => {
+      const existing = prev.find(t => t.numeroEleve === studentNumber);
+      const student = students.find(s => s.numeroEleve === studentNumber);
+      const baseObj = existing || {
+        numeroEleve: studentNumber,
+        nomEleve: student?.nomEleve,
+        sexe: student?.sexe,
+        date: new Date().toISOString()
+      };
+
+      const gender = student?.sexe || 'M';
+      let scale = SPEED_SCALE_60M;
+      if (sprintDistance === '30m') scale = SPEED_SCALE_30M;
+      else if (sprintDistance === '80m') scale = SPEED_SCALE_80M;
+      else if (sprintDistance === '100m') scale = SPEED_SCALE_100M;
+
+      const calculatedScore = val !== undefined ? calculateScore(val, scale, gender, true) : undefined;
+
+      const updated = { ...baseObj } as PhysicalTests;
+      if (sprintDistance === '60m') {
+        updated.vitesse60m = val;
+        updated.scoreVitesse60m = calculatedScore;
+      } else if (sprintDistance === '80m') {
+        updated.vitesse80m = val;
+        updated.scoreVitesse80m = calculatedScore;
+      } else if (sprintDistance === '100m') {
+        updated.vitesse100m = val;
+        updated.scoreVitesse100m = calculatedScore;
+      } else {
+        updated.vitesse30m = val;
+        updated.scoreVitesse30m = calculatedScore;
+      }
+
+      const motrice = calculatedScore !== undefined ? Number(Math.min(teamGamesMotriceMax, calculatedScore).toFixed(2)) : undefined;
+      updated.noteMotrice = motrice;
+      const comp = updated.noteComportement || 0;
+      const cog = updated.noteCognitive || 0;
+      if (motrice !== undefined) {
+        updated.scoreVitesse = Number(Math.min(20, motrice + comp + cog).toFixed(2));
+      }
+
+      if (existing) {
+        return prev.map(t => t.numeroEleve === studentNumber ? updated : t);
+      } else {
+        return [...prev, updated];
+      }
+    });
+  };
+
+  const handleShotPutScoreChange = (studentNumber: string, distValStr: string) => {
+    const val = distValStr === '' ? undefined : Number(distValStr);
+    setPhysicalTests(prev => {
+      const existing = prev.find(t => t.numeroEleve === studentNumber);
+      const student = students.find(s => s.numeroEleve === studentNumber);
+      const baseObj = existing || {
+        numeroEleve: studentNumber,
+        nomEleve: student?.nomEleve,
+        sexe: student?.sexe,
+        date: new Date().toISOString()
+      };
+
+      const gender = student?.sexe || 'M';
+      const calculatedScore = val !== undefined ? calculateScore(val, SHOT_PUT_SCALE, gender, false) : undefined;
+
+      const updated = {
+        ...baseObj,
+        lancerPoids: val,
+        scoreLancerPoids: calculatedScore
+      } as PhysicalTests;
+
+      const motrice = calculatedScore !== undefined ? Number(Math.min(teamGamesMotriceMax, calculatedScore).toFixed(2)) : undefined;
+      updated.noteMotrice = motrice;
+      const comp = updated.noteComportement || 0;
+      const cog = updated.noteCognitive || 0;
+      if (motrice !== undefined) {
+        updated.scoreLancerPoids = Number(Math.min(20, motrice + comp + cog).toFixed(2));
+      }
+
+      if (existing) {
+        return prev.map(t => t.numeroEleve === studentNumber ? updated : t);
+      } else {
+        return [...prev, updated];
+      }
+    });
+  };
+
+  const handleLongJumpScoreChange = (studentNumber: string, distValStr: string) => {
+    const val = distValStr === '' ? undefined : Number(distValStr);
+    setPhysicalTests(prev => {
+      const existing = prev.find(t => t.numeroEleve === studentNumber);
+      const student = students.find(s => s.numeroEleve === studentNumber);
+      const baseObj = existing || {
+        numeroEleve: studentNumber,
+        nomEleve: student?.nomEleve,
+        sexe: student?.sexe,
+        date: new Date().toISOString()
+      };
+
+      const gender = student?.sexe || 'M';
+      const calculatedScore = val !== undefined ? calculateScore(val, LONG_JUMP_SCALE, gender, false) : undefined;
+
+      const updated = {
+        ...baseObj,
+        sautLong: val,
+        scoreSautLong: calculatedScore
+      } as PhysicalTests;
+
+      const motrice = calculatedScore !== undefined ? Number(Math.min(teamGamesMotriceMax, calculatedScore).toFixed(2)) : undefined;
+      updated.noteMotrice = motrice;
+      const comp = updated.noteComportement || 0;
+      const cog = updated.noteCognitive || 0;
+      if (motrice !== undefined) {
+        updated.scoreSautLong = Number(Math.min(20, motrice + comp + cog).toFixed(2));
+      }
+
+      if (existing) {
+        return prev.map(t => t.numeroEleve === studentNumber ? updated : t);
+      } else {
+        return [...prev, updated];
+      }
+    });
+  };
+
   const handleAutoCalculateBehaviorAll = async () => {
     if (!selectedClass || students.length === 0) return;
     setIsLoading(true);
@@ -740,13 +873,13 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
           </div>
           <div>
             <h1 className="text-xl md:text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2">
-              <span>فضاء تقويم الألعاب الجماعية والجمباز</span>
+              <span>فضاء الفروض (الألعاب الجماعية، الجمباز وألعاب القوى)</span>
               <span className="text-xs bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-extrabold px-3 py-1 rounded-full border border-indigo-200">
                 {classLevelLabel}
               </span>
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              منصة رصد نقط ومكونات التقييم الحركي والسلوكي والمعرفي طبقاً للتوجيهات التربوية المغربية
+              تسجيل وتدبير نقط الفروض والتقويمات الحركية والسلوكية والمعرفية طبقاً للتوجيهات التربوية المغربية
             </p>
           </div>
         </div>
@@ -817,31 +950,67 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
         </div>
       </div>
 
-      {/* Tabs navigation for Collective Games vs Gymnastics - Centered on mobile */}
-      <div className="flex border-b border-gray-200 dark:border-gray-700 gap-1.5 sm:gap-2 justify-center sm:justify-start">
+      {/* Tabs navigation for Furood / Devoirs */}
+      <div className="flex border-b border-gray-200 dark:border-gray-700 gap-1.5 sm:gap-2 overflow-x-auto pb-1">
         <button
           type="button"
           onClick={() => setActiveTab('team_games')}
-          className={`px-3 sm:px-5 py-2 sm:py-3 rounded-t-2xl font-black text-[11px] sm:text-xs transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`px-3 sm:px-4 py-2 sm:py-3 rounded-t-2xl font-black text-[11px] sm:text-xs transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'team_games'
               ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-600 dark:border-indigo-400 shadow-xs'
               : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
           }`}
         >
           <span>🏀</span>
-          <span>تقويم الألعاب الجماعية</span>
+          <span>الألعاب الجماعية</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('gymnastics')}
-          className={`px-3 sm:px-5 py-2 sm:py-3 rounded-t-2xl font-black text-[11px] sm:text-xs transition flex items-center justify-center gap-1.5 cursor-pointer ${
+          className={`px-3 sm:px-4 py-2 sm:py-3 rounded-t-2xl font-black text-[11px] sm:text-xs transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
             activeTab === 'gymnastics'
               ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-600 dark:border-indigo-400 shadow-xs'
               : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
           }`}
         >
           <span>🤸</span>
-          <span>تقويم رياضة الجمباز</span>
+          <span>الجمباز</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('athletics_sprint')}
+          className={`px-3 sm:px-4 py-2 sm:py-3 rounded-t-2xl font-black text-[11px] sm:text-xs transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            activeTab === 'athletics_sprint'
+              ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-600 dark:border-indigo-400 shadow-xs'
+              : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          <span>🏃‍♂️</span>
+          <span>سباقات السرعة (60م/80م/100م)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('athletics_shot_put')}
+          className={`px-3 sm:px-4 py-2 sm:py-3 rounded-t-2xl font-black text-[11px] sm:text-xs transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            activeTab === 'athletics_shot_put'
+              ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-600 dark:border-indigo-400 shadow-xs'
+              : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          <span>⚪</span>
+          <span>دفع الجلة</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('athletics_long_jump')}
+          className={`px-3 sm:px-4 py-2 sm:py-3 rounded-t-2xl font-black text-[11px] sm:text-xs transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+            activeTab === 'athletics_long_jump'
+              ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-600 dark:border-indigo-400 shadow-xs'
+              : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          <span>↗️</span>
+          <span>القفز الطولي</span>
         </button>
       </div>
 
@@ -1642,6 +1811,325 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                       </td>
                     </tr>
                   )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🏃‍♂️ TAB 3: ATHLETICS SPRINT (سباقات السرعة: 60م، 80م، 100م) */}
+      {activeTab === 'athletics_sprint' && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-4 rounded-3xl shadow-xs border border-gray-100 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-black text-gray-700 dark:text-gray-300">مسافة السباق:</span>
+              <div className="flex gap-1">
+                {(['60m', '80m', '100m', '30m'] as const).map(d => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setSprintDistance(d)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                      sprintDistance === d
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                    }`}
+                  >
+                    {d === '60m' ? '60 متر' : d === '80m' ? '80 متر' : d === '100m' ? '100 متر' : '30 متر'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 font-bold">
+              يتم احتساب نقطة الحركي تلقائياً طبقا لسلم نقط سباقات السرعة (الزمن بالثواني، الأفضل هو الأقل).
+            </p>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-xs">
+                <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="p-4">الرقم</th>
+                    <th className="p-4">الاسم والنسب</th>
+                    <th className="p-4">الجنس</th>
+                    <th className="p-4">الزمن المحقق (ثواني)</th>
+                    <th className="p-4">النقطة المحصل عليها</th>
+                    <th className="p-4">الجانب الحركي (/{gradingDist.motrice})</th>
+                    <th className="p-4">السلوكي (/{gradingDist.comportement})</th>
+                    <th className="p-4">المعرفي (/{gradingDist.cognitive})</th>
+                    <th className="p-4">المعدل الإجمالي (/20)</th>
+                    <th className="p-4">ملاحظات الأستاذ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700 font-medium">
+                  {filteredStudents.map(s => {
+                    const test = physicalTests.find(t => t.numeroEleve === s.numeroEleve);
+                    const timeVal = sprintDistance === '60m' ? test?.vitesse60m :
+                                    sprintDistance === '80m' ? test?.vitesse80m :
+                                    sprintDistance === '100m' ? test?.vitesse100m : test?.vitesse30m;
+                    const calcScore = sprintDistance === '60m' ? test?.scoreVitesse60m :
+                                      sprintDistance === '80m' ? test?.scoreVitesse80m :
+                                      sprintDistance === '100m' ? test?.scoreVitesse100m : test?.scoreVitesse30m;
+                    const motrice = test?.noteMotrice !== undefined ? test.noteMotrice : (calcScore !== undefined ? Number(Math.min(teamGamesMotriceMax, calcScore).toFixed(2)) : '-');
+                    const comp = test?.noteComportement !== undefined ? test.noteComportement : '-';
+                    const cog = test?.noteCognitive !== undefined ? test.noteCognitive : '-';
+                    const total = test?.scoreVitesse !== undefined ? test.scoreVitesse : (typeof motrice === 'number' && typeof comp === 'number' && typeof cog === 'number' ? Number(Math.min(20, motrice + comp + cog).toFixed(2)) : '-');
+
+                    return (
+                      <tr key={s.numeroEleve} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition">
+                        <td className="p-4 font-bold text-gray-500">{s.numeroEleve}</td>
+                        <td className="p-4 font-black text-gray-900 dark:text-white flex items-center gap-2">
+                          <StudentAvatar student={s} size="sm" />
+                          <span>{s.nomEleve}</span>
+                        </td>
+                        <td className="p-4">
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${s.sexe === 'F' ? 'bg-pink-50 text-pink-600 dark:bg-pink-950/40' : 'bg-blue-50 text-blue-600 dark:bg-blue-950/40'}`}>
+                            {s.sexe === 'F' ? 'أنثى' : 'ذكر'}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <input 
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={timeVal === undefined || timeVal === null ? '' : timeVal}
+                            onChange={(e) => handleSprintScoreChange(s.numeroEleve, e.target.value)}
+                            placeholder="مثال: 9.5"
+                            className="w-24 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-xs font-bold text-center focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </td>
+                        <td className="p-4 font-bold text-indigo-600 dark:text-indigo-400">
+                          {calcScore !== undefined ? `${calcScore} ن` : '-'}
+                        </td>
+                        <td className="p-4 font-black text-gray-800 dark:text-gray-200">{motrice}</td>
+                        <td className="p-4 text-gray-600 dark:text-gray-300">{comp}</td>
+                        <td className="p-4 text-gray-600 dark:text-gray-300">{cog}</td>
+                        <td className="p-4 font-black text-emerald-600 dark:text-emerald-400 text-sm">{total}</td>
+                        <td className="p-4">
+                          <input 
+                            type="text"
+                            value={test?.sportCollectifNote || ''}
+                            onChange={(e) => {
+                              const note = e.target.value;
+                              setPhysicalTests(prev => {
+                                const existing = prev.find(t => t.numeroEleve === s.numeroEleve);
+                                const updated = existing ? { ...existing, sportCollectifNote: note } : { numeroEleve: s.numeroEleve, nomEleve: s.nomEleve, sexe: s.sexe, sportCollectifNote: note };
+                                if (existing) {
+                                  return prev.map(t => t.numeroEleve === s.numeroEleve ? updated : t);
+                                } else {
+                                  return [...prev, updated];
+                                }
+                              });
+                            }}
+                            placeholder="ملاحظات..."
+                            className="w-full px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-xs font-bold"
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ⚪ TAB 4: ATHLETICS SHOT PUT (دفع الجلة) */}
+      {activeTab === 'athletics_shot_put' && (
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-3xl shadow-xs border border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">⚪</span>
+              <div>
+                <h3 className="font-black text-xs text-gray-900 dark:text-white">تقويم مسابقة دفع الجلة (Lancer du Poids)</h3>
+                <p className="text-[11px] text-gray-500">إدخال المسافة المحققة بالأمتار واحتساب النقطة الحركية تلقائياً طبقاً لسلم المعايير الرسمية.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-xs">
+                <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="p-4">الرقم</th>
+                    <th className="p-4">الاسم والنسب</th>
+                    <th className="p-4">الجنس</th>
+                    <th className="p-4">المسافة المحققة (أمتار)</th>
+                    <th className="p-4">النقطة المحصل عليها</th>
+                    <th className="p-4">الجانب الحركي (/{gradingDist.motrice})</th>
+                    <th className="p-4">السلوكي (/{gradingDist.comportement})</th>
+                    <th className="p-4">المعرفي (/{gradingDist.cognitive})</th>
+                    <th className="p-4">المعدل الإجمالي (/20)</th>
+                    <th className="p-4">ملاحظات الأستاذ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700 font-medium">
+                  {filteredStudents.map(s => {
+                    const test = physicalTests.find(t => t.numeroEleve === s.numeroEleve);
+                    const distVal = test?.lancerPoids;
+                    const calcScore = test?.scoreLancerPoids;
+                    const motrice = test?.noteMotrice !== undefined ? test.noteMotrice : (calcScore !== undefined ? Number(Math.min(teamGamesMotriceMax, calcScore).toFixed(2)) : '-');
+                    const comp = test?.noteComportement !== undefined ? test.noteComportement : '-';
+                    const cog = test?.noteCognitive !== undefined ? test.noteCognitive : '-';
+                    const total = test?.scoreLancerPoids !== undefined && typeof test.scoreLancerPoids === 'number' ? test.scoreLancerPoids : '-';
+
+                    return (
+                      <tr key={s.numeroEleve} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition">
+                        <td className="p-4 font-bold text-gray-500">{s.numeroEleve}</td>
+                        <td className="p-4 font-black text-gray-900 dark:text-white flex items-center gap-2">
+                          <StudentAvatar student={s} size="sm" />
+                          <span>{s.nomEleve}</span>
+                        </td>
+                        <td className="p-4">
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${s.sexe === 'F' ? 'bg-pink-50 text-pink-600 dark:bg-pink-950/40' : 'bg-blue-50 text-blue-600 dark:bg-blue-950/40'}`}>
+                            {s.sexe === 'F' ? 'أنثى' : 'ذكر'}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <input 
+                            type="number"
+                            step="0.05"
+                            min="0"
+                            value={distVal === undefined || distVal === null ? '' : distVal}
+                            onChange={(e) => handleShotPutScoreChange(s.numeroEleve, e.target.value)}
+                            placeholder="مثال: 7.50"
+                            className="w-24 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-xs font-bold text-center focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </td>
+                        <td className="p-4 font-bold text-indigo-600 dark:text-indigo-400">
+                          {calcScore !== undefined ? `${calcScore} ن` : '-'}
+                        </td>
+                        <td className="p-4 font-black text-gray-800 dark:text-gray-200">{motrice}</td>
+                        <td className="p-4 text-gray-600 dark:text-gray-300">{comp}</td>
+                        <td className="p-4 text-gray-600 dark:text-gray-300">{cog}</td>
+                        <td className="p-4 font-black text-emerald-600 dark:text-emerald-400 text-sm">{total}</td>
+                        <td className="p-4">
+                          <input 
+                            type="text"
+                            value={test?.sportCollectifNote || ''}
+                            onChange={(e) => {
+                              const note = e.target.value;
+                              setPhysicalTests(prev => {
+                                const existing = prev.find(t => t.numeroEleve === s.numeroEleve);
+                                const updated = existing ? { ...existing, sportCollectifNote: note } : { numeroEleve: s.numeroEleve, nomEleve: s.nomEleve, sexe: s.sexe, sportCollectifNote: note };
+                                if (existing) {
+                                  return prev.map(t => t.numeroEleve === s.numeroEleve ? updated : t);
+                                } else {
+                                  return [...prev, updated];
+                                }
+                              });
+                            }}
+                            placeholder="ملاحظات..."
+                            className="w-full px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-xs font-bold"
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ↗️ TAB 5: ATHLETICS LONG JUMP (القفز الطولي) */}
+      {activeTab === 'athletics_long_jump' && (
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-3xl shadow-xs border border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">↗️</span>
+              <div>
+                <h3 className="font-black text-xs text-gray-900 dark:text-white">تقويم مسابقة القفز الطولي (Saut en Longueur)</h3>
+                <p className="text-[11px] text-gray-500">إدخال المسافة المحققة بالأمتار واحتساب النقطة الحركية تلقائياً طبقاً لسلم المعايير الرسمية.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-xs">
+                <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="p-4">الرقم</th>
+                    <th className="p-4">الاسم والنسب</th>
+                    <th className="p-4">الجنس</th>
+                    <th className="p-4">المسافة المحققة (أمتار)</th>
+                    <th className="p-4">النقطة المحصل عليها</th>
+                    <th className="p-4">الجانب الحركي (/{gradingDist.motrice})</th>
+                    <th className="p-4">السلوكي (/{gradingDist.comportement})</th>
+                    <th className="p-4">المعرفي (/{gradingDist.cognitive})</th>
+                    <th className="p-4">المعدل الإجمالي (/20)</th>
+                    <th className="p-4">ملاحظات الأستاذ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700 font-medium">
+                  {filteredStudents.map(s => {
+                    const test = physicalTests.find(t => t.numeroEleve === s.numeroEleve);
+                    const distVal = test?.sautLong;
+                    const calcScore = test?.scoreSautLong;
+                    const motrice = test?.noteMotrice !== undefined ? test.noteMotrice : (calcScore !== undefined ? Number(Math.min(teamGamesMotriceMax, calcScore).toFixed(2)) : '-');
+                    const comp = test?.noteComportement !== undefined ? test.noteComportement : '-';
+                    const cog = test?.noteCognitive !== undefined ? test.noteCognitive : '-';
+                    const total = test?.scoreSautLong !== undefined && typeof test.scoreSautLong === 'number' ? test.scoreSautLong : '-';
+
+                    return (
+                      <tr key={s.numeroEleve} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition">
+                        <td className="p-4 font-bold text-gray-500">{s.numeroEleve}</td>
+                        <td className="p-4 font-black text-gray-900 dark:text-white flex items-center gap-2">
+                          <StudentAvatar student={s} size="sm" />
+                          <span>{s.nomEleve}</span>
+                        </td>
+                        <td className="p-4">
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black ${s.sexe === 'F' ? 'bg-pink-50 text-pink-600 dark:bg-pink-950/40' : 'bg-blue-50 text-blue-600 dark:bg-blue-950/40'}`}>
+                            {s.sexe === 'F' ? 'أنثى' : 'ذكر'}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <input 
+                            type="number"
+                            step="0.05"
+                            min="0"
+                            value={distVal === undefined || distVal === null ? '' : distVal}
+                            onChange={(e) => handleLongJumpScoreChange(s.numeroEleve, e.target.value)}
+                            placeholder="مثال: 3.20"
+                            className="w-24 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-xs font-bold text-center focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </td>
+                        <td className="p-4 font-bold text-indigo-600 dark:text-indigo-400">
+                          {calcScore !== undefined ? `${calcScore} ن` : '-'}
+                        </td>
+                        <td className="p-4 font-black text-gray-800 dark:text-gray-200">{motrice}</td>
+                        <td className="p-4 text-gray-600 dark:text-gray-300">{comp}</td>
+                        <td className="p-4 text-gray-600 dark:text-gray-300">{cog}</td>
+                        <td className="p-4 font-black text-emerald-600 dark:text-emerald-400 text-sm">{total}</td>
+                        <td className="p-4">
+                          <input 
+                            type="text"
+                            value={test?.sportCollectifNote || ''}
+                            onChange={(e) => {
+                              const note = e.target.value;
+                              setPhysicalTests(prev => {
+                                const existing = prev.find(t => t.numeroEleve === s.numeroEleve);
+                                const updated = existing ? { ...existing, sportCollectifNote: note } : { numeroEleve: s.numeroEleve, nomEleve: s.nomEleve, sexe: s.sexe, sportCollectifNote: note };
+                                if (existing) {
+                                  return prev.map(t => t.numeroEleve === s.numeroEleve ? updated : t);
+                                } else {
+                                  return [...prev, updated];
+                                }
+                              });
+                            }}
+                            placeholder="ملاحظات..."
+                            className="w-full px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-xs font-bold"
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

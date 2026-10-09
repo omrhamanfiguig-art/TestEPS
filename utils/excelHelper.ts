@@ -163,7 +163,7 @@ export const isForbiddenStudentName = (name: string): boolean => {
     return true;
   }
 
-  return FORBIDDEN_STUDENT_NAMES_NORMALIZED.some(kw => norm.includes(kw) || (norm.length >= 3 && kw.includes(norm)));
+  return FORBIDDEN_STUDENT_NAMES_NORMALIZED.some(kw => norm === kw || norm.split(' ').includes(kw));
 };
 
 /**

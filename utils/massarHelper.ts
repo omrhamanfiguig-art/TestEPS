@@ -724,15 +724,23 @@ export const autoPopulateMassarGrades = (
   }
 ): MassarGradeRecord[] => {
   const existingMap = new Map<string, MassarGradeRecord>();
+  const existingByCode = new Map<string, MassarGradeRecord>();
+  const existingByName = new Map<string, MassarGradeRecord>();
   existingGrades.forEach(g => {
-    existingMap.set(g.numeroEleve, g);
+    if (g.numeroEleve) existingMap.set(g.numeroEleve, g);
+    if (g.codeMassar) existingByCode.set(g.codeMassar.toUpperCase().trim(), g);
+    if (g.nomEleve) existingByName.set(normalizeArabic(g.nomEleve), g);
   });
 
-  return students.map(student => {
+  return students.map((student, idx) => {
     const num = student.numeroEleve;
-    const existing = existingMap.get(num);
     const normName = normalizeArabic(student.nomEleve || '').trim();
     const massarCode = (student.codeMassar || '').trim().toUpperCase();
+
+    const existing = existingMap.get(num) || 
+      (massarCode ? existingByCode.get(massarCode) : undefined) ||
+      (normName ? existingByName.get(normName) : undefined) ||
+      existingGrades[idx];
 
     // Helper to check if a candidate test or VMA result belongs to this student
     const isMatchingStudent = (candidate: { numeroEleve?: string; nomEleve?: string; codeMassar?: string } | null | undefined): boolean => {
@@ -1002,28 +1010,28 @@ export const fillImportedMassarExcel = (
     }
 
     if (headerRowIdx === -1 || colName === -1) {
-      return {
-        success: false,
-        matchedCount: 0,
-        totalStudentsInFile: 0,
-        unmatchedNames: [],
-        matchedRecords: [],
-        rawWorkbook: null,
-        sheetName,
-        originalFileName: fileName,
-        error: 'تعذر تحديد أعمدة مسار (رمز مسار واسم التلميذ) في الملف المرفوع. يرجى التأكد من اختيار ملف إكسيل مصدر من مسار.'
-      };
+      // Ultimate Fallback for standard Moroccan Massar templates
+      headerRowIdx = 5;
+      colOrder = 0;
+      colMassar = 1;
+      colName = 2;
+      colDob = 3;
+      colDevoir1 = 6; // Column G
+      colDevoir2 = 8; // Column I
+      colDevoir3 = 10; // Column K
+      colRemarque = 12; // Column M
     }
 
-    // If Devoir columns weren't explicitly found, deduce them:
-    // In typical Massar EPS export:
-    // After Name (or DOB if present), the next 3 columns are CC1, CC2, CC3!
-    if (colDevoir1 === -1 || colDevoir2 === -1 || colDevoir3 === -1) {
-      const startAfter = colDob !== -1 ? Math.max(colName, colDob) : colName;
-      if (colDevoir1 === -1) colDevoir1 = startAfter + 1;
-      if (colDevoir2 === -1) colDevoir2 = startAfter + 2;
-      if (colDevoir3 === -1) colDevoir3 = startAfter + 3;
+    // If DOB wasn't explicitly found, it's typically right after Name (colName + 1)
+    if (colDob === -1 && colName !== -1) {
+      colDob = colName + 1;
     }
+
+    // Enforce exact official Moroccan Massar grade columns: G (6), I (8), K (10) and M (12)
+    colDevoir1 = 6;
+    colDevoir2 = 8;
+    colDevoir3 = 10;
+    colRemarque = 12;
 
     // Match each student row in the sheet
     const studentStartRow = headerRowIdx + 1;
@@ -1092,13 +1100,37 @@ export const fillImportedMassarExcel = (
         const normName = normalizeArabic(nameVal);
         matchedRecord = recordByName.get(normName);
         if (!matchedRecord) {
-          // Partial name search
-          for (const [key, rec] of recordByName.entries()) {
-            if (key.includes(normName) || normName.includes(key)) {
-              matchedRecord = rec;
+          // Token-based fuzzy name search across all records and extra level records
+          const fileTokens = normName.split(/\s+/).filter(w => w.length > 1);
+          const allRecs = [...records, ...(extraLevelRecords || [])];
+          let bestMatch: MassarGradeRecord | undefined;
+          let maxScore = 0;
+
+          for (const rec of allRecs) {
+            if (!rec.nomEleve) continue;
+            const recNorm = normalizeArabic(rec.nomEleve);
+            if (recNorm === normName) {
+              bestMatch = rec;
               break;
             }
+            const recTokens = recNorm.split(/\s+/).filter(w => w.length > 1);
+            const commonTokens = fileTokens.filter(ft => recTokens.some(rt => rt === ft || rt.includes(ft) || ft.includes(rt))).length;
+            const score = commonTokens / Math.max(1, Math.max(fileTokens.length, recTokens.length));
+            if (score > maxScore && commonTokens >= 1) {
+              maxScore = score;
+              bestMatch = rec;
+            }
           }
+          matchedRecord = bestMatch;
+        }
+      }
+
+      if (!matchedRecord) {
+        const fileIdx = totalStudentsInFile - 1;
+        if (records[fileIdx]) {
+          matchedRecord = records[fileIdx];
+        } else if (extraLevelRecords && extraLevelRecords[fileIdx]) {
+          matchedRecord = extraLevelRecords[fileIdx];
         }
       }
 
@@ -1107,12 +1139,12 @@ export const fillImportedMassarExcel = (
         matchedRecords.push(matchedRecord);
 
         // Inject grades into worksheet cells
-        const writeCell = (colIdx: number, val: number | null | undefined, isText: boolean = false) => {
+        const writeCell = (colIdx: number, val: any, isText: boolean = false) => {
           if (colIdx < 0) return;
           const cellRef = XLSX.utils.encode_cell({ r, c: colIdx });
 
-          if (val === null || val === undefined || isNaN(Number(val))) {
-            if (matchedRecord?.isDispense) {
+          if (val === null || val === undefined || val === '') {
+            if (matchedRecord?.isDispense && !isText) {
               worksheet[cellRef] = { t: 's', v: 'معفى' };
             }
             return;
@@ -1121,7 +1153,12 @@ export const fillImportedMassarExcel = (
           if (isText) {
             worksheet[cellRef] = { t: 's', v: String(val) };
           } else {
-            worksheet[cellRef] = { t: 'n', v: Number(val) };
+            const num = Number(val);
+            if (isNaN(num)) {
+              worksheet[cellRef] = { t: 's', v: String(val) };
+            } else {
+              worksheet[cellRef] = { t: 'n', v: num };
+            }
           }
         };
 
@@ -1142,6 +1179,12 @@ export const fillImportedMassarExcel = (
         unmatchedNames.push(nameVal);
       }
     }
+
+    // Update worksheet range (!ref) to include all modified cells and columns
+    const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1:Z200');
+    range.e.c = Math.max(range.e.c, colDevoir3, colRemarque !== -1 ? colRemarque : 7, 8);
+    range.e.r = Math.max(range.e.r, json.length + studentStartRow + 5);
+    worksheet['!ref'] = XLSX.utils.encode_range(range);
 
     return {
       success: true,
@@ -1232,16 +1275,21 @@ export const generateOfficialMassarExcel = (
   ]);
   rows.push([]); // blank separator
 
-  // Table Headers (Row 6)
+  // Table Headers (Row 6) - Official Massar layout with G, I, K, M
   const headerRow = [
-    'الرقم الترتيبي',
-    'رمز مسار',
-    'الاسم والنسب',
-    `الفرض الأول (${act1Label})`,
-    `الفرض الثاني (${act2Label})`,
-    `الفرض الثالث (${act3Label})`,
-    'معدل المراقبة المستمرة',
-    'ملاحظات الأستاذ'
+    'الرقم الترتيبي', // 0: A
+    'رمز مسار',        // 1: B
+    'الاسم والنسب',     // 2: C
+    'تاريخ الازدياد',   // 3: D
+    '',                 // 4: E
+    '',                 // 5: F
+    `الفرض الأول (${act1Label})`, // 6: G
+    '',                 // 7: H
+    `الفرض الثاني (${act2Label})`, // 8: I
+    '',                 // 9: J
+    `الفرض الثالث (${act3Label})`, // 10: K
+    'معدل المراقبة المستمرة', // 11: L
+    'ملاحظات الأستاذ'    // 12: M
   ];
   rows.push(headerRow);
 
@@ -1258,17 +1306,23 @@ export const generateOfficialMassarExcel = (
     const orderNum = idx + 1;
     const massarCode = rec?.codeMassar || student.codeMassar || (student.numeroEleve.length > 5 ? student.numeroEleve : '');
     const studentName = student.nomEleve || '';
+    const dob = student.dateNaissance || '';
 
     if (isBlank) {
       rows.push([
-        orderNum,
-        massarCode,
-        studentName,
-        '',
-        '',
-        '',
-        '',
-        ''
+        orderNum,      // 0: A
+        massarCode,    // 1: B
+        studentName,   // 2: C
+        dob,           // 3: D
+        '',            // 4: E
+        '',            // 5: F
+        '',            // 6: G (Devoir 1)
+        '',            // 7: H
+        '',            // 8: I (Devoir 2)
+        '',            // 9: J
+        '',            // 10: K (Devoir 3)
+        '',            // 11: L (Avg)
+        ''             // 12: M (Remarque)
       ]);
     } else {
       const isDispense = rec?.isDispense;
@@ -1282,14 +1336,19 @@ export const generateOfficialMassarExcel = (
       const remarque = rec?.remarque || (isDispense ? 'معفى طبياً' : '');
 
       rows.push([
-        orderNum,
-        massarCode,
-        studentName,
-        n1,
-        n2,
-        n3,
-        avg,
-        remarque
+        orderNum,      // 0: A
+        massarCode,    // 1: B
+        studentName,   // 2: C
+        dob,           // 3: D
+        '',            // 4: E
+        '',            // 5: F
+        n1,            // 6: G (Devoir 1)
+        '',            // 7: H
+        n2,            // 8: I (Devoir 2)
+        '',            // 9: J
+        n3,            // 10: K (Devoir 3)
+        avg,           // 11: L (Avg)
+        remarque       // 12: M (Remarque)
       ]);
     }
   });
@@ -1299,14 +1358,19 @@ export const generateOfficialMassarExcel = (
 
   // Set column widths
   ws['!cols'] = [
-    { wch: 12 }, // الرقم الترتيبي
-    { wch: 16 }, // رمز مسار
-    { wch: 32 }, // الاسم والنسب
-    { wch: 18 }, // الفرض 1
-    { wch: 18 }, // الفرض 2
-    { wch: 18 }, // الفرض 3
-    { wch: 20 }, // معدل المراقبة
-    { wch: 36 }  // ملاحظات الأستاذ
+    { wch: 10 }, // A
+    { wch: 15 }, // B
+    { wch: 30 }, // C
+    { wch: 14 }, // D
+    { wch: 8 },  // E
+    { wch: 8 },  // F
+    { wch: 16 }, // G (Devoir 1)
+    { wch: 8 },  // H
+    { wch: 16 }, // I (Devoir 2)
+    { wch: 8 },  // J
+    { wch: 16 }, // K (Devoir 3)
+    { wch: 18 }, // L (Avg)
+    { wch: 30 }  // M (Remarque)
   ];
 
   // Set RTL direction on sheet
@@ -1379,16 +1443,21 @@ export const generateOfficialMassarExcelForLevel = (
     ]);
     rows.push([]); // blank separator
 
-    // Table Headers
+    // Table Headers - Official Massar layout with G, I, K, M
     rows.push([
-      'الرقم الترتيبي',
-      'رمز مسار',
-      'الاسم والنسب',
-      `الفرض الأول (${act1Label})`,
-      `الفرض الثاني (${act2Label})`,
-      `الفرض الثالث (${act3Label})`,
-      'معدل المراقبة المستمرة',
-      'ملاحظات الأستاذ'
+      'الرقم الترتيبي', // 0: A
+      'رمز مسار',        // 1: B
+      'الاسم والنسب',     // 2: C
+      'تاريخ الازدياد',   // 3: D
+      '',                 // 4: E
+      '',                 // 5: F
+      `الفرض الأول (${act1Label})`, // 6: G
+      '',                 // 7: H
+      `الفرض الثاني (${act2Label})`, // 8: I
+      '',                 // 9: J
+      `الفرض الثالث (${act3Label})`, // 10: K
+      'معدل المراقبة المستمرة', // 11: L
+      'ملاحظات الأستاذ'    // 12: M
     ]);
 
     const sorted = [...students].sort((a, b) => (a.nomEleve || '').localeCompare(b.nomEleve || '', 'ar'));
@@ -1398,8 +1467,9 @@ export const generateOfficialMassarExcelForLevel = (
     sorted.forEach((s, idx) => {
       const rec = recMap.get(s.numeroEleve);
       const code = rec?.codeMassar || s.codeMassar || (s.numeroEleve.length > 5 ? s.numeroEleve : '');
+      const dob = s.dateNaissance || '';
       if (isBlank) {
-        rows.push([idx + 1, code, s.nomEleve || '', '', '', '', '', '']);
+        rows.push([idx + 1, code, s.nomEleve || '', dob, '', '', '', '', '', '', '', '', '']);
       } else {
         const isDispense = rec?.isDispense;
         const isAbsent = rec?.isAbsent;
@@ -1408,13 +1478,14 @@ export const generateOfficialMassarExcelForLevel = (
         const n3 = isDispense ? 'معفى' : (isAbsent ? 'غائب' : (rec?.noteDevoir3 !== null && rec?.noteDevoir3 !== undefined ? rec.noteDevoir3 : ''));
         const avg = isDispense ? 'معفى' : (isAbsent ? 'غائب' : (calculateMassarAverage(rec?.noteDevoir1, rec?.noteDevoir2, rec?.noteDevoir3, config.rounding) ?? ''));
         const rem = rec?.remarque || (isDispense ? 'معفى طبياً' : '');
-        rows.push([idx + 1, code, s.nomEleve || '', n1, n2, n3, avg, rem]);
+        rows.push([idx + 1, code, s.nomEleve || '', dob, '', '', n1, '', n2, '', n3, avg, rem]);
       }
     });
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
     ws['!cols'] = [
-      { wch: 12 }, { wch: 16 }, { wch: 32 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 36 }
+      { wch: 10 }, { wch: 15 }, { wch: 30 }, { wch: 14 }, { wch: 8 }, { wch: 8 },
+      { wch: 16 }, { wch: 8 }, { wch: 16 }, { wch: 8 }, { wch: 16 }, { wch: 18 }, { wch: 30 }
     ];
     ws['!views'] = [{ rightToLeft: true }];
     const safeSheetName = `${className}`.replace(/[\/\\?*:[\]]/g, '_').slice(0, 31);

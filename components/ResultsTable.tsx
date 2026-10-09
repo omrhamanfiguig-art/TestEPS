@@ -82,16 +82,17 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({
   // Summary statistics
   const stats = useMemo(() => {
     if (results.length === 0) return null;
-    const vmas = results.map(r => r.vma);
+    const vmas = results.map(r => Number(r.vma)).filter(v => typeof v === 'number' && !isNaN(v));
+    if (vmas.length === 0) return null;
     const sum = vmas.reduce((acc, v) => acc + v, 0);
     const avg = sum / vmas.length;
     const max = Math.max(...vmas);
     const min = Math.min(...vmas);
     return {
       count: results.length,
-      avg: avg.toFixed(1),
-      max: max.toFixed(1),
-      min: min.toFixed(1)
+      avg: isNaN(avg) ? '0.0' : avg.toFixed(1),
+      max: isNaN(max) ? '0.0' : max.toFixed(1),
+      min: isNaN(min) ? '0.0' : min.toFixed(1)
     };
   }, [results]);
 
