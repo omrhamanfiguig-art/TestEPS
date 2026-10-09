@@ -12,6 +12,7 @@ import {
 } from './Icons';
 import { StudentAvatar } from './StudentAvatar';
 import { getGradingDistribution } from '../utils/ScoringConstants';
+import { getGymLevelConfig } from '../utils/gymnasticsHelper';
 import { getAttendanceSessions } from '../utils/db';
 import { getPedagogicalReports } from '../utils/reportsDb';
 
@@ -93,6 +94,12 @@ export const QuickEvaluationModal: React.FC<QuickEvaluationModalProps> = ({
 
   // 2. Gymnastics
   const [gymDiff, setGymDiff] = useState<number | undefined>(undefined);
+  const [gymDiffCountA, setGymDiffCountA] = useState<number | undefined>(undefined);
+  const [gymDiffCountB, setGymDiffCountB] = useState<number | undefined>(undefined);
+  const [gymDiffCountC, setGymDiffCountC] = useState<number | undefined>(undefined);
+  const [gymDiffScoreA, setGymDiffScoreA] = useState<number | undefined>(undefined);
+  const [gymDiffScoreB, setGymDiffScoreB] = useState<number | undefined>(undefined);
+  const [gymDiffScoreC, setGymDiffScoreC] = useState<number | undefined>(undefined);
   const [gymExig, setGymExig] = useState<number | undefined>(undefined);
   const [gymEnch, setGymEnch] = useState<number | undefined>(undefined);
   const [gymExec, setGymExec] = useState<number | undefined>(undefined);
@@ -137,6 +144,7 @@ export const QuickEvaluationModal: React.FC<QuickEvaluationModalProps> = ({
 
   // Grading distribution limits
   const gradingDist = useMemo(() => getGradingDistribution(selectedClass), [selectedClass]);
+  const gymLevelCfg = useMemo(() => getGymLevelConfig(selectedClass), [selectedClass]);
   const motriceMax = gradingDist.motrice; // 14 (1AC), 13 (2AC), 12 (3AC)
   const comportementMax = gradingDist.comportement; // 3, 4, 5
   const cognitiveMax = gradingDist.cognitive; // 3
@@ -178,6 +186,12 @@ export const QuickEvaluationModal: React.FC<QuickEvaluationModalProps> = ({
 
       // 2. Gymnastics
       setGymDiff(test.gymScoreDifficultes);
+      setGymDiffCountA(test.gymDiffCountA);
+      setGymDiffCountB(test.gymDiffCountB);
+      setGymDiffCountC(test.gymDiffCountC);
+      setGymDiffScoreA(test.gymDiffScoreA);
+      setGymDiffScoreB(test.gymDiffScoreB);
+      setGymDiffScoreC(test.gymDiffScoreC);
       setGymExig(test.gymScoreExigences);
       setGymEnch(test.gymScoreEnchainement);
       setGymExec(test.gymScoreExecution);
@@ -227,6 +241,12 @@ export const QuickEvaluationModal: React.FC<QuickEvaluationModalProps> = ({
       setTgCognitive(undefined);
       setTgObservation('');
       setGymDiff(undefined);
+      setGymDiffCountA(undefined);
+      setGymDiffCountB(undefined);
+      setGymDiffCountC(undefined);
+      setGymDiffScoreA(undefined);
+      setGymDiffScoreB(undefined);
+      setGymDiffScoreC(undefined);
       setGymExig(undefined);
       setGymEnch(undefined);
       setGymExec(undefined);
@@ -511,6 +531,12 @@ export const QuickEvaluationModal: React.FC<QuickEvaluationModalProps> = ({
       // Gymnastics scores ONLY updated when explicitly in 'gymnastics' mode
       ...(evaluationMode === 'gymnastics' ? {
         gymScoreDifficultes: gymDiff,
+        gymDiffCountA: gymDiffCountA,
+        gymDiffCountB: gymDiffCountB,
+        gymDiffCountC: gymDiffCountC,
+        gymDiffScoreA: gymDiffScoreA,
+        gymDiffScoreB: gymDiffScoreB,
+        gymDiffScoreC: gymDiffScoreC,
         gymScoreExigences: gymExig,
         gymScoreEnchainement: gymEnch,
         gymScoreExecution: gymExec,
@@ -1073,119 +1099,6 @@ export const QuickEvaluationModal: React.FC<QuickEvaluationModalProps> = ({
               </div>
             )}
 
-            {/* --- GYMNASTICS MODE CRITERIA --- */}
-            {evaluationMode === 'gymnastics' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* 1. Diff /6 */}
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-xs text-gray-900 dark:text-white">الصعوبة (Difficulté):</span>
-                    <span className="text-xs font-black bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-lg">/ 6 ن</span>
-                  </div>
-                  <input
-                    type="number"
-                    step="0.25"
-                    min="0"
-                    max="6"
-                    value={gymDiff === undefined ? '' : gymDiff}
-                    onChange={(e) => setGymDiff(e.target.value === '' ? undefined : Math.min(6, Math.max(0, Number(e.target.value))))}
-                    placeholder="النقطة"
-                    className="w-full text-center py-1.5 font-black text-sm bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600"
-                  />
-                </div>
-
-                {/* 2. Exigences /1.5 */}
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-xs text-gray-900 dark:text-white">المتطلبات (Exigences):</span>
-                    <span className="text-xs font-black bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-lg">/ 1.5 ن</span>
-                  </div>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="0"
-                    max="1.5"
-                    value={gymExig === undefined ? '' : gymExig}
-                    onChange={(e) => setGymExig(e.target.value === '' ? undefined : Math.min(1.5, Math.max(0, Number(e.target.value))))}
-                    placeholder="النقطة"
-                    className="w-full text-center py-1.5 font-black text-sm bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600"
-                  />
-                </div>
-
-                {/* 3. Enchaînement */}
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-xs text-gray-900 dark:text-white">الربط والتركيب:</span>
-                    <span className="text-xs font-black bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-lg">/ {gymEnchMax} ن</span>
-                  </div>
-                  <input
-                    type="number"
-                    step="0.25"
-                    min="0"
-                    max={gymEnchMax}
-                    value={gymEnch === undefined ? '' : gymEnch}
-                    onChange={(e) => setGymEnch(e.target.value === '' ? undefined : Math.min(gymEnchMax, Math.max(0, Number(e.target.value))))}
-                    placeholder="النقطة"
-                    className="w-full text-center py-1.5 font-black text-sm bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600"
-                  />
-                </div>
-
-                {/* 4. Execution /2 */}
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-xs text-gray-900 dark:text-white">الأداء والتنفيذ:</span>
-                    <span className="text-xs font-black bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-lg">/ 2 ن</span>
-                  </div>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="2"
-                    value={gymExec === undefined ? '' : gymExec}
-                    onChange={(e) => setGymExec(e.target.value === '' ? undefined : Math.min(2, Math.max(0, Number(e.target.value))))}
-                    placeholder="النقطة"
-                    className="w-full text-center py-1.5 font-black text-sm bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600"
-                  />
-                </div>
-
-                {/* 5. Gym Comportement */}
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-xs text-gray-900 dark:text-white">السلوكي (الجمباز):</span>
-                    <span className="text-xs font-black bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-lg">/ {comportementMax} ن</span>
-                  </div>
-                  <input
-                    type="number"
-                    step="0.25"
-                    min="0"
-                    max={comportementMax}
-                    value={gymComportement === undefined ? '' : gymComportement}
-                    onChange={(e) => setGymComportement(e.target.value === '' ? undefined : Math.min(comportementMax, Math.max(0, Number(e.target.value))))}
-                    placeholder="النقطة"
-                    className="w-full text-center py-1.5 font-black text-sm bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600"
-                  />
-                </div>
-
-                {/* 6. Gym Cognitive */}
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xs space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-xs text-gray-900 dark:text-white">المعرفي (الجمباز):</span>
-                    <span className="text-xs font-black bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-lg">/ {cognitiveMax} ن</span>
-                  </div>
-                  <input
-                    type="number"
-                    step="0.25"
-                    min="0"
-                    max={cognitiveMax}
-                    value={gymCognitive === undefined ? '' : gymCognitive}
-                    onChange={(e) => setGymCognitive(e.target.value === '' ? undefined : Math.min(cognitiveMax, Math.max(0, Number(e.target.value))))}
-                    placeholder="النقطة"
-                    className="w-full text-center py-1.5 font-black text-sm bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600"
-                  />
-                </div>
-              </div>
-            )}
-
             {/* --- GLOBAL MODE CRITERIA --- */}
             {evaluationMode === 'global' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1371,9 +1284,7 @@ export const QuickEvaluationModal: React.FC<QuickEvaluationModalProps> = ({
                 </div>
               </div>
             )}
-          </div>
 
-          {/* 🌟 PART 3: REAL-TIME FINAL SCORE BAR & PEDAGOGICAL APPRECIATION */}
           <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-3xl border border-gray-200 dark:border-gray-600 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="w-full sm:w-auto">
               <span className="text-xs font-black text-gray-500 dark:text-gray-400 block mb-1">
@@ -1484,5 +1395,6 @@ export const QuickEvaluationModal: React.FC<QuickEvaluationModalProps> = ({
         </div>
       </div>
     </div>
+  </div>
   );
 };

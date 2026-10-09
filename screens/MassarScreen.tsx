@@ -22,7 +22,11 @@ import {
   fillImportedMassarExcel, 
   exportFilledMassarWorkbook, 
   generateOfficialMassarExcel,
-  ImportedMassarResult
+  generateOfficialMassarExcelForLevel,
+  ImportedMassarResult,
+  detectClassLevel,
+  groupClassesByLevel,
+  SchoolLevel
 } from '../utils/massarHelper';
 import { 
   ExcelIcon, 
@@ -55,11 +59,20 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
 }) => {
   const { language } = useLanguage();
 
+  // Scope and Display View states
+  const [scopeMode, setScopeMode] = useState<'level' | 'class'>('level');
+  const [selectedLevelId, setSelectedLevelId] = useState<string>('');
+  const [crossClassSearchEnabled, setCrossClassSearchEnabled] = useState(true);
+  const [displayView, setDisplayView] = useState<'table' | 'roster'>('table');
+
   // Data states
   const [classList, setClassList] = useState<ClassStats[]>([]);
   const [students, setStudents] = useState<StudentIdentity[]>([]);
   const [physicalTests, setPhysicalTests] = useState<PhysicalTests[]>([]);
   const [vmaResults, setVmaResults] = useState<StudentResult[]>([]);
+  const [extraLevelTests, setExtraLevelTests] = useState<PhysicalTests[]>([]);
+  const [extraLevelVma, setExtraLevelVma] = useState<StudentResult[]>([]);
+  const [extraLevelRecords, setExtraLevelRecords] = useState<MassarGradeRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Massar Configuration state
@@ -68,11 +81,13 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
 
   // Imported raw workbook state (when teacher imports blank Massar file)
   const [importedResult, setImportedResult] = useState<ImportedMassarResult | null>(null);
+  const [importedFileBuffer, setImportedFileBuffer] = useState<ArrayBuffer | null>(null);
+  const [importedFileName, setImportedFileName] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterMode, setFilterMode] = useState<'all' | 'missing' | 'dispense' | 'below10'>('all');
+  const [filterMode, setFilterMode] = useState<'all' | 'filled' | 'missing' | 'dispense' | 'below10'>('all');
 
   // Quick evaluation modal
   const [isQuickEvalOpen, setIsQuickEvalOpen] = useState(false);
@@ -84,73 +99,227 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
   const [editingMassarCodeNum, setEditingMassarCodeNum] = useState<string | null>(null);
   const [tempMassarCode, setTempMassarCode] = useState('');
 
-  // Load Classes
+  // Group classes into educational levels
+  const availableLevels = useMemo(() => {
+    return groupClassesByLevel(classList);
+  }, [classList]);
+
+  const activeLevel = useMemo(() => {
+    if (availableLevels.length === 0) return null;
+    return availableLevels.find(l => l.id === selectedLevelId) || availableLevels[0];
+  }, [availableLevels, selectedLevelId]);
+
+  // Load Classes on mount
   useEffect(() => {
     getAllClasses().then(cls => {
       setClassList(cls);
-      if (cls.length > 0 && !selectedClass) {
-        setSelectedClass(cls[0].className);
+      if (cls.length > 0) {
+        if (!selectedClass) {
+          setSelectedClass(cls[0].className);
+        }
+        const levels = groupClassesByLevel(cls);
+        if (levels.length > 0 && !selectedLevelId) {
+          const currentLevel = detectClassLevel(selectedClass || cls[0].className);
+          setSelectedLevelId(currentLevel.id);
+        }
       }
     });
   }, []);
 
-  // Load Data for Selected Class
+  // Sync selectedLevelId when selectedClass changes in class mode
   useEffect(() => {
-    if (!selectedClass) return;
+    if (selectedClass && scopeMode === 'class') {
+      const lvl = detectClassLevel(selectedClass);
+      setSelectedLevelId(lvl.id);
+    }
+  }, [selectedClass, scopeMode]);
+
+  // Load Data based on scopeMode (Level vs Single Class)
+  useEffect(() => {
+    if (classList.length === 0) return;
 
     setIsLoading(true);
     setImportedResult(null);
+    setImportedFileBuffer(null);
+    setImportedFileName('');
 
-    const loadedConfig = getMassarConfig(selectedClass);
-    setConfig(loadedConfig);
+    if (scopeMode === 'level' && activeLevel) {
+      // Level Mode: Fetch all classes belonging to this level
+      const lvlConfig = getMassarConfig(`level_${activeLevel.id}`);
+      setConfig({ ...lvlConfig, className: activeLevel.name });
 
-    Promise.all([
-      getStudentList(selectedClass),
-      getPhysicalTests(selectedClass),
-      getVmaResults(selectedClass)
-    ]).then(([stds, tests, vma]) => {
-      setStudents(stds || []);
-      setPhysicalTests(tests || []);
-      setVmaResults(vma || []);
+      Promise.all(activeLevel.classes.map(cName => Promise.all([
+        getStudentList(cName),
+        getPhysicalTests(cName),
+        getVmaResults(cName),
+        Promise.resolve(getMassarGrades(cName))
+      ]))).then(results => {
+        const combinedStudents: (StudentIdentity & { className: string })[] = [];
+        const combinedTests: PhysicalTests[] = [];
+        const combinedVma: StudentResult[] = [];
+        const combinedSavedGrades: MassarGradeRecord[] = [];
 
-      const savedGrades = getMassarGrades(selectedClass);
+        results.forEach(([stds, tests, vma, savedGrades], idx) => {
+          const cName = activeLevel.classes[idx];
+          (stds || []).forEach(s => combinedStudents.push({ ...s, className: cName }));
+          (tests || []).forEach(t => combinedTests.push({ ...t, className: cName }));
+          (vma || []).forEach(v => combinedVma.push({ ...v, className: cName } as any));
+          (savedGrades || []).forEach(g => combinedSavedGrades.push({ ...g, className: cName }));
+        });
 
-      if (savedGrades && savedGrades.length > 0) {
-        // Merge with student list to ensure all students are present
-        const merged = autoPopulateMassarGrades(stds || [], tests || [], vma || [], loadedConfig, savedGrades);
-        setRecords(merged);
-      } else {
-        // First time: auto populate from recorded tests
-        const initial = autoPopulateMassarGrades(stds || [], tests || [], vma || [], loadedConfig);
-        setRecords(initial);
-        saveMassarGrades(selectedClass, initial);
-      }
+        setStudents(combinedStudents);
+        setPhysicalTests(combinedTests);
+        setVmaResults(combinedVma);
+        setExtraLevelTests(combinedTests);
+        setExtraLevelVma(combinedVma);
+        setExtraLevelRecords(combinedSavedGrades);
 
-      setIsLoading(false);
-    }).catch(err => {
-      console.error('Error loading Massar data', err);
-      setIsLoading(false);
-      setNotification({ message: 'تعذر تحميل بيانات القسم', type: 'error' });
-    });
-  }, [selectedClass]);
+        if (combinedSavedGrades.length > 0) {
+          const merged = autoPopulateMassarGrades(combinedStudents, combinedTests, combinedVma, lvlConfig, combinedSavedGrades);
+          setRecords(merged);
+        } else {
+          const initial = autoPopulateMassarGrades(combinedStudents, combinedTests, combinedVma, lvlConfig);
+          setRecords(initial);
+          // persist initial
+          activeLevel.classes.forEach(cName => {
+            const classSubset = initial.filter(r => (r.className || '').trim() === cName);
+            if (classSubset.length > 0) saveMassarGrades(cName, classSubset);
+          });
+        }
+
+        setIsLoading(false);
+      }).catch(err => {
+        console.error('Error loading level Massar data', err);
+        setIsLoading(false);
+        setNotification({ message: 'تعذر تحميل بيانات أقسام المستوى', type: 'error' });
+      });
+
+    } else if (scopeMode === 'class' && selectedClass) {
+      // Single Class Mode: Fetch class data + load peer classes in background
+      const loadedConfig = getMassarConfig(selectedClass);
+      setConfig(loadedConfig);
+
+      const currentLevel = detectClassLevel(selectedClass);
+      const peerClasses = classList
+        .filter(c => c.className !== selectedClass && detectClassLevel(c.className).id === currentLevel.id)
+        .map(c => c.className);
+
+      Promise.all([
+        getStudentList(selectedClass),
+        getPhysicalTests(selectedClass),
+        getVmaResults(selectedClass),
+        Promise.all(peerClasses.map(c => Promise.all([
+          getPhysicalTests(c),
+          getVmaResults(c),
+          Promise.resolve(getMassarGrades(c))
+        ])))
+      ]).then(([stds, tests, vma, peerData]) => {
+        setStudents(stds || []);
+        setPhysicalTests(tests || []);
+        setVmaResults(vma || []);
+
+        const peerTests: PhysicalTests[] = [];
+        const peerVma: StudentResult[] = [];
+        const peerGrades: MassarGradeRecord[] = [];
+
+        peerData.forEach(([pTests, pVma, pGrades], pIdx) => {
+          const peerCName = peerClasses[pIdx];
+          (pTests || []).forEach(t => peerTests.push({ ...t, className: peerCName }));
+          (pVma || []).forEach(v => peerVma.push({ ...v, className: peerCName } as any));
+          (pGrades || []).forEach(g => peerGrades.push({ ...g, className: peerCName }));
+        });
+
+        setExtraLevelTests(peerTests);
+        setExtraLevelVma(peerVma);
+        setExtraLevelRecords(peerGrades);
+
+        const savedGrades = getMassarGrades(selectedClass);
+        const extraData = crossClassSearchEnabled ? { tests: peerTests, vmaList: peerVma } : undefined;
+
+        if (savedGrades && savedGrades.length > 0) {
+          const merged = autoPopulateMassarGrades(stds || [], tests || [], vma || [], loadedConfig, savedGrades, extraData);
+          setRecords(merged);
+        } else {
+          const initial = autoPopulateMassarGrades(stds || [], tests || [], vma || [], loadedConfig, [], extraData);
+          setRecords(initial);
+          saveMassarGrades(selectedClass, initial);
+        }
+
+        setIsLoading(false);
+      }).catch(err => {
+        console.error('Error loading Massar class data', err);
+        setIsLoading(false);
+        setNotification({ message: 'تعذر تحميل بيانات القسم', type: 'error' });
+      });
+    }
+  }, [selectedClass, scopeMode, selectedLevelId, classList, crossClassSearchEnabled]);
+
+  // Persist records to storage (handles level breakdown or single class)
+  const persistRecords = (updatedRecords: MassarGradeRecord[]) => {
+    if (scopeMode === 'level' && activeLevel) {
+      activeLevel.classes.forEach(cName => {
+        const classSubset = updatedRecords.filter(r => (r.className || '').trim() === cName);
+        if (classSubset.length > 0) {
+          saveMassarGrades(cName, classSubset);
+        }
+      });
+      saveMassarGrades(`level_${activeLevel.id}`, updatedRecords);
+    } else {
+      saveMassarGrades(selectedClass, updatedRecords);
+    }
+  };
 
   // Save config changes
   const handleUpdateConfig = (updates: Partial<MassarClassConfig>) => {
     const updated = { ...config, ...updates };
     setConfig(updated);
-    saveMassarConfig(selectedClass, updated);
+    if (scopeMode === 'level' && activeLevel) {
+      saveMassarConfig(`level_${activeLevel.id}`, updated);
+      if (activeLevel.classes.length > 0) {
+        saveMassarConfig(activeLevel.classes[0], updated);
+      }
+    } else {
+      saveMassarConfig(selectedClass, updated);
+    }
   };
 
   // One-click Auto Populate from App Tests
   const handleAutoPopulate = () => {
-    const populated = autoPopulateMassarGrades(students, physicalTests, vmaResults, config, records);
+    const extraData = (scopeMode === 'class' && crossClassSearchEnabled) || scopeMode === 'level'
+      ? { tests: extraLevelTests, vmaList: extraLevelVma }
+      : undefined;
+
+    const studentListForPopulate = (importedResult?.fileStudents && importedResult.fileStudents.length > 0)
+      ? importedResult.fileStudents
+      : students;
+
+    const populated = autoPopulateMassarGrades(studentListForPopulate, physicalTests, vmaResults, config, records, extraData);
     setRecords(populated);
-    saveMassarGrades(selectedClass, populated);
+    persistRecords(populated);
+
+    if (importedFileBuffer) {
+      const res = fillImportedMassarExcel(
+        importedFileBuffer, 
+        studentListForPopulate, 
+        populated, 
+        config, 
+        importedFileName, 
+        extraLevelRecords
+      );
+      if (res.success) {
+        setImportedResult(res);
+      }
+    }
+
+    const filledCount = populated.filter(r => !r.isDispense && (r.noteDevoir1 !== null || r.noteDevoir2 !== null || r.noteDevoir3 !== null)).length;
+    const crossClassCount = populated.filter(r => r.matchedFromClass).length;
+
+    const levelTitle = scopeMode === 'level' && activeLevel ? activeLevel.shortName : (detectClassLevel(selectedClass).shortName);
     setNotification({
-      message: `تم ملء نقط الفروض الثلاثة لـ ${populated.length} تلميذ تلقائياً من الأنشطة المختارة بنجاح! ⚡`,
+      message: `تم ملء نقط الفروض الثلاثة لـ ${filledCount} تلميذ بنجاح! ${crossClassCount > 0 ? `(تم جلب نقط ${crossClassCount} تلميذ من أقسام المستوى ${levelTitle})` : ''} ⚡`,
       type: 'success'
     });
-    setTimeout(() => setNotification(null), 4000);
+    setTimeout(() => setNotification(null), 5000);
   };
 
   // Apply Quick Preset for 3 activities
@@ -165,12 +334,30 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
       activity3CustomLabel: ''
     };
     setConfig(updated);
-    saveMassarConfig(selectedClass, updated);
+    if (scopeMode === 'level' && activeLevel) {
+      saveMassarConfig(`level_${activeLevel.id}`, updated);
+    } else {
+      saveMassarConfig(selectedClass, updated);
+    }
 
-    // Promptly recalculate grades with new activities
-    const populated = autoPopulateMassarGrades(students, physicalTests, vmaResults, updated, records);
+    const extraData = (scopeMode === 'class' && crossClassSearchEnabled) || scopeMode === 'level'
+      ? { tests: extraLevelTests, vmaList: extraLevelVma }
+      : undefined;
+
+    const studentListForPopulate = (importedResult?.fileStudents && importedResult.fileStudents.length > 0)
+      ? importedResult.fileStudents
+      : students;
+
+    const populated = autoPopulateMassarGrades(studentListForPopulate, physicalTests, vmaResults, updated, records, extraData);
     setRecords(populated);
-    saveMassarGrades(selectedClass, populated);
+    persistRecords(populated);
+
+    if (importedFileBuffer) {
+      const res = fillImportedMassarExcel(importedFileBuffer, studentListForPopulate, populated, updated, importedFileName, extraLevelRecords);
+      if (res.success) {
+        setImportedResult(res);
+      }
+    }
 
     setNotification({
       message: `تم تطبيق قالب الأنشطة (${label || 'المحدد'}) وتحديث النقط تلقائياً!`,
@@ -198,7 +385,7 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
         }
         return rec;
       });
-      saveMassarGrades(selectedClass, updated);
+      persistRecords(updated);
       return updated;
     });
   };
@@ -217,7 +404,7 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
         }
         return rec;
       });
-      saveMassarGrades(selectedClass, updated);
+      persistRecords(updated);
       return updated;
     });
   };
@@ -231,7 +418,6 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
           const newRec = { 
             ...rec, 
             [statusType]: nextState,
-            // Mutually exclusive
             ...(statusType === 'isDispense' && nextState ? { isAbsent: false } : {}),
             ...(statusType === 'isAbsent' && nextState ? { isDispense: false } : {})
           };
@@ -241,7 +427,7 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
         }
         return rec;
       });
-      saveMassarGrades(selectedClass, updated);
+      persistRecords(updated);
       return updated;
     });
   };
@@ -255,7 +441,7 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
         }
         return rec;
       });
-      saveMassarGrades(selectedClass, updated);
+      persistRecords(updated);
       return updated;
     });
   };
@@ -265,14 +451,15 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
     const code = tempMassarCode.trim();
     setRecords(prev => {
       const updated = prev.map(rec => rec.numeroEleve === studentNum ? { ...rec, codeMassar: code } : rec);
-      saveMassarGrades(selectedClass, updated);
+      persistRecords(updated);
       return updated;
     });
 
-    // Also update student list in database
     const updatedStudents = students.map(s => s.numeroEleve === studentNum ? { ...s, codeMassar: code } : s);
     setStudents(updatedStudents);
-    saveStudentList(selectedClass, updatedStudents).catch(console.error);
+    if (scopeMode === 'class') {
+      saveStudentList(selectedClass, updatedStudents).catch(console.error);
+    }
 
     setEditingMassarCodeNum(null);
     setTempMassarCode('');
@@ -287,24 +474,64 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
 
     try {
       const buffer = await file.arrayBuffer();
-      const res = fillImportedMassarExcel(buffer, students, records, config, file.name);
+      setImportedFileBuffer(buffer);
+      setImportedFileName(file.name);
 
-      if (!res.success) {
-        setNotification({ message: res.error || 'فشل استيراد ورقة مسار', type: 'error' });
+      const extraData = (scopeMode === 'class' && crossClassSearchEnabled) || scopeMode === 'level'
+        ? { tests: extraLevelTests, vmaList: extraLevelVma }
+        : undefined;
+
+      // First pass: inspect sheet and extract all students directly from the imported Excel
+      const initialRes = fillImportedMassarExcel(
+        buffer, 
+        students, 
+        records, 
+        config, 
+        file.name, 
+        extraLevelRecords
+      );
+
+      if (!initialRes.success) {
+        setNotification({ message: initialRes.error || 'فشل استيراد ورقة مسار', type: 'error' });
         return;
       }
 
-      setImportedResult(res);
+      // If the Excel file contains students, use them as the primary student roster
+      let effectiveStudents = students;
+      if (initialRes.fileStudents && initialRes.fileStudents.length > 0) {
+        effectiveStudents = initialRes.fileStudents;
+        setStudents(effectiveStudents);
+      }
 
-      // If imported file matched records, update records in state
-      if (res.matchedRecords.length > 0) {
+      // Auto-populate grades for all students in the imported sheet across all level classes
+      const populated = autoPopulateMassarGrades(effectiveStudents, physicalTests, vmaResults, config, records, extraData);
+      setRecords(populated);
+      persistRecords(populated);
+
+      // Second pass: inject populated grades into the original workbook
+      const res = fillImportedMassarExcel(
+        buffer, 
+        effectiveStudents, 
+        populated, 
+        config, 
+        file.name, 
+        extraLevelRecords
+      );
+
+      setImportedResult(res);
+      setDisplayView('roster');
+
+      const levelTitle = scopeMode === 'level' && activeLevel ? activeLevel.shortName : (detectClassLevel(selectedClass).shortName);
+      const filledCountNow = populated.filter(r => !r.isDispense && (r.noteDevoir1 !== null || r.noteDevoir2 !== null || r.noteDevoir3 !== null)).length;
+
+      if (res.matchedCount > 0 || filledCountNow > 0) {
         setNotification({
-          message: `تمت معالجة ورقة مسار بنجاح! تمت مطابقة ${res.matchedCount} من أصل ${res.totalStudentsInFile} تلميذ (${Math.round((res.matchedCount / Math.max(1, res.totalStudentsInFile)) * 100)}%). جاهز للتصدير إلى مسار!`,
+          message: `تم استيراد ورقة مسار الأصلية بنجاح! تم إظهار ${effectiveStudents.length} تلميذ ومطابقة/ملء نقط ${Math.max(res.matchedCount, filledCountNow)} تلميذ تلقائياً بالبحث في أقسام المستوى (${levelTitle})! 📤 جاهز للتصدير.`,
           type: 'success'
         });
       } else {
         setNotification({
-          message: `تم فتح الملف ولكن لم يتم العثور على تطابق مع تلاميذ القسم. يرجى التأكد من اختيار ملف مسار الخاص بالقسم ${selectedClass}.`,
+          message: `تم استيراد ورقة مسار بنجاح وتم إظهار ${effectiveStudents.length} تلميذ بالجدول. اضغط على "ملء تلقائي لنقط الفروض الثلاثة" للبحث عن نقطهم في روائز مادة التربية البدنية.`,
           type: 'info'
         });
       }
@@ -324,21 +551,44 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
     }
 
     try {
-      if (importedResult && importedResult.rawWorkbook) {
-        // Export the updated original Massar workbook with exact styling preserved
-        const outName = `مسار_مملوء_${selectedClass}_S${config.semestre}_${importedResult.originalFileName}`;
-        exportFilledMassarWorkbook(importedResult.rawWorkbook, outName);
+      let workbookToExport = importedResult?.rawWorkbook;
+      if (importedFileBuffer) {
+        const studentListForExport = (importedResult?.fileStudents && importedResult.fileStudents.length > 0) 
+          ? importedResult.fileStudents 
+          : students;
+        const res = fillImportedMassarExcel(importedFileBuffer, studentListForExport, records, config, importedFileName, extraLevelRecords);
+        if (res.success && res.rawWorkbook) {
+          workbookToExport = res.rawWorkbook;
+        }
+      }
+
+      if (scopeMode === 'level' && activeLevel && !workbookToExport) {
+        const classesData = activeLevel.classes.map(cName => ({
+          className: cName,
+          students: students.filter(s => (s as any).className === cName),
+          records: records.filter(r => (r.className || '').trim() === cName)
+        }));
+        generateOfficialMassarExcelForLevel(activeLevel, classesData, config, true);
         setNotification({ 
-          message: `تم تصدير ورقة مسار الأصلية بنجاح (${outName}) جاهزة للإرسال إلى موقع مسار! 📤`, 
+          message: `تم تصدير لوائح مسار للمستوى ${activeLevel.shortName} بنجاح!`, 
           type: 'success' 
         });
       } else {
-        // Generate official Massar template formatted for Moroccan EPS
-        generateOfficialMassarExcel(selectedClass, students, records, config, false);
-        setNotification({ 
-          message: `تم تصدير ورقة مسار الرسمية للقسم ${selectedClass} بنجاح!`, 
-          type: 'success' 
-        });
+        const targetLabel = scopeMode === 'level' && activeLevel ? activeLevel.shortName : selectedClass;
+        if (workbookToExport) {
+          const outName = `مسار_مملوء_${targetLabel}_S${config.semestre}_${importedFileName}`;
+          exportFilledMassarWorkbook(workbookToExport, outName);
+          setNotification({ 
+            message: `تم تصدير ورقة مسار الأصلية بنجاح (${outName}) معبأة بالكامل وجاهزة للإرسال إلى موقع مسار! 📤`, 
+            type: 'success' 
+          });
+        } else {
+          generateOfficialMassarExcel(targetLabel, students, records, config, false);
+          setNotification({ 
+            message: `تم تصدير ورقة مسار الرسمية (${targetLabel}) بنجاح!`, 
+            type: 'success' 
+          });
+        }
       }
     } catch (err: any) {
       console.error('Export error', err);
@@ -349,8 +599,9 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
   // Download Blank Template
   const handleDownloadBlankTemplate = () => {
     try {
-      generateOfficialMassarExcel(selectedClass, students, records, config, true);
-      setNotification({ message: `تم تنزيل نموذج مسار فارغ للقسم ${selectedClass}`, type: 'success' });
+      const targetLabel = scopeMode === 'level' && activeLevel ? activeLevel.shortName : selectedClass;
+      generateOfficialMassarExcel(targetLabel, students, records, config, true);
+      setNotification({ message: `تم تنزيل نموذج مسار فارغ لـ ${targetLabel}`, type: 'success' });
     } catch (err) {
       setNotification({ message: 'فشل تنزيل النموذج', type: 'error' });
     }
@@ -374,6 +625,9 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
       }
 
       // Filter Mode
+      if (filterMode === 'filled') {
+        return !rec.isDispense && (rec.noteDevoir1 !== null || rec.noteDevoir2 !== null || rec.noteDevoir3 !== null);
+      }
       if (filterMode === 'missing') {
         return !rec.isDispense && (rec.noteDevoir1 === null || rec.noteDevoir2 === null || rec.noteDevoir3 === null);
       }
@@ -388,6 +642,11 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
       return true;
     });
   }, [records, searchQuery, filterMode, config.rounding]);
+
+  // Count of students with populated grades
+  const filledCount = useMemo(() => {
+    return records.filter(r => !r.isDispense && (r.noteDevoir1 !== null || r.noteDevoir2 !== null || r.noteDevoir3 !== null)).length;
+  }, [records]);
 
   // Statistics KPI calculations
   const stats = useMemo(() => {
@@ -494,75 +753,138 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
               📊
             </div>
             <div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-xl md:text-2xl font-black text-gray-900 dark:text-white">
-                  فضاء ملء وتصدير لوائح مسار (Massar)
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-lg font-black text-gray-900 dark:text-white">
+                  فضاء مسار (Massar)
                 </h1>
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                  منظومة مسار الرسمية
-                </span>
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300">
-                  3 فروض مستمرة
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                  رسمي
                 </span>
               </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                اختيار الأنشطة الثلاثة، ملء نقط الفروض تلقائياً من الروائز المنجزة، استيراد وتصدير لوائح إكسيل متوافقة 100% مع موقع مسار.
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                ملء، استيراد وتصدير لوائح إكسيل متوافقة مع مسار.
               </p>
             </div>
           </div>
 
-          {/* Quick Selectors (Class & Semester & Settings) */}
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* Class Selector */}
-            <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700 rounded-2xl px-3 py-1.5 shadow-xs">
-              <span className="text-xs text-gray-500 dark:text-gray-400 font-bold">القسم:</span>
-              <select
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-                className="bg-transparent text-sm font-black text-gray-800 dark:text-gray-200 focus:outline-none cursor-pointer"
+          {/* Quick Selectors (Scope, Level/Class & Semester & Settings) */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Scope Mode Switch: Level vs Single Class */}
+            <div className="flex items-center bg-gray-100 dark:bg-gray-900 p-0.5 rounded-xl border border-gray-200 dark:border-gray-700 text-[10px] font-black shadow-xs">
+              <button
+                onClick={() => setScopeMode('level')}
+                className={`px-2 py-1 rounded-lg transition ${
+                  scopeMode === 'level'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                }`}
               >
-                {classList.map(c => (
-                  <option key={c.className} value={c.className} className="dark:bg-gray-800">
-                    {c.className} ({c.studentCount} تلميذ)
+                🎓 المستوى
+              </button>
+              <button
+                onClick={() => setScopeMode('class')}
+                className={`px-2 py-1 rounded-lg transition ${
+                  scopeMode === 'class'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                }`}
+              >
+                🏫 القسم
+              </button>
+            </div>
+
+            {/* Level Selector (when in Level Mode) */}
+            {scopeMode === 'level' ? (
+              <select
+                value={selectedLevelId}
+                onChange={(e) => setSelectedLevelId(e.target.value)}
+                className="bg-indigo-50 dark:bg-indigo-950/40 text-[11px] font-black text-indigo-950 dark:text-indigo-100 rounded-xl px-2 py-1.5 border border-indigo-200 focus:outline-none"
+              >
+                {availableLevels.map(lvl => (
+                  <option key={lvl.id} value={lvl.id}>
+                    {lvl.name} ({lvl.totalStudents})
                   </option>
                 ))}
               </select>
-            </div>
+            ) : (
+              /* Class Selector (when in Class Mode) */
+              <select
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+                className="bg-gray-50 dark:bg-gray-900 text-[11px] font-black text-gray-800 dark:text-gray-200 rounded-xl px-2 py-1.5 border border-gray-200 focus:outline-none"
+              >
+                {classList.map(c => (
+                  <option key={c.className} value={c.className}>
+                    {c.className} ({c.studentCount})
+                  </option>
+                ))}
+              </select>
+            )}
 
             {/* Semester Selector */}
-            <div className="flex items-center bg-gray-100 dark:bg-gray-900 p-1 rounded-2xl border border-gray-200 dark:border-gray-700 text-xs font-bold">
+            <div className="flex items-center bg-gray-100 dark:bg-gray-900 p-0.5 rounded-xl border border-gray-200 text-[10px] font-bold">
               <button
                 onClick={() => handleUpdateConfig({ semestre: '1' })}
-                className={`px-3 py-1.5 rounded-xl transition ${
-                  config.semestre === '1'
-                    ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                    : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
-                }`}
+                className={`px-2 py-1 rounded-lg ${config.semestre === '1' ? 'bg-white text-indigo-600 shadow-xs' : 'text-gray-500'}`}
               >
-                الدورة الأولى (S1)
+                S1
               </button>
               <button
                 onClick={() => handleUpdateConfig({ semestre: '2' })}
-                className={`px-3 py-1.5 rounded-xl transition ${
-                  config.semestre === '2'
-                    ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                    : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
-                }`}
+                className={`px-2 py-1 rounded-lg ${config.semestre === '2' ? 'bg-white text-indigo-600 shadow-xs' : 'text-gray-500'}`}
               >
-                الدورة الثانية (S2)
+                S2
               </button>
             </div>
 
             {/* Settings Button */}
             <button
               onClick={() => setIsSettingsModalOpen(true)}
-              className="p-2.5 rounded-2xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition"
-              title="إعدادات الترويسة والتقريب"
+              className="p-2 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-600"
+              title="إعدادات"
             >
-              <Cog6ToothIcon />
+              <Cog6ToothIcon className="w-4 h-4" />
             </button>
           </div>
         </div>
+
+        {/* Level / Multi-Class Info Banner */}
+        {scopeMode === 'level' && activeLevel && (
+          <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between gap-2 text-[10px]">
+            <div className="flex flex-wrap gap-1">
+              {activeLevel.classes.map(c => (
+                <span key={c} className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-black border border-indigo-100">
+                  {c}
+                </span>
+              ))}
+            </div>
+            <span className="text-gray-500 font-bold shrink-0">
+              ({activeLevel.totalStudents} تلميذ)
+            </span>
+          </div>
+        )}
+
+        {/* Single Class Mode Info Banner with Cross-Class Toggle */}
+        {scopeMode === 'class' && (
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-600 dark:text-gray-300 font-bold">
+                المستوى الدراسي المقابل: <strong className="text-indigo-600 dark:text-indigo-400">{detectClassLevel(selectedClass).name}</strong>
+              </span>
+            </div>
+            <button
+              onClick={() => setCrossClassSearchEnabled(!crossClassSearchEnabled)}
+              className={`px-3 py-1 rounded-xl font-black border transition flex items-center gap-1.5 cursor-pointer ${
+                crossClassSearchEnabled
+                  ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                  : 'bg-gray-100 text-gray-500 border-gray-200'
+              }`}
+              title="جلب نقط التلاميذ الذين تم اختبارهم في أقسام أخرى لنفس المستوى الدراسي"
+            >
+              <span>{crossClassSearchEnabled ? '✓ جلب النقط من كافة أقسام نفس المستوى مفعّل' : 'البحث في هذا القسم فقط'}</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 3 Selected Activities Configuration Cards */}
@@ -837,26 +1159,55 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
         </div>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        {/* Search */}
-        <div className="relative flex-1 max-w-md">
-          <MagnifyingGlassIcon className="w-5 h-5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="بحث بالاسم أو رمز مسار أو رقم التلميذ..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pr-10 pl-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-gray-900 dark:text-gray-100"
-          />
-          {searchQuery && (
-            <button 
-              onClick={() => setSearchQuery('')} 
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+      {/* Search, Display Views, and Filters */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Search */}
+          <div className="relative flex-1 max-w-md">
+            <MagnifyingGlassIcon className="w-5 h-5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="بحث بالاسم أو رمز مسار أو رقم التلميذ أو القسم..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pr-10 pl-4 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-gray-900 dark:text-gray-100"
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')} 
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <XMarkIcon />
+              </button>
+            )}
+          </div>
+
+          {/* View Switcher: Interactive Table vs Official Massar Roster */}
+          <div className="flex items-center bg-gray-100 dark:bg-gray-800 p-1 rounded-2xl border border-gray-200 dark:border-gray-700 text-xs font-black shadow-xs self-start sm:self-auto">
+            <button
+              onClick={() => setDisplayView('table')}
+              className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
+                displayView === 'table'
+                  ? 'bg-white dark:bg-gray-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
             >
-              <XMarkIcon />
+              <span>📋 جدول المسك والتعديل السريع</span>
             </button>
-          )}
+            <button
+              onClick={() => setDisplayView('roster')}
+              className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
+                displayView === 'roster'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <span>📜 كشف نقط مسار المعبأة (معاينة وطباعة)</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 text-white">
+                {filledCount}
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Filter chips */}
@@ -870,6 +1221,17 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
             }`}
           >
             الكل ({records.length})
+          </button>
+          <button
+            onClick={() => setFilterMode('filled')}
+            className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1 ${
+              filterMode === 'filled'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border border-emerald-300 dark:border-emerald-700'
+            }`}
+          >
+            <span>التي تم ملؤها بنجاح 🌟</span>
+            <span>({filledCount})</span>
           </button>
           <button
             onClick={() => setFilterMode('missing')}
@@ -907,8 +1269,252 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
         </div>
       </div>
 
-      {/* Main Student Massar Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-200 dark:border-gray-700/80 shadow-sm overflow-hidden">
+      {/* VIEW 1: OFFICIAL POPULATED MASSAR ROSTER (كشف نقط مسار المعبأة) */}
+      {displayView === 'roster' && (
+        <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-200 dark:border-gray-700/80 shadow-md p-6 sm:p-8 animate-fadeIn">
+          {/* Printable Header Card */}
+          <div className="border-b-2 border-gray-900 dark:border-gray-100 pb-5 mb-6 text-center">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
+              <div className="text-right text-xs text-gray-600 dark:text-gray-300 space-y-1">
+                <p className="font-bold">المملكة المغربية</p>
+                <p className="font-black text-gray-900 dark:text-white">وزارة التربية الوطنية والتعليم الأولي والرياضة</p>
+                <p>الأكاديمية الجهوية: <span className="font-bold">{config.academie || 'الجهة الشرقية'}</span></p>
+                <p>المديرية الإقليمية: <span className="font-bold">{config.direction || 'مديرية فكيك'}</span></p>
+                <p>المؤسسة: <span className="font-bold">{config.schoolName || 'الثانوية التأهيلية'}</span></p>
+              </div>
+
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-emerald-600 text-white font-black text-2xl shadow-sm mb-1">
+                  🇲🇦
+                </div>
+                <h3 className="text-lg font-black text-gray-900 dark:text-white">
+                  كشف نقط المراقبة المستمرة لمادة التربية البدنية والرياضية
+                </h3>
+                <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                  {scopeMode === 'level' && activeLevel 
+                    ? `لائحة مجمعة لمستوى: ${activeLevel.name} (تشمل الأقسام: ${activeLevel.classes.join(', ')})`
+                    : `لائحة مسار للقسم: ${selectedClass}`
+                  }
+                </p>
+              </div>
+
+              <div className="text-left text-xs text-gray-600 dark:text-gray-300 space-y-1">
+                <p>المادة: <span className="font-bold text-gray-900 dark:text-white">التربية البدنية والرياضية</span></p>
+                <p>الدورة: <span className="font-bold">{config.semestre === '1' ? 'الدورة الأولى (S1)' : 'الدورة الثانية (S2)'}</span></p>
+                <p>السنة الدراسية: <span className="font-bold">{config.schoolYear}</span></p>
+                <p>الأستاذ: <span className="font-bold">{config.teacherName || '—'}</span></p>
+                <p className="text-[11px] text-gray-400">تاريخ الطباعة: {new Date().toLocaleDateString('ar-MA')}</p>
+              </div>
+            </div>
+
+            {/* Activities Legend Bar */}
+            <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-3 flex flex-wrap items-center justify-around gap-2 text-xs">
+              <span className="font-black text-emerald-900 dark:text-emerald-200">
+                🎯 الأنشطة المعتمدة في الفروض الثلاثة:
+              </span>
+              <span className="font-bold text-indigo-700 dark:text-indigo-300">
+                1️⃣ الفرض الأول: {config.activity1CustomLabel || act1Meta.nameAr}
+              </span>
+              <span className="font-bold text-purple-700 dark:text-purple-300">
+                2️⃣ الفرض الثاني: {config.activity2CustomLabel || act2Meta.nameAr}
+              </span>
+              <span className="font-bold text-amber-700 dark:text-amber-300">
+                3️⃣ الفرض الثالث: {config.activity3CustomLabel || act3Meta.nameAr}
+              </span>
+            </div>
+          </div>
+
+          {/* Action buttons inside Roster View */}
+          <div className="flex items-center justify-between gap-3 mb-4 print:hidden flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black text-gray-700 dark:text-gray-300">
+                عرض {filteredRecords.length} تلميذ ({filteredRecords.filter(r => !r.isDispense && (r.noteDevoir1 !== null || r.noteDevoir2 !== null || r.noteDevoir3 !== null)).length} معبأة)
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={handlePrint}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs font-black shadow-xs hover:opacity-90 transition cursor-pointer"
+              >
+                <PrinterIcon className="w-4 h-4" />
+                <span>طباعة هذا الكشف الرسمي 🖨️</span>
+              </button>
+
+              <button
+                onClick={handleExportMassar}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-xs transition cursor-pointer"
+              >
+                <ExcelIcon className="w-4 h-4" />
+                <span>تصدير ورقة مسار Excel 📊</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Official Roster Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-right text-xs border border-gray-300 dark:border-gray-700">
+              <thead>
+                <tr className="bg-gray-100 dark:bg-gray-900/90 text-gray-800 dark:text-gray-200 font-black border-b border-gray-300 dark:border-gray-700">
+                  <th className="py-2.5 px-2 text-center w-10 border-l border-gray-300 dark:border-gray-700">ر.ت</th>
+                  <th className="py-2.5 px-2.5 min-w-[110px] border-l border-gray-300 dark:border-gray-700">رمز مسار</th>
+                  <th className="py-2.5 px-3 min-w-[170px] border-l border-gray-300 dark:border-gray-700">الاسم والنسب</th>
+                  <th className="py-2.5 px-2 text-center min-w-[80px] border-l border-gray-300 dark:border-gray-700">القسم</th>
+                  <th className="py-2.5 px-2.5 text-center min-w-[110px] bg-indigo-50/70 dark:bg-indigo-950/30 border-l border-gray-300 dark:border-gray-700">
+                    <div>الفرض الأول</div>
+                    <div className="text-[10px] font-normal text-indigo-700 dark:text-indigo-300 truncate max-w-[100px]">{act1Meta.shortAr}</div>
+                  </th>
+                  <th className="py-2.5 px-2.5 text-center min-w-[110px] bg-purple-50/70 dark:bg-purple-950/30 border-l border-gray-300 dark:border-gray-700">
+                    <div>الفرض الثاني</div>
+                    <div className="text-[10px] font-normal text-purple-700 dark:text-purple-300 truncate max-w-[100px]">{act2Meta.shortAr}</div>
+                  </th>
+                  <th className="py-2.5 px-2.5 text-center min-w-[110px] bg-amber-50/70 dark:bg-amber-950/30 border-l border-gray-300 dark:border-gray-700">
+                    <div>الفرض الثالث</div>
+                    <div className="text-[10px] font-normal text-amber-700 dark:text-amber-300 truncate max-w-[100px]">{act3Meta.shortAr}</div>
+                  </th>
+                  <th className="py-2.5 px-2.5 text-center min-w-[100px] bg-emerald-50/80 dark:bg-emerald-950/30 border-l border-gray-300 dark:border-gray-700 font-black">
+                    معدل المراقبة
+                  </th>
+                  <th className="py-2.5 px-3 min-w-[180px] border-l border-gray-300 dark:border-gray-700">ملاحظات الأستاذ</th>
+                  <th className="py-2.5 px-2 text-center min-w-[80px]">حالة المسك</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {filteredRecords.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-12 text-center text-gray-400 font-bold">
+                      لا يوجد تلاميذ يطابقون خيارات البحث أو التصفية الحالية
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRecords.map((rec, idx) => {
+                    const student = students.find(s => s.numeroEleve === rec.numeroEleve);
+                    const avg = calculateMassarAverage(rec.noteDevoir1, rec.noteDevoir2, rec.noteDevoir3, config.rounding);
+                    const isAllFilled = rec.noteDevoir1 !== null && rec.noteDevoir2 !== null && rec.noteDevoir3 !== null;
+                    const isPartFilled = !isAllFilled && (rec.noteDevoir1 !== null || rec.noteDevoir2 !== null || rec.noteDevoir3 !== null);
+
+                    return (
+                      <tr 
+                        key={`${rec.numeroEleve}-${idx}`} 
+                        className={`hover:bg-gray-50/60 dark:hover:bg-gray-700/30 ${
+                          rec.isDispense ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''
+                        }`}
+                      >
+                        <td className="py-2 px-2 text-center font-bold text-gray-500 border-l border-gray-200 dark:border-gray-700">
+                          {idx + 1}
+                        </td>
+                        <td className="py-2 px-2.5 font-mono font-bold text-gray-800 dark:text-gray-200 border-l border-gray-200 dark:border-gray-700">
+                          {rec.codeMassar || rec.numeroEleve}
+                        </td>
+                        <td className="py-2 px-3 font-bold text-gray-900 dark:text-white border-l border-gray-200 dark:border-gray-700">
+                          {rec.nomEleve}
+                        </td>
+                        <td className="py-2 px-2 text-center border-l border-gray-200 dark:border-gray-700">
+                          <span className="px-2 py-0.5 rounded font-bold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                            {rec.className || student?.className || selectedClass}
+                          </span>
+                        </td>
+                        <td className="py-2 px-2.5 text-center font-black border-l border-gray-200 dark:border-gray-700 bg-indigo-50/20 dark:bg-indigo-950/10">
+                          {rec.isDispense ? (
+                            <span className="text-amber-600 font-bold">معفى</span>
+                          ) : rec.noteDevoir1 !== null && rec.noteDevoir1 !== undefined ? (
+                            <span className="text-indigo-700 dark:text-indigo-300 bg-indigo-100/70 dark:bg-indigo-950 px-2 py-0.5 rounded font-black">
+                              {rec.noteDevoir1}
+                            </span>
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-2.5 text-center font-black border-l border-gray-200 dark:border-gray-700 bg-purple-50/20 dark:bg-purple-950/10">
+                          {rec.isDispense ? (
+                            <span className="text-amber-600 font-bold">معفى</span>
+                          ) : rec.noteDevoir2 !== null && rec.noteDevoir2 !== undefined ? (
+                            <span className="text-purple-700 dark:text-purple-300 bg-purple-100/70 dark:bg-purple-950 px-2 py-0.5 rounded font-black">
+                              {rec.noteDevoir2}
+                            </span>
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-2.5 text-center font-black border-l border-gray-200 dark:border-gray-700 bg-amber-50/20 dark:bg-amber-950/10">
+                          {rec.isDispense ? (
+                            <span className="text-amber-600 font-bold">معفى</span>
+                          ) : rec.noteDevoir3 !== null && rec.noteDevoir3 !== undefined ? (
+                            <span className="text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-950 px-2 py-0.5 rounded font-black">
+                              {rec.noteDevoir3}
+                            </span>
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-2.5 text-center font-black border-l border-gray-200 dark:border-gray-700 bg-emerald-50/20 dark:bg-emerald-950/10">
+                          {rec.isDispense ? (
+                            <span className="text-amber-600 font-bold">معفى</span>
+                          ) : avg !== null ? (
+                            <span className={`px-2 py-0.5 rounded font-black ${
+                              avg >= 15 ? 'text-emerald-700 bg-emerald-100 dark:bg-emerald-950' :
+                              avg >= 10 ? 'text-blue-700 bg-blue-100 dark:bg-blue-950' :
+                              'text-rose-700 bg-rose-100 dark:bg-rose-950'
+                            }`}>
+                              {avg}/20
+                            </span>
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-gray-700 dark:text-gray-300 border-l border-gray-200 dark:border-gray-700">
+                          {rec.remarque || '—'}
+                        </td>
+                        <td className="py-2 px-2 text-center">
+                          {rec.isDispense ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                              معفى
+                            </span>
+                          ) : isAllFilled ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                              ✓ مكتمل (3/3)
+                            </span>
+                          ) : isPartFilled ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
+                              ⚡ جزئي
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-gray-400 font-bold">- فارغ</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Roster Summary KPI footer */}
+          <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-4 text-xs font-bold text-gray-600 dark:text-gray-300">
+            <div>
+              <span>مجموع التلاميذ: <strong>{records.length}</strong></span>
+              <span className="mx-2">•</span>
+              <span className="text-emerald-600 dark:text-emerald-400">المعبأة نقطهم: <strong>{filledCount}</strong> ({records.length > 0 ? Math.round((filledCount / records.length) * 100) : 0}%)</span>
+              <span className="mx-2">•</span>
+              <span className="text-amber-600">المعفون: <strong>{records.filter(r => r.isDispense).length}</strong></span>
+            </div>
+            <div>
+              <span className="text-indigo-600 dark:text-indigo-400">معدل الفرض 1: <strong>{stats.avg1}/20</strong></span>
+              <span className="mx-2">•</span>
+              <span className="text-purple-600 dark:text-purple-400">الفرض 2: <strong>{stats.avg2}/20</strong></span>
+              <span className="mx-2">•</span>
+              <span className="text-amber-600 dark:text-amber-400">الفرض 3: <strong>{stats.avg3}/20</strong></span>
+              <span className="mx-2">•</span>
+              <span className="text-emerald-600 dark:text-emerald-400">المعدل العام: <strong>{stats.globalAvg}/20</strong></span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 2: INTERACTIVE MASSAR TABLE (جدول المسك والتعديل السريع) */}
+      {displayView === 'table' && (
+      <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-200 dark:border-gray-700/80 shadow-sm overflow-hidden animate-fadeIn">
         <div className="overflow-x-auto">
           <table className="w-full text-right text-sm">
             <thead>
@@ -916,6 +1522,7 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
                 <th className="py-3.5 px-3 text-center w-12">ر.ت</th>
                 <th className="py-3.5 px-3 min-w-[120px]">رمز مسار</th>
                 <th className="py-3.5 px-4 min-w-[200px]">الاسم والنسب</th>
+                <th className="py-3.5 px-3 text-center min-w-[90px]">القسم</th>
                 <th className="py-3.5 px-3 text-center min-w-[130px] bg-indigo-50/50 dark:bg-indigo-950/20">
                   <div className="flex flex-col items-center">
                     <span className="text-indigo-700 dark:text-indigo-300 font-black">الفرض الأول (CC1)</span>
@@ -951,7 +1558,7 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60 font-medium">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-gray-400">
+                  <td colSpan={11} className="py-12 text-center text-gray-400">
                     لا يوجد تلاميذ يطابقون خيارات البحث أو التصفية
                   </td>
                 </tr>
@@ -972,9 +1579,11 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
                     ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border-amber-300'
                     : 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border-rose-300';
 
+                  const studentClassName = rec.className || student?.className || selectedClass;
+
                   return (
                     <tr 
-                      key={rec.numeroEleve} 
+                      key={`${rec.numeroEleve}-${idx}-2`} 
                       className={`hover:bg-gray-50/70 dark:hover:bg-gray-700/40 transition-colors ${
                         rec.isDispense ? 'bg-amber-50/20 dark:bg-amber-950/10' : ''
                       }`}
@@ -1046,6 +1655,18 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
                         </div>
                       </td>
 
+                      {/* Class Badge */}
+                      <td className="py-3 px-2 text-center text-xs">
+                        <span className="px-2 py-0.5 rounded-lg font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                          {studentClassName}
+                        </span>
+                        {rec.matchedFromClass && rec.matchedFromClass !== studentClassName && (
+                          <span className="block text-[9px] text-emerald-600 dark:text-emerald-400 font-bold mt-0.5" title={`تم جلب النقط من رائز ${rec.matchedFromClass}`}>
+                            جُلب من {rec.matchedFromClass}
+                          </span>
+                        )}
+                      </td>
+
                       {/* Note CC1 */}
                       <td className="py-3 px-3 text-center bg-indigo-50/20 dark:bg-indigo-950/10">
                         {rec.isDispense ? (
@@ -1054,7 +1675,7 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
                           <div className="inline-flex items-center gap-1">
                             <button
                               onClick={() => handleStepGrade(rec.numeroEleve, 'noteDevoir1', -0.25)}
-                              className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-600 dark:text-gray-300 text-xs font-bold flex items-center justify-center"
+                              className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-600 dark:text-gray-300 text-xs font-bold flex items-center justify-center cursor-pointer"
                               title="-0.25"
                             >
                               -
@@ -1067,11 +1688,15 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
                               value={rec.noteDevoir1 !== null && rec.noteDevoir1 !== undefined ? rec.noteDevoir1 : ''}
                               onChange={(e) => handleGradeChange(rec.numeroEleve, 'noteDevoir1', e.target.value)}
                               placeholder="-"
-                              className="w-14 text-center font-black text-sm py-1 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-gray-900 text-indigo-700 dark:text-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              className={`w-14 text-center font-black text-sm py-1 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                                rec.noteDevoir1 !== null && rec.noteDevoir1 !== undefined 
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200' 
+                                  : 'bg-white dark:bg-gray-900 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300'
+                              }`}
                             />
                             <button
                               onClick={() => handleStepGrade(rec.numeroEleve, 'noteDevoir1', 0.25)}
-                              className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-600 dark:text-gray-300 text-xs font-bold flex items-center justify-center"
+                              className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-600 dark:text-gray-300 text-xs font-bold flex items-center justify-center cursor-pointer"
                               title="+0.25"
                             >
                               +
@@ -1088,7 +1713,7 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
                           <div className="inline-flex items-center gap-1">
                             <button
                               onClick={() => handleStepGrade(rec.numeroEleve, 'noteDevoir2', -0.25)}
-                              className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-600 dark:text-gray-300 text-xs font-bold flex items-center justify-center"
+                              className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-600 dark:text-gray-300 text-xs font-bold flex items-center justify-center cursor-pointer"
                               title="-0.25"
                             >
                               -
@@ -1101,11 +1726,15 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
                               value={rec.noteDevoir2 !== null && rec.noteDevoir2 !== undefined ? rec.noteDevoir2 : ''}
                               onChange={(e) => handleGradeChange(rec.numeroEleve, 'noteDevoir2', e.target.value)}
                               placeholder="-"
-                              className="w-14 text-center font-black text-sm py-1 rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-gray-900 text-purple-700 dark:text-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                              className={`w-14 text-center font-black text-sm py-1 rounded-lg border focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                                rec.noteDevoir2 !== null && rec.noteDevoir2 !== undefined 
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200' 
+                                  : 'bg-white dark:bg-gray-900 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300'
+                              }`}
                             />
                             <button
                               onClick={() => handleStepGrade(rec.numeroEleve, 'noteDevoir2', 0.25)}
-                              className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-600 dark:text-gray-300 text-xs font-bold flex items-center justify-center"
+                              className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-600 dark:text-gray-300 text-xs font-bold flex items-center justify-center cursor-pointer"
                               title="+0.25"
                             >
                               +
@@ -1122,7 +1751,7 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
                           <div className="inline-flex items-center gap-1">
                             <button
                               onClick={() => handleStepGrade(rec.numeroEleve, 'noteDevoir3', -0.25)}
-                              className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-600 dark:text-gray-300 text-xs font-bold flex items-center justify-center"
+                              className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-600 dark:text-gray-300 text-xs font-bold flex items-center justify-center cursor-pointer"
                               title="-0.25"
                             >
                               -
@@ -1135,11 +1764,15 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
                               value={rec.noteDevoir3 !== null && rec.noteDevoir3 !== undefined ? rec.noteDevoir3 : ''}
                               onChange={(e) => handleGradeChange(rec.numeroEleve, 'noteDevoir3', e.target.value)}
                               placeholder="-"
-                              className="w-14 text-center font-black text-sm py-1 rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-gray-900 text-amber-700 dark:text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                              className={`w-14 text-center font-black text-sm py-1 rounded-lg border focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+                                rec.noteDevoir3 !== null && rec.noteDevoir3 !== undefined 
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200' 
+                                  : 'bg-white dark:bg-gray-900 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300'
+                              }`}
                             />
                             <button
                               onClick={() => handleStepGrade(rec.numeroEleve, 'noteDevoir3', 0.25)}
-                              className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-600 dark:text-gray-300 text-xs font-bold flex items-center justify-center"
+                              className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-600 dark:text-gray-300 text-xs font-bold flex items-center justify-center cursor-pointer"
                               title="+0.25"
                             >
                               +
@@ -1221,6 +1854,7 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
           </table>
         </div>
       </div>
+      )}
 
       {/* Settings Modal */}
       {isSettingsModalOpen && (

@@ -32,6 +32,11 @@ import {
 } from '../utils/ScoringConstants';
 import { useLanguage } from '../utils/i18n';
 import { useSportsList, SportType } from '../utils/SportsConstants';
+import {
+  getGymLevelConfig,
+  GYM_EXIGENCES_FAMILY_OPTIONS,
+  calculateGymDifficultiesWithDetails
+} from '../utils/gymnasticsHelper';
 
 export const getStudentSportEvaluation = (
   test: PhysicalTests | undefined, 
@@ -117,6 +122,9 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
   const [isQuickEvalOpen, setIsQuickEvalOpen] = useState(false);
   const [quickEvalStudentNumber, setQuickEvalStudentNumber] = useState<string | null>(null);
 
+  // Gymnastics Difficulty Details Popover State
+  const [expandedDiffDetailsStudent, setExpandedDiffDetailsStudent] = useState<string | null>(null);
+
   const handleOpenQuickEval = (studentNum?: string) => {
     const target = studentNum || (filteredStudents.length > 0 ? filteredStudents[0].numeroEleve : null);
     if (target) {
@@ -160,6 +168,9 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
     if (name.includes('3APIC') || name.includes('3AC') || name.includes('4ème') || name.includes('3ème') || name.startsWith('3/')) return 'الثالثة إعدادي (3AC)';
     return 'الثالثة إعدادي (3AC) [افتراضي]';
   }, [selectedClass]);
+
+  // Gymnastics level configuration (coeffs for A, B, C and recommended composition)
+  const gymLevelCfg = useMemo(() => getGymLevelConfig(selectedClass), [selectedClass]);
 
   // Auto-save logic (triggers 2 seconds after user stops typing/editing)
   useEffect(() => {
@@ -384,28 +395,28 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
         updatedObj.gymScoreExecution = Number(Math.max(0, Math.min(2, 2 - deduction)).toFixed(2));
       }
 
-      // Compute Difficulty score if counts A,B,C are supplied
+      // Compute Difficulty score if counts A,B,C are supplied or divided sub-scores modified
       if (field === 'gymDiffCountA' || field === 'gymDiffCountB' || field === 'gymDiffCountC') {
-        const countA = updatedObj.gymDiffCountA || 0;
-        const countB = updatedObj.gymDiffCountB || 0;
-        const countC = updatedObj.gymDiffCountC || 0;
-        let diffCalc = 0;
-        
-        // Moroccan specific formulas from uploaded image
-        const is1AC = teamGamesMotriceMax === 14;
-        const is2AC = teamGamesMotriceMax === 13;
-        
-        if (is1AC) {
-          // 1AC : 3A + 2B (A=1.0, B=1.5, C=2.0)
-          diffCalc = (countA * 1.0) + (countB * 1.5) + (countC * 2.0);
-        } else if (is2AC) {
-          // 2AC : 3A + 2B + 1C (A=0.75, B=1.0, C=1.75)
-          diffCalc = (countA * 0.75) + (countB * 1.0) + (countC * 1.75);
-        } else {
-          // 3AC : 2A + 4B + 1C (A=0.5, B=0.75, C=2.0)
-          diffCalc = (countA * 0.5) + (countB * 0.75) + (countC * 2.0);
-        }
+        const countA = updatedObj.gymDiffCountA !== undefined && updatedObj.gymDiffCountA !== null ? Number(updatedObj.gymDiffCountA) : 0;
+        const countB = updatedObj.gymDiffCountB !== undefined && updatedObj.gymDiffCountB !== null ? Number(updatedObj.gymDiffCountB) : 0;
+        const countC = updatedObj.gymDiffCountC !== undefined && updatedObj.gymDiffCountC !== null ? Number(updatedObj.gymDiffCountC) : 0;
+
+        // Auto-compute divided sub-scores for A, B, and C using level configuration
+        updatedObj.gymDiffScoreA = Number((countA * gymLevelCfg.coeffA).toFixed(2));
+        updatedObj.gymDiffScoreB = Number((countB * gymLevelCfg.coeffB).toFixed(2));
+        updatedObj.gymDiffScoreC = Number((countC * gymLevelCfg.coeffC).toFixed(2));
+
+        const diffCalc = (updatedObj.gymDiffScoreA || 0) + (updatedObj.gymDiffScoreB || 0) + (updatedObj.gymDiffScoreC || 0);
         updatedObj.gymScoreDifficultes = Number(Math.min(6, diffCalc).toFixed(2));
+      } else if (field === 'gymDiffScoreA' || field === 'gymDiffScoreB' || field === 'gymDiffScoreC') {
+        const diffCalc = (updatedObj.gymDiffScoreA || 0) + (updatedObj.gymDiffScoreB || 0) + (updatedObj.gymDiffScoreC || 0);
+        updatedObj.gymScoreDifficultes = Number(Math.min(6, diffCalc).toFixed(2));
+      } else if (field === 'gymScoreDifficultes') {
+        updatedObj.gymScoreDifficultes = value === '' || value === undefined ? undefined : Number(Math.min(6, Math.max(0, Number(value))).toFixed(2));
+      }
+
+      if (field === 'gymScoreExigences') {
+        updatedObj.gymScoreExigences = value === '' || value === undefined ? undefined : Number(Math.min(1.5, Math.max(0, Number(value))).toFixed(2));
       }
 
       // Auto-compute gymNoteMotrice (الحركي) = Difficultes + Exigences + Enchainement + Execution
@@ -569,17 +580,24 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
     } else {
       const headers = [
         "الرقم", "الاسم والنسب", "الجنس",
-        "الصعوبة (/6)", "المتطلبات (/1.5)", "الربط والتركيب", "الأداء والتنفيذ (/2)",
+        "صعوبة أ", "صعوبة ب", "صعوبة ج", "مجموع الصعوبة (/6)", "المتطلبات (/1.5)", "الربط والتركيب", "الأداء والتنفيذ (/2)",
         "الجانب الحركي (/" + teamGamesMotriceMax + ")", "الجانب السلوكي (/" + gradingDist.comportement + ")",
         "الجانب المعرفي (/" + gradingDist.cognitive + ")", "المعدل الإجمالي (/20)", "ملاحظات"
       ];
 
       const rows = students.map((s, idx) => {
         const test = physicalTests.find(t => t.numeroEleve === s.numeroEleve);
+        const scoreDiffA = test?.gymDiffScoreA !== undefined ? test.gymDiffScoreA : (test?.gymDiffCountA ? Number((test.gymDiffCountA * gymLevelCfg.coeffA).toFixed(2)) : '-');
+        const scoreDiffB = test?.gymDiffScoreB !== undefined ? test.gymDiffScoreB : (test?.gymDiffCountB ? Number((test.gymDiffCountB * gymLevelCfg.coeffB).toFixed(2)) : '-');
+        const scoreDiffC = test?.gymDiffScoreC !== undefined ? test.gymDiffScoreC : (test?.gymDiffCountC ? Number((test.gymDiffCountC * gymLevelCfg.coeffC).toFixed(2)) : '-');
+
         return [
           s.numeroEleve,
           s.nomEleve,
           s.sexe === 'F' ? 'أنثى' : 'ذكر',
+          scoreDiffA,
+          scoreDiffB,
+          scoreDiffC,
           test?.gymScoreDifficultes !== undefined ? test.gymScoreDifficultes : '-',
           test?.gymScoreExigences !== undefined ? test.gymScoreExigences : '-',
           test?.gymScoreEnchainement !== undefined ? test.gymScoreEnchainement : '-',
@@ -1113,8 +1131,8 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
               <div className="text-[11px] text-indigo-900 dark:text-indigo-400 space-y-1.5">
                 <p>• الجانب الحركي (معارف مسطرية): <strong>{gradingDist.motrice} نقاط إجمالاً</strong> مقسمة كالتالي:</p>
                 <ul className="list-disc list-inside ps-2 font-bold space-y-0.5">
-                  <li>الصعوبة (Difficulté): <strong>6 نقاط</strong> (أ، ب، ج)</li>
-                  <li>المتطلبات الخاصة (Exigences): <strong>1.5 نقطة</strong> (3 عائلات من 8)</li>
+                  <li>الصعوبة مقسمة (Difficulté): <strong>6 نقاط</strong> (أ: ×{gymLevelCfg.coeffA}ن | ب: ×{gymLevelCfg.coeffB}ن | ج: ×{gymLevelCfg.coeffC}ن) — {gymLevelCfg.standardFormula}</li>
+                  <li>المتطلبات الخاصة (Exigences): <strong>1.5 نقطة</strong> (0.5 لكل عائلة حركية: 3 عائلات = 1.5 | عائلتان = 1 | عائلة = 0.5 | 0 عائلات = 0)</li>
                   <li>جودة الربط والتركيب (Enchaînement): <strong>{teamGamesMotriceMax === 14 ? '4.5' : teamGamesMotriceMax === 13 ? '3.5' : '2.5'} نقاط</strong></li>
                   <li>الأداء والتنفيذ (Exécution): <strong>2 نقطة</strong> (تُخصم منها أخطاء التنفيذ والربط)</li>
                 </ul>
@@ -1183,8 +1201,18 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                   <tr>
                     <th className="p-4 w-12 text-center">#</th>
                     <th className="p-4 min-w-[200px]">التلميذ(ة)</th>
-                    <th className="p-4 text-center">الصعوبة (/6 ن)<br/><span className="text-[9px] font-normal text-gray-400">(A, B, C counts)</span></th>
-                    <th className="p-4 text-center">المتطلبات (/1.5 ن)<br/><span className="text-[9px] font-normal text-gray-400">(0.5 لكل عائلة)</span></th>
+                    <th className="p-4 text-center min-w-[290px]">
+                      <div className="flex flex-col items-center">
+                        <span className="text-indigo-700 dark:text-indigo-300 font-black">الصعوبة مقسمة (أ، ب، ج) (/6 ن)</span>
+                        <span className="text-[9px] font-normal text-gray-500 dark:text-gray-400">{gymLevelCfg.standardFormula}</span>
+                      </div>
+                    </th>
+                    <th className="p-4 text-center min-w-[160px]">
+                      <div className="flex flex-col items-center">
+                        <span className="text-indigo-700 dark:text-indigo-300 font-black">المتطلبات (/1.5 ن)</span>
+                        <span className="text-[9px] font-normal text-gray-500 dark:text-gray-400">(0.5 لكل عائلة حركية)</span>
+                      </div>
+                    </th>
                     <th className="p-4 text-center">الربط والتركيب (/{teamGamesMotriceMax === 14 ? '4.5' : teamGamesMotriceMax === 13 ? '3.5' : '2.5'} ن)</th>
                     <th className="p-4 text-center">الأداء والتنفيذ (/2 ن)<br/><span className="text-[9px] font-normal text-gray-400">(خصومات الفاولات)</span></th>
                     <th className="p-4 text-center text-indigo-600 dark:text-indigo-400">الحركي (/{gradingDist.motrice} ن)</th>
@@ -1197,11 +1225,14 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60 font-bold">
                   {filteredStudents.map((s, idx) => {
                     const test = physicalTests.find(t => t.numeroEleve === s.numeroEleve);
-                    const diffA = test?.gymDiffCountA || 0;
-                    const diffB = test?.gymDiffCountB || 0;
-                    const diffC = test?.gymDiffCountC || 0;
+                    const diffA = test?.gymDiffCountA ?? 0;
+                    const diffB = test?.gymDiffCountB ?? 0;
+                    const diffC = test?.gymDiffCountC ?? 0;
                     
-                    const scoreDiff = test?.gymScoreDifficultes;
+                    const scoreDiffA = test?.gymDiffScoreA !== undefined ? test.gymDiffScoreA : Number((diffA * gymLevelCfg.coeffA).toFixed(2));
+                    const scoreDiffB = test?.gymDiffScoreB !== undefined ? test.gymDiffScoreB : Number((diffB * gymLevelCfg.coeffB).toFixed(2));
+                    const scoreDiffC = test?.gymDiffScoreC !== undefined ? test.gymDiffScoreC : Number((diffC * gymLevelCfg.coeffC).toFixed(2));
+                    const scoreDiff = test?.gymScoreDifficultes !== undefined ? test.gymScoreDifficultes : Number(Math.min(6, scoreDiffA + scoreDiffB + scoreDiffC).toFixed(2));
                     const scoreExig = test?.gymScoreExigences;
                     const scoreEnch = test?.gymScoreEnchainement;
                     const scoreExec = test?.gymScoreExecution;
@@ -1247,64 +1278,213 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                           </div>
                         </td>
 
-                        {/* Difficultes /6 (Interactive counts with auto formula) */}
-                        <td className="p-4">
-                          <div className="flex flex-col items-center gap-1.5">
-                            <div className="flex items-center gap-1 text-[10px] font-normal">
-                              <span>أ:</span>
-                              <input 
-                                type="number" 
-                                min="0" 
-                                max="10"
-                                value={test?.gymDiffCountA === undefined ? '' : test.gymDiffCountA} 
-                                onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymDiffCountA', e.target.value === '' ? '' : Number(e.target.value))}
-                                className="w-8 text-center p-0.5 border rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 font-bold"
-                              />
-                              <span>ب:</span>
-                              <input 
-                                type="number" 
-                                min="0" 
-                                max="10"
-                                value={test?.gymDiffCountB === undefined ? '' : test.gymDiffCountB} 
-                                onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymDiffCountB', e.target.value === '' ? '' : Number(e.target.value))}
-                                className="w-8 text-center p-0.5 border rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 font-bold"
-                              />
-                              <span>ج:</span>
-                              <input 
-                                type="number" 
-                                min="0" 
-                                max="10"
-                                value={test?.gymDiffCountC === undefined ? '' : test.gymDiffCountC} 
-                                onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymDiffCountC', e.target.value === '' ? '' : Number(e.target.value))}
-                                className="w-8 text-center p-0.5 border rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 font-bold"
-                              />
+                        {/* Difficultes /6 (Divided A, B, C scores & counts with full details) */}
+                        <td className="p-3">
+                          <div className="flex flex-col items-center gap-1.5 min-w-[270px]">
+                            {/* 3 Divided Parts: A, B, C */}
+                            <div className="grid grid-cols-3 gap-1 w-full text-[10px]">
+                              {/* Part A */}
+                              <div className="bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl p-1.5 flex flex-col items-center text-center">
+                                <div className="flex items-center justify-between w-full font-black text-blue-900 dark:text-blue-300 mb-0.5">
+                                  <span>أ (A)</span>
+                                  <span className="text-[9px] text-blue-600 dark:text-blue-400">×{gymLevelCfg.coeffA}ن</span>
+                                </div>
+                                <div className="flex items-center gap-1 w-full justify-center">
+                                  <input 
+                                    type="number" 
+                                    min="0" 
+                                    max="10"
+                                    value={test?.gymDiffCountA === undefined || test.gymDiffCountA === null ? '' : test.gymDiffCountA} 
+                                    onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymDiffCountA', e.target.value === '' ? '' : Number(e.target.value))}
+                                    placeholder="0"
+                                    title="عدد عناصر صعوبة أ"
+                                    className="w-8 text-center p-0.5 text-[11px] border rounded-lg border-blue-300 dark:border-blue-700 bg-white dark:bg-gray-800 font-bold"
+                                  />
+                                  <span className="text-gray-400 font-black">=</span>
+                                  <input 
+                                    type="number" 
+                                    step="0.25"
+                                    min="0" 
+                                    max="6"
+                                    value={scoreDiffA === undefined ? '' : scoreDiffA} 
+                                    onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymDiffScoreA', e.target.value === '' ? '' : Number(e.target.value))}
+                                    placeholder="0"
+                                    title="نقطة صعوبة أ المقسمة"
+                                    className="w-10 text-center p-0.5 text-[11px] border rounded-lg border-blue-400 bg-blue-100/70 dark:bg-blue-900/60 font-black text-blue-800 dark:text-blue-200"
+                                  />
+                                </div>
+                                <span className="text-[8px] text-gray-500 font-bold mt-0.5">نقطة أ</span>
+                              </div>
+
+                              {/* Part B */}
+                              <div className="bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 rounded-xl p-1.5 flex flex-col items-center text-center">
+                                <div className="flex items-center justify-between w-full font-black text-purple-900 dark:text-purple-300 mb-0.5">
+                                  <span>ب (B)</span>
+                                  <span className="text-[9px] text-purple-600 dark:text-purple-400">×{gymLevelCfg.coeffB}ن</span>
+                                </div>
+                                <div className="flex items-center gap-1 w-full justify-center">
+                                  <input 
+                                    type="number" 
+                                    min="0" 
+                                    max="10"
+                                    value={test?.gymDiffCountB === undefined || test.gymDiffCountB === null ? '' : test.gymDiffCountB} 
+                                    onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymDiffCountB', e.target.value === '' ? '' : Number(e.target.value))}
+                                    placeholder="0"
+                                    title="عدد عناصر صعوبة ب"
+                                    className="w-8 text-center p-0.5 text-[11px] border rounded-lg border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-800 font-bold"
+                                  />
+                                  <span className="text-gray-400 font-black">=</span>
+                                  <input 
+                                    type="number" 
+                                    step="0.25"
+                                    min="0" 
+                                    max="6"
+                                    value={scoreDiffB === undefined ? '' : scoreDiffB} 
+                                    onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymDiffScoreB', e.target.value === '' ? '' : Number(e.target.value))}
+                                    placeholder="0"
+                                    title="نقطة صعوبة ب المقسمة"
+                                    className="w-10 text-center p-0.5 text-[11px] border rounded-lg border-purple-400 bg-purple-100/70 dark:bg-purple-900/60 font-black text-purple-800 dark:text-purple-200"
+                                  />
+                                </div>
+                                <span className="text-[8px] text-gray-500 font-bold mt-0.5">نقطة ب</span>
+                              </div>
+
+                              {/* Part C */}
+                              <div className="bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl p-1.5 flex flex-col items-center text-center">
+                                <div className="flex items-center justify-between w-full font-black text-amber-900 dark:text-amber-300 mb-0.5">
+                                  <span>ج (C)</span>
+                                  <span className="text-[9px] text-amber-600 dark:text-amber-400">×{gymLevelCfg.coeffC}ن</span>
+                                </div>
+                                <div className="flex items-center gap-1 w-full justify-center">
+                                  <input 
+                                    type="number" 
+                                    min="0" 
+                                    max="10"
+                                    value={test?.gymDiffCountC === undefined || test.gymDiffCountC === null ? '' : test.gymDiffCountC} 
+                                    onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymDiffCountC', e.target.value === '' ? '' : Number(e.target.value))}
+                                    placeholder="0"
+                                    title="عدد عناصر صعوبة ج"
+                                    className="w-8 text-center p-0.5 text-[11px] border rounded-lg border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-800 font-bold"
+                                  />
+                                  <span className="text-gray-400 font-black">=</span>
+                                  <input 
+                                    type="number" 
+                                    step="0.25"
+                                    min="0" 
+                                    max="6"
+                                    value={scoreDiffC === undefined ? '' : scoreDiffC} 
+                                    onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymDiffScoreC', e.target.value === '' ? '' : Number(e.target.value))}
+                                    placeholder="0"
+                                    title="نقطة صعوبة ج المقسمة"
+                                    className="w-10 text-center p-0.5 text-[11px] border rounded-lg border-amber-400 bg-amber-100/70 dark:bg-amber-900/60 font-black text-amber-800 dark:text-amber-200"
+                                  />
+                                </div>
+                                <span className="text-[8px] text-gray-500 font-bold mt-0.5">نقطة ج</span>
+                              </div>
                             </div>
-                            <input 
-                              type="number"
-                              step="0.25"
-                              min="0"
-                              max="6"
-                              value={scoreDiff === undefined ? '' : scoreDiff}
-                              onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymScoreDifficultes', e.target.value)}
-                              placeholder="النقطة"
-                              className="w-16 block text-center py-0.5 rounded-lg border border-indigo-200 bg-indigo-50/20 text-indigo-700 dark:border-gray-600 dark:bg-gray-700 dark:text-white font-extrabold"
-                            />
+
+                            {/* Total Difficulty & Details Button */}
+                            <div className="flex items-center justify-between w-full gap-1 pt-1 border-t border-gray-100 dark:border-gray-700">
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] font-black text-gray-500">المجموع:</span>
+                                <input 
+                                  type="number"
+                                  step="0.25"
+                                  min="0"
+                                  max="6"
+                                  value={scoreDiff === undefined || scoreDiff === null ? '' : scoreDiff}
+                                  onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymScoreDifficultes', e.target.value)}
+                                  placeholder="0.0"
+                                  title="مجموع نقطة الصعوبة من 6 ن"
+                                  className="w-14 text-center py-0.5 rounded-lg border border-indigo-300 bg-indigo-50/50 text-indigo-700 dark:border-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-300 font-black text-xs"
+                                />
+                                <span className="text-[10px] font-black text-gray-400">/6ن</span>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => setExpandedDiffDetailsStudent(expandedDiffDetailsStudent === s.numeroEleve ? null : s.numeroEleve)}
+                                className="px-2 py-0.5 rounded-lg text-[9px] font-black bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition active:scale-95 cursor-pointer flex items-center gap-1 shadow-2xs"
+                                title="إظهار تفاصيل احتساب الصعوبة"
+                              >
+                                <span>🔍</span>
+                                <span>التفاصيل</span>
+                              </button>
+                            </div>
                           </div>
                         </td>
 
-                        {/* Exigences Spécifiques /1.5 (families) */}
-                        <td className="p-4 text-center">
-                          <select
-                            value={scoreExig === undefined ? '' : scoreExig}
-                            onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymScoreExigences', e.target.value)}
-                            className="p-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-black text-xs text-center cursor-pointer"
-                          >
-                            <option value="">--</option>
-                            <option value="0">0 عائلات (0 ن)</option>
-                            <option value="0.5">عائلة 1 (0.5 ن)</option>
-                            <option value="1">عائلتان (1.0 ن)</option>
-                            <option value="1.5">3 عائلات أو أكثر (1.5 ن)</option>
-                          </select>
+                        {/* Exigences Spécifiques /1.5 (families) - Displays ONLY score, e.g. 1.5 or 1 or 0.5 or 0 */}
+                        <td className="p-3 text-center">
+                          <div className="flex flex-col items-center gap-1 min-w-[130px]">
+                            {/* Score Display - ONLY the numerical point */}
+                            <div className="flex items-center justify-center gap-1">
+                              <input
+                                type="number"
+                                step="0.5"
+                                min="0"
+                                max="1.5"
+                                value={scoreExig === undefined || scoreExig === null ? '' : scoreExig}
+                                onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymScoreExigences', e.target.value)}
+                                placeholder="--"
+                                className="w-16 text-center py-1 rounded-xl border-2 border-indigo-200 dark:border-gray-600 bg-white dark:bg-gray-700 font-black text-sm text-indigo-700 dark:text-indigo-300 shadow-2xs"
+                                title="نقطة المتطلبات فقط"
+                              />
+                              <span className="text-[10px] font-black text-gray-400">/1.5</span>
+                            </div>
+
+                            {/* Quick Family Selectors: clicking sets and shows ONLY the point */}
+                            <div className="flex items-center justify-center gap-1 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => handleGymScoreChange(s.numeroEleve, 'gymScoreExigences', 1.5)}
+                                className={`w-8 py-1 rounded-lg text-xs font-black transition cursor-pointer active:scale-95 text-center ${
+                                  scoreExig === 1.5
+                                    ? 'bg-emerald-600 text-white shadow-xs ring-2 ring-emerald-400'
+                                    : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800'
+                                }`}
+                                title="3 عائلات حركية فأكثر: يمنح نقطة 1.5"
+                              >
+                                1.5
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleGymScoreChange(s.numeroEleve, 'gymScoreExigences', 1.0)}
+                                className={`w-8 py-1 rounded-lg text-xs font-black transition cursor-pointer active:scale-95 text-center ${
+                                  scoreExig === 1.0
+                                    ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-400'
+                                    : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 border border-blue-200 dark:border-blue-800'
+                                }`}
+                                title="عائلتان حركيتان: يمنح نقطة 1.0"
+                              >
+                                1
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleGymScoreChange(s.numeroEleve, 'gymScoreExigences', 0.5)}
+                                className={`w-8 py-1 rounded-lg text-xs font-black transition cursor-pointer active:scale-95 text-center ${
+                                  scoreExig === 0.5
+                                    ? 'bg-amber-600 text-white shadow-xs ring-2 ring-amber-400'
+                                    : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 border border-amber-200 dark:border-amber-800'
+                                }`}
+                                title="عائلة واحدة: يمنح نقطة 0.5"
+                              >
+                                0.5
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleGymScoreChange(s.numeroEleve, 'gymScoreExigences', 0.0)}
+                                className={`w-8 py-1 rounded-lg text-xs font-black transition cursor-pointer active:scale-95 text-center ${
+                                  scoreExig === 0.0
+                                    ? 'bg-gray-700 text-white shadow-xs ring-2 ring-gray-400'
+                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-gray-200 border border-gray-200 dark:border-gray-600'
+                                }`}
+                                title="0 عائلات: يمنح نقطة 0"
+                              >
+                                0
+                              </button>
+                            </div>
+                          </div>
                         </td>
 
                         {/* Enchainement /4.5 or 3.5 or 2.5 */}
@@ -1468,6 +1648,216 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
           </div>
         </div>
       )}
+
+      {/* Gymnastics Difficulty Details Dialog */}
+      {expandedDiffDetailsStudent && (() => {
+        const detStudent = students.find(s => s.numeroEleve === expandedDiffDetailsStudent);
+        const detTest = physicalTests.find(t => t.numeroEleve === expandedDiffDetailsStudent);
+        const cntA = detTest?.gymDiffCountA ?? 0;
+        const cntB = detTest?.gymDiffCountB ?? 0;
+        const cntC = detTest?.gymDiffCountC ?? 0;
+        const scA = detTest?.gymDiffScoreA !== undefined ? detTest.gymDiffScoreA : Number((cntA * gymLevelCfg.coeffA).toFixed(2));
+        const scB = detTest?.gymDiffScoreB !== undefined ? detTest.gymDiffScoreB : Number((cntB * gymLevelCfg.coeffB).toFixed(2));
+        const scC = detTest?.gymDiffScoreC !== undefined ? detTest.gymDiffScoreC : Number((cntC * gymLevelCfg.coeffC).toFixed(2));
+        const totalD = detTest?.gymScoreDifficultes !== undefined ? detTest.gymScoreDifficultes : Number(Math.min(6, scA + scB + scC).toFixed(2));
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in" dir="rtl">
+            <div className="bg-white dark:bg-gray-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 dark:border-gray-700 space-y-5">
+              <div className="flex items-center justify-between border-b pb-3 border-gray-100 dark:border-gray-700">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-xl">
+                    🤸
+                  </div>
+                  <div>
+                    <h3 className="font-black text-sm text-gray-900 dark:text-white">
+                      تفاصيل احتساب نقطة الصعوبة (Difficulté)
+                    </h3>
+                    <p className="text-[11px] text-gray-400 font-bold">
+                      {detStudent?.nomEleve} ({detStudent?.numeroEleve}) • {gymLevelCfg.levelLabel}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExpandedDiffDetailsStudent(null)}
+                  className="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer"
+                >
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Level Guideline Notice */}
+              <div className="bg-indigo-50/60 dark:bg-indigo-950/40 p-3.5 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 text-xs text-indigo-900 dark:text-indigo-300 space-y-1">
+                <div className="font-extrabold flex items-center gap-1.5">
+                  <span>📐</span>
+                  <span>معيار التوجيهات التربوية الرسمية لهذا المستوى:</span>
+                </div>
+                <p className="text-[11px] font-bold text-indigo-700 dark:text-indigo-400">
+                  {gymLevelCfg.standardFormula}
+                </p>
+              </div>
+
+              {/* Detailed Breakdown for A, B, and C */}
+              <div className="space-y-3">
+                {/* Element A */}
+                <div className="bg-blue-50/70 dark:bg-blue-950/30 p-3.5 rounded-2xl border border-blue-200 dark:border-blue-900/50 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-black text-xs text-blue-900 dark:text-blue-300">
+                      عناصر صعوبة أ (Éléments A)
+                    </div>
+                    <div className="text-[11px] text-blue-700 dark:text-blue-400 font-bold">
+                      قيمة العنصر الواحد: <strong>{gymLevelCfg.coeffA} نقطة</strong>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleGymScoreChange(expandedDiffDetailsStudent, 'gymDiffCountA', Math.max(0, cntA - 1))}
+                        className="w-7 h-7 rounded-lg bg-white dark:bg-gray-700 border border-blue-200 text-blue-700 dark:text-blue-300 font-black text-xs flex items-center justify-center cursor-pointer active:scale-95"
+                      >
+                        -
+                      </button>
+                      <span className="w-8 text-center font-black text-xs">{cntA}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleGymScoreChange(expandedDiffDetailsStudent, 'gymDiffCountA', cntA + 1)}
+                        className="w-7 h-7 rounded-lg bg-white dark:bg-gray-700 border border-blue-200 text-blue-700 dark:text-blue-300 font-black text-xs flex items-center justify-center cursor-pointer active:scale-95"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <span className="text-gray-400 font-bold">× {gymLevelCfg.coeffA} =</span>
+                    <input
+                      type="number"
+                      step="0.25"
+                      min="0"
+                      max="6"
+                      value={scA}
+                      onChange={(e) => handleGymScoreChange(expandedDiffDetailsStudent, 'gymDiffScoreA', Number(e.target.value))}
+                      className="w-14 text-center py-1 rounded-xl bg-white dark:bg-gray-700 border border-blue-300 font-black text-xs text-blue-900 dark:text-blue-200 shadow-2xs"
+                      title="تعديل نقطة أ يدوياً"
+                    />
+                    <span className="text-xs font-black text-blue-900 dark:text-blue-300">ن</span>
+                  </div>
+                </div>
+
+                {/* Element B */}
+                <div className="bg-purple-50/70 dark:bg-purple-950/30 p-3.5 rounded-2xl border border-purple-200 dark:border-purple-900/50 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-black text-xs text-purple-900 dark:text-purple-300">
+                      عناصر صعوبة ب (Éléments B)
+                    </div>
+                    <div className="text-[11px] text-purple-700 dark:text-purple-400 font-bold">
+                      قيمة العنصر الواحد: <strong>{gymLevelCfg.coeffB} نقطة</strong>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleGymScoreChange(expandedDiffDetailsStudent, 'gymDiffCountB', Math.max(0, cntB - 1))}
+                        className="w-7 h-7 rounded-lg bg-white dark:bg-gray-700 border border-purple-200 text-purple-700 dark:text-purple-300 font-black text-xs flex items-center justify-center cursor-pointer active:scale-95"
+                      >
+                        -
+                      </button>
+                      <span className="w-8 text-center font-black text-xs">{cntB}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleGymScoreChange(expandedDiffDetailsStudent, 'gymDiffCountB', cntB + 1)}
+                        className="w-7 h-7 rounded-lg bg-white dark:bg-gray-700 border border-purple-200 text-purple-700 dark:text-purple-300 font-black text-xs flex items-center justify-center cursor-pointer active:scale-95"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <span className="text-gray-400 font-bold">× {gymLevelCfg.coeffB} =</span>
+                    <input
+                      type="number"
+                      step="0.25"
+                      min="0"
+                      max="6"
+                      value={scB}
+                      onChange={(e) => handleGymScoreChange(expandedDiffDetailsStudent, 'gymDiffScoreB', Number(e.target.value))}
+                      className="w-14 text-center py-1 rounded-xl bg-white dark:bg-gray-700 border border-purple-300 font-black text-xs text-purple-900 dark:text-purple-200 shadow-2xs"
+                      title="تعديل نقطة ب يدوياً"
+                    />
+                    <span className="text-xs font-black text-purple-900 dark:text-purple-300">ن</span>
+                  </div>
+                </div>
+
+                {/* Element C */}
+                <div className="bg-amber-50/70 dark:bg-amber-950/30 p-3.5 rounded-2xl border border-amber-200 dark:border-amber-900/50 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-black text-xs text-amber-900 dark:text-amber-300">
+                      عناصر صعوبة ج (Éléments C)
+                    </div>
+                    <div className="text-[11px] text-amber-700 dark:text-amber-400 font-bold">
+                      قيمة العنصر الواحد: <strong>{gymLevelCfg.coeffC} نقطة</strong>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleGymScoreChange(expandedDiffDetailsStudent, 'gymDiffCountC', Math.max(0, cntC - 1))}
+                        className="w-7 h-7 rounded-lg bg-white dark:bg-gray-700 border border-amber-200 text-amber-700 dark:text-amber-300 font-black text-xs flex items-center justify-center cursor-pointer active:scale-95"
+                      >
+                        -
+                      </button>
+                      <span className="w-8 text-center font-black text-xs">{cntC}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleGymScoreChange(expandedDiffDetailsStudent, 'gymDiffCountC', cntC + 1)}
+                        className="w-7 h-7 rounded-lg bg-white dark:bg-gray-700 border border-amber-200 text-amber-700 dark:text-amber-300 font-black text-xs flex items-center justify-center cursor-pointer active:scale-95"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <span className="text-gray-400 font-bold">× {gymLevelCfg.coeffC} =</span>
+                    <input
+                      type="number"
+                      step="0.25"
+                      min="0"
+                      max="6"
+                      value={scC}
+                      onChange={(e) => handleGymScoreChange(expandedDiffDetailsStudent, 'gymDiffScoreC', Number(e.target.value))}
+                      className="w-14 text-center py-1 rounded-xl bg-white dark:bg-gray-700 border border-amber-300 font-black text-xs text-amber-900 dark:text-amber-200 shadow-2xs"
+                      title="تعديل نقطة ج يدوياً"
+                    />
+                    <span className="text-xs font-black text-amber-900 dark:text-amber-300">ن</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Total Calculation Card */}
+              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-4 rounded-2xl text-white flex items-center justify-between shadow-md">
+                <div>
+                  <div className="text-xs font-bold opacity-90">مجموع نقطة الصعوبة الإجمالي:</div>
+                  <div className="text-[10px] font-mono opacity-80 mt-0.5">
+                    ({scA}ن أ + {scB}ن ب + {scC}ن ج)
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-black font-mono">
+                    {totalD} <span className="text-sm font-bold">/ 6.0</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setExpandedDiffDetailsStudent(null)}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition active:scale-95 cursor-pointer shadow-md"
+                >
+                  حفظ وإغلاق
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Quick Evaluation Modal */}
       {isQuickEvalOpen && quickEvalStudentNumber && (

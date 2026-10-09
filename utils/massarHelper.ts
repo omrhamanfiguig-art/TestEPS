@@ -573,14 +573,155 @@ export const saveMassarGrades = (className: string, grades: MassarGradeRecord[])
 };
 
 /**
+ * School Level representation for Moroccan EPS education
+ */
+export interface SchoolLevel {
+  id: string;
+  name: string;
+  shortName: string;
+  cycle: 'collège' | 'lycée' | 'autre';
+  classes: string[];
+  totalStudents: number;
+}
+
+/**
+ * Intelligently detects the school level from a class name based on Moroccan naming conventions
+ */
+export const detectClassLevel = (className: string): { id: string; name: string; shortName: string; cycle: 'collège' | 'lycée' | 'autre' } => {
+  const raw = String(className || '').trim();
+  const norm = normalizeArabic(raw).toUpperCase().replace(/[\s\-_/.]/g, '');
+
+  // 1ère Année Collège (1AC / 1APIC / 1ASC / الأولى إعدادي / 1/1)
+  if (
+    norm.includes('1AC') || norm.includes('1APIC') || norm.includes('1ASC') || 
+    norm.includes('1EREAC') || norm.includes('الاولىاعدادي') || norm.includes('1اعدادي') ||
+    norm.startsWith('1AC') || norm.startsWith('1APIC') ||
+    (/^1[A-Z0-9]/.test(norm) && !norm.includes('BAC') && !norm.includes('باك'))
+  ) {
+    return { id: '1AC', name: 'الأولى إعدادي (1AC)', shortName: 'الأولى إعدادي', cycle: 'collège' };
+  }
+
+  // 2ème Année Collège (2AC / 2APIC / 2ASC / الثانية إعدادي / 2/1)
+  if (
+    norm.includes('2AC') || norm.includes('2APIC') || norm.includes('2ASC') || 
+    norm.includes('2EMEAC') || norm.includes('الثانيهاعدادي') || norm.includes('2اعدادي') ||
+    norm.startsWith('2AC') || norm.startsWith('2APIC') ||
+    (/^2[A-Z0-9]/.test(norm) && !norm.includes('BAC') && !norm.includes('باك'))
+  ) {
+    return { id: '2AC', name: 'الثانية إعدادي (2AC)', shortName: 'الثانية إعدادي', cycle: 'collège' };
+  }
+
+  // 3ème Année Collège (3AC / 3APIC / 3ASC / الثالثة إعدادي / 3/1)
+  if (
+    norm.includes('3AC') || norm.includes('3APIC') || norm.includes('3ASC') || 
+    norm.includes('3EMEAC') || norm.includes('الثالثهاعدادي') || norm.includes('3اعدادي') ||
+    norm.startsWith('3AC') || norm.startsWith('3APIC') ||
+    (/^3[A-Z0-9]/.test(norm) && !norm.includes('BAC') && !norm.includes('باك'))
+  ) {
+    return { id: '3AC', name: 'الثالثة إعدادي (3AC)', shortName: 'الثالثة إعدادي', cycle: 'collège' };
+  }
+
+  // Tronc Commun (TC / TCS / TCF / TCL / جذع مشترك)
+  if (
+    norm.includes('TC') || norm.includes('TRONC') || norm.includes('جذع') || norm.includes('مشترك')
+  ) {
+    return { id: 'TC', name: 'الجذع المشترك (Tronc Commun - TC)', shortName: 'TC', cycle: 'lycée' };
+  }
+
+  // 1ère Année Baccalauréat (1BAC / الأولى باك)
+  if (
+    norm.includes('1BAC') || norm.includes('1EREBAC') || norm.includes('اولىباك') || norm.includes('الاولىبكالوريا') || norm.includes('1باك')
+  ) {
+    return { id: '1BAC', name: 'السنة الأولى بكالوريا (1BAC)', shortName: '1BAC', cycle: 'lycée' };
+  }
+
+  // 2ème Année Baccalauréat (2BAC / الثانية باك)
+  if (
+    norm.includes('2BAC') || norm.includes('2EMEBAC') || norm.includes('ثانيهباك') || norm.includes('الثانيهبكالوريا') || norm.includes('2باك')
+  ) {
+    return { id: '2BAC', name: 'السنة الثانية بكالوريا (2BAC)', shortName: '2BAC', cycle: 'lycée' };
+  }
+
+  // Fallback: extract base prefix
+  const match = raw.match(/^([A-Za-z\u0600-\u06FF]+)/);
+  const prefix = match ? match[1].trim() : raw;
+  return { id: prefix, name: `مستوى: ${prefix}`, shortName: prefix, cycle: 'autre' };
+};
+
+/**
+ * Groups a list of classes into organized educational levels
+ */
+export const groupClassesByLevel = (classes: { className: string; studentCount?: number }[]): SchoolLevel[] => {
+  const levelMap = new Map<string, SchoolLevel>();
+
+  // Ensure standard Moroccan Middle School levels are always present
+  const standardLevels: SchoolLevel[] = [
+    {
+      id: '1AC',
+      name: 'الأولى إعدادي (1AC)',
+      shortName: 'الأولى إعدادي',
+      cycle: 'collège',
+      classes: [],
+      totalStudents: 0
+    },
+    {
+      id: '2AC',
+      name: 'الثانية إعدادي (2AC)',
+      shortName: 'الثانية إعدادي',
+      cycle: 'collège',
+      classes: [],
+      totalStudents: 0
+    },
+    {
+      id: '3AC',
+      name: 'الثالثة إعدادي (3AC)',
+      shortName: 'الثالثة إعدادي',
+      cycle: 'collège',
+      classes: [],
+      totalStudents: 0
+    }
+  ];
+
+  standardLevels.forEach(lvl => {
+    levelMap.set(lvl.id, { ...lvl });
+  });
+
+  classes.forEach(c => {
+    const info = detectClassLevel(c.className);
+    if (!levelMap.has(info.id)) {
+      levelMap.set(info.id, {
+        id: info.id,
+        name: info.name,
+        shortName: info.shortName,
+        cycle: info.cycle,
+        classes: [],
+        totalStudents: 0
+      });
+    }
+    const lvl = levelMap.get(info.id)!;
+    if (!lvl.classes.includes(c.className)) {
+      lvl.classes.push(c.className);
+      lvl.totalStudents += (c.studentCount || 0);
+    }
+  });
+
+  return Array.from(levelMap.values());
+};
+
+/**
  * Automatically builds or updates Massar grade records from the app's current test results
+ * Supports cross-class matching across all classes of the same level
  */
 export const autoPopulateMassarGrades = (
-  students: StudentIdentity[],
+  students: (StudentIdentity & { className?: string })[],
   tests: PhysicalTests[],
   vmaList: StudentResult[],
   config: MassarClassConfig,
-  existingGrades: MassarGradeRecord[] = []
+  existingGrades: MassarGradeRecord[] = [],
+  extraLevelData?: {
+    tests?: PhysicalTests[];
+    vmaList?: StudentResult[];
+  }
 ): MassarGradeRecord[] => {
   const existingMap = new Map<string, MassarGradeRecord>();
   existingGrades.forEach(g => {
@@ -590,9 +731,60 @@ export const autoPopulateMassarGrades = (
   return students.map(student => {
     const num = student.numeroEleve;
     const existing = existingMap.get(num);
+    const normName = normalizeArabic(student.nomEleve || '').trim();
+    const massarCode = (student.codeMassar || '').trim().toUpperCase();
 
-    const test = tests.find(t => t.numeroEleve === num);
-    const vma = vmaList.find(v => v.numeroEleve === num);
+    // Helper to check if a candidate test or VMA result belongs to this student
+    const isMatchingStudent = (candidate: { numeroEleve?: string; nomEleve?: string; codeMassar?: string } | null | undefined): boolean => {
+      if (!candidate) return false;
+      // Direct student number match
+      if (candidate.numeroEleve && candidate.numeroEleve === num) return true;
+      // Massar code match
+      if (massarCode) {
+        if (candidate.numeroEleve && candidate.numeroEleve.trim().toUpperCase() === massarCode) return true;
+        if (candidate.codeMassar && candidate.codeMassar.trim().toUpperCase() === massarCode) return true;
+      }
+      // Name comparison
+      if (candidate.nomEleve && normName) {
+        const cName = normalizeArabic(candidate.nomEleve).trim();
+        if (cName === normName) return true;
+        if (normName.length > 3 && (cName.includes(normName) || normName.includes(cName))) return true;
+
+        // Word tokens match in any order (e.g. "أحمد العلمي" vs "العلمي أحمد")
+        const sTokens = normName.split(/\s+/).filter(w => w.length > 1);
+        const cTokens = cName.split(/\s+/).filter(w => w.length > 1);
+        if (sTokens.length >= 2 && cTokens.length >= 2) {
+          const matchCount = sTokens.filter(st => cTokens.some(ct => ct === st || ct.includes(st) || st.includes(ct))).length;
+          if (matchCount >= Math.min(sTokens.length, cTokens.length)) return true;
+        }
+      }
+      return false;
+    };
+
+    // 1. Find test in primary class tests
+    let test = tests.find(isMatchingStudent);
+
+    // 2. Find VMA in primary class VMA
+    let vma = vmaList.find(isMatchingStudent);
+
+    let matchedFromClass: string | undefined = undefined;
+
+    // 3. Fallback search across extra level tests/vma (from all other classes of the same level)
+    if (extraLevelData) {
+      if (!test && extraLevelData.tests) {
+        test = extraLevelData.tests.find(isMatchingStudent);
+        if (test && test.className) {
+          matchedFromClass = test.className;
+        }
+      }
+
+      if (!vma && extraLevelData.vmaList) {
+        vma = extraLevelData.vmaList.find(isMatchingStudent);
+        if (vma && (vma as any).className && !matchedFromClass) {
+          matchedFromClass = (vma as any).className;
+        }
+      }
+    }
 
     const autoN1 = extractGradeForActivity(config.activity1, test, vma, config.rounding);
     const autoN2 = extractGradeForActivity(config.activity2, test, vma, config.rounding);
@@ -609,6 +801,8 @@ export const autoPopulateMassarGrades = (
     const avg = calculateMassarAverage(n1, n2, n3, config.rounding);
     const defaultRemarque = getMassarAppreciation(avg, isDispense, isAbsent);
 
+    const studentClass = student.className || existing?.className;
+
     return {
       numeroEleve: num,
       codeMassar: student.codeMassar || (num.startsWith('C') || num.startsWith('G') || num.startsWith('M') || num.startsWith('R') || num.startsWith('K') || num.startsWith('D') || num.startsWith('J') || num.startsWith('F') || num.startsWith('H') || num.startsWith('P') || num.startsWith('B') || num.startsWith('N') || num.startsWith('L') ? num : existing?.codeMassar || ''),
@@ -620,7 +814,9 @@ export const autoPopulateMassarGrades = (
       noteDevoir3: n3,
       isDispense,
       isAbsent,
-      remarque: existing?.remarque || defaultRemarque
+      remarque: existing?.remarque || defaultRemarque,
+      className: studentClass,
+      matchedFromClass: matchedFromClass || existing?.matchedFromClass
     };
   });
 };
@@ -637,19 +833,22 @@ export interface ImportedMassarResult {
   rawWorkbook: any;
   sheetName: string;
   originalFileName: string;
+  fileStudents?: StudentIdentity[];
   error?: string;
 }
 
 /**
  * Parses an empty Massar Excel file downloaded from massarservice.men.gov.ma,
  * matches students and injects the 3 grades directly into the sheet coordinates.
+ * Supports cross-class matching using extraLevelRecords across all classes of the level.
  */
 export const fillImportedMassarExcel = (
   fileData: ArrayBuffer,
   students: StudentIdentity[],
   records: MassarGradeRecord[],
   config: MassarClassConfig,
-  fileName: string = 'Massar_Export.xlsx'
+  fileName: string = 'Massar_Export.xlsx',
+  extraLevelRecords?: MassarGradeRecord[]
 ): ImportedMassarResult => {
   const XLSX = (window as any).XLSX;
   if (!XLSX) {
@@ -832,11 +1031,13 @@ export const fillImportedMassarExcel = (
     let totalStudentsInFile = 0;
     const unmatchedNames: string[] = [];
     const matchedRecords: MassarGradeRecord[] = [];
+    const fileStudents: StudentIdentity[] = [];
 
     // Fast lookup dictionaries
     const recordByMassar = new Map<string, MassarGradeRecord>();
     const recordByName = new Map<string, MassarGradeRecord>();
 
+    // Register primary records
     records.forEach(r => {
       if (r.codeMassar) {
         recordByMassar.set(r.codeMassar.toUpperCase().trim(), r);
@@ -846,6 +1047,22 @@ export const fillImportedMassarExcel = (
       }
       recordByName.set(normalizeArabic(r.nomEleve), r);
     });
+
+    // Also register extra level records if provided (cross-class fallback)
+    if (extraLevelRecords && extraLevelRecords.length > 0) {
+      extraLevelRecords.forEach(r => {
+        if (r.codeMassar && !recordByMassar.has(r.codeMassar.toUpperCase().trim())) {
+          recordByMassar.set(r.codeMassar.toUpperCase().trim(), r);
+        }
+        if (r.numeroEleve && !recordByMassar.has(r.numeroEleve.toUpperCase().trim())) {
+          recordByMassar.set(r.numeroEleve.toUpperCase().trim(), r);
+        }
+        const norm = normalizeArabic(r.nomEleve);
+        if (!recordByName.has(norm)) {
+          recordByName.set(norm, r);
+        }
+      });
+    }
 
     for (let r = studentStartRow; r < json.length; r++) {
       const row = json[r];
@@ -857,6 +1074,12 @@ export const fillImportedMassarExcel = (
       if (!nameVal || isForbiddenStudentName(nameVal)) continue;
 
       totalStudentsInFile++;
+
+      fileStudents.push({
+        numeroEleve: massarVal || `std_${totalStudentsInFile}`,
+        codeMassar: massarVal,
+        nomEleve: nameVal
+      });
 
       // Find match
       let matchedRecord: MassarGradeRecord | undefined;
@@ -928,7 +1151,8 @@ export const fillImportedMassarExcel = (
       matchedRecords,
       rawWorkbook: workbook,
       sheetName,
-      originalFileName: fileName
+      originalFileName: fileName,
+      fileStudents
     };
   } catch (err: any) {
     console.error('Error filling Massar Excel', err);
@@ -1095,6 +1319,111 @@ export const generateOfficialMassarExcel = (
   const fileName = isBlank 
     ? `نموذج_مسار_فارغ_${className}_S${config.semestre}.xlsx`
     : `لائحة_مسار_نقط_EPS_${className}_S${config.semestre}.xlsx`;
+
+  XLSX.writeFile(wb, fileName);
+};
+
+/**
+ * Generates an official Massar Excel workbook for an entire educational level (e.g. 1AC, 2AC, 3AC)
+ * Includes sheets for each class of that level with official Moroccan Ministry layout.
+ */
+export const generateOfficialMassarExcelForLevel = (
+  level: SchoolLevel,
+  classesData: {
+    className: string;
+    students: StudentIdentity[];
+    records: MassarGradeRecord[];
+  }[],
+  config: MassarClassConfig,
+  isBlank: boolean = false
+) => {
+  const XLSX = (window as any).XLSX;
+  if (!XLSX) {
+    throw new Error('مكتبة XLSX غير متوفرة.');
+  }
+
+  const wb = XLSX.utils.book_new();
+  const act1Meta = getActivityMeta(config.activity1);
+  const act2Meta = getActivityMeta(config.activity2);
+  const act3Meta = getActivityMeta(config.activity3);
+
+  const act1Label = config.activity1CustomLabel || act1Meta.shortAr;
+  const act2Label = config.activity2CustomLabel || act2Meta.shortAr;
+  const act3Label = config.activity3CustomLabel || act3Meta.shortAr;
+
+  classesData.forEach(({ className, students, records }) => {
+    const rows: any[][] = [];
+
+    // Official Moroccan Massar Header
+    rows.push(['المملكة المغربية']);
+    rows.push(['وزارة التربية الوطنية والتعليم الأولي والرياضة']);
+    rows.push([
+      `الأكاديمية الجهوية: ${config.academie || 'الجهة الشرقية'}`,
+      '',
+      '',
+      `المديرية الإقليمية: ${config.direction || 'مديرية فكيك'}`,
+      '',
+      '',
+      `المؤسسة: ${config.schoolName || 'الثانوية التأهيلية'}`
+    ]);
+    rows.push([
+      `المادة: التربية البدنية والرياضية`,
+      '',
+      `المستوى: ${level.name} | القسم: ${className}`,
+      '',
+      `الدورة: ${config.semestre === '1' ? 'الدورة الأولى' : 'الدورة الثانية'}`,
+      '',
+      `السنة الدراسية: ${config.schoolYear}`,
+      '',
+      config.teacherName ? `الأستاذ: ${config.teacherName}` : ''
+    ]);
+    rows.push([]); // blank separator
+
+    // Table Headers
+    rows.push([
+      'الرقم الترتيبي',
+      'رمز مسار',
+      'الاسم والنسب',
+      `الفرض الأول (${act1Label})`,
+      `الفرض الثاني (${act2Label})`,
+      `الفرض الثالث (${act3Label})`,
+      'معدل المراقبة المستمرة',
+      'ملاحظات الأستاذ'
+    ]);
+
+    const sorted = [...students].sort((a, b) => (a.nomEleve || '').localeCompare(b.nomEleve || '', 'ar'));
+    const recMap = new Map<string, MassarGradeRecord>();
+    records.forEach(r => recMap.set(r.numeroEleve, r));
+
+    sorted.forEach((s, idx) => {
+      const rec = recMap.get(s.numeroEleve);
+      const code = rec?.codeMassar || s.codeMassar || (s.numeroEleve.length > 5 ? s.numeroEleve : '');
+      if (isBlank) {
+        rows.push([idx + 1, code, s.nomEleve || '', '', '', '', '', '']);
+      } else {
+        const isDispense = rec?.isDispense;
+        const isAbsent = rec?.isAbsent;
+        const n1 = isDispense ? 'معفى' : (isAbsent ? 'غائب' : (rec?.noteDevoir1 !== null && rec?.noteDevoir1 !== undefined ? rec.noteDevoir1 : ''));
+        const n2 = isDispense ? 'معفى' : (isAbsent ? 'غائب' : (rec?.noteDevoir2 !== null && rec?.noteDevoir2 !== undefined ? rec.noteDevoir2 : ''));
+        const n3 = isDispense ? 'معفى' : (isAbsent ? 'غائب' : (rec?.noteDevoir3 !== null && rec?.noteDevoir3 !== undefined ? rec.noteDevoir3 : ''));
+        const avg = isDispense ? 'معفى' : (isAbsent ? 'غائب' : (calculateMassarAverage(rec?.noteDevoir1, rec?.noteDevoir2, rec?.noteDevoir3, config.rounding) ?? ''));
+        const rem = rec?.remarque || (isDispense ? 'معفى طبياً' : '');
+        rows.push([idx + 1, code, s.nomEleve || '', n1, n2, n3, avg, rem]);
+      }
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [
+      { wch: 12 }, { wch: 16 }, { wch: 32 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 36 }
+    ];
+    ws['!views'] = [{ rightToLeft: true }];
+    const safeSheetName = `${className}`.replace(/[\/\\?*:[\]]/g, '_').slice(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, safeSheetName || `قسم_${level.id}`);
+  });
+
+  const fileName = isBlank
+    ? `نماذج_مسار_فارغة_${level.shortName}_S${config.semestre}.xlsx`
+    : `لوائح_مسار_مملوءة_${level.shortName}_S${config.semestre}.xlsx`;
 
   XLSX.writeFile(wb, fileName);
 };

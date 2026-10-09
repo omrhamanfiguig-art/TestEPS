@@ -107,6 +107,9 @@ export interface PhysicalTests {
   gymDiffCountA?: number; // عدد صعوبات أ المنجزة
   gymDiffCountB?: number; // عدد صعوبات ب المنجزة
   gymDiffCountC?: number; // عدد صعوبات ج المنجزة
+  gymDiffScoreA?: number; // نقطة صعوبة أ المقسمة
+  gymDiffScoreB?: number; // نقطة صعوبة ب المقسمة
+  gymDiffScoreC?: number; // نقطة صعوبة ج المقسمة
   gymScoreDifficultes?: number; // نقطة الصعوبة الإجمالية (أقصى 6 ن)
   gymScoreExigences?: number; // نقطة المتطلبات الخاصة (أقصى 1.5 ن)
   gymScoreEnchainement?: number; // نقطة جودة الربط والتركيب (أقصى 4.5 ن أو 3.5 ن أو 2.5 ن)
@@ -299,6 +302,8 @@ export interface MassarGradeRecord {
   isDispense?: boolean;       // معفى طبياً
   isAbsent?: boolean;         // غائب
   remarque?: string;          // ملاحظات الأستاذ
+  className?: string;         // القسم الأصلي للتلميذ
+  matchedFromClass?: string;  // القسم الذي تم جلب النقط منه (في حالة الأقسام المشتركة أو الموزعة على نفس المستوى)
 }
 
 export interface MassarClassConfig {

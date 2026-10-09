@@ -227,7 +227,7 @@ export const ImportSessionsModal: React.FC<ImportSessionsModalProps> = ({
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700 font-medium">
                     {parsedData.sessions.map((sess, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-750">
+                      <tr key={sess.id || idx} className="hover:bg-gray-50 dark:hover:bg-gray-750">
                         <td className="p-2 font-bold text-indigo-600">{sess.sessionNumber || `الحصة ${idx + 1}`}</td>
                         <td className="p-2 font-bold">{sess.className || targetClass || currentClass}</td>
                         <td className="p-2 font-mono">{sess.date}</td>
