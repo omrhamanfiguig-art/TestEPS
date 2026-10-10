@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { getStudentList, getPhysicalTests, savePhysicalTests, saveStudentList, getVmaResults, saveVmaResults, getAllClasses, ClassStats, normalizeArabicText } from '../utils/db';
+import { getStudentList, getPhysicalTests, savePhysicalTests, saveStudentList, getVmaResults, saveVmaResults, getAllClasses, ClassStats, normalizeArabicText, getAllPhysicalTests, getAllVmaResults } from '../utils/db';
 import type { StudentIdentity, PhysicalTests, StudentResult } from '../types';
 import { 
     SaveIcon, 
@@ -501,6 +501,86 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
             r.equilibreStatique !== undefined
         ) || vmaResults.some(v => v.vma !== undefined && v.vma > 0);
     }, [results, vmaResults]);
+
+    const handleFillFromTarl = async () => {
+        try {
+            setIsSaving(true);
+            const globalTests = await getAllPhysicalTests();
+            const globalVma = await getAllVmaResults();
+
+            let updatedCount = 0;
+            const updatedResults = studentList.map(student => {
+                const existingTest = results.find(r => r.numeroEleve === student.numeroEleve);
+
+                const matchTest = globalTests.find(t => {
+                    if (t.numeroEleve === student.numeroEleve) return true;
+                    if (student.codeMassar && (t.numeroEleve === student.codeMassar || (t as any).codeMassar === student.codeMassar)) return true;
+                    if (t.nomEleve && student.nomEleve) {
+                        const n1 = normalizeArabicText(t.nomEleve);
+                        const n2 = normalizeArabicText(student.nomEleve);
+                        if (n1 === n2 || (n2.length > 3 && n1.includes(n2)) || (n1.length > 3 && n2.includes(n1))) return true;
+                    }
+                    return false;
+                });
+
+                const matchVma = globalVma.find(v => {
+                    if (v.numeroEleve === student.numeroEleve) return true;
+                    if (student.codeMassar && v.numeroEleve === student.codeMassar) return true;
+                    if (v.nomEleve && student.nomEleve) {
+                        const n1 = normalizeArabicText(v.nomEleve);
+                        const n2 = normalizeArabicText(student.nomEleve);
+                        if (n1 === n2 || (n2.length > 3 && n1.includes(n2)) || (n1.length > 3 && n2.includes(n1))) return true;
+                    }
+                    return false;
+                });
+
+                if (matchTest || matchVma) {
+                    updatedCount++;
+                    return {
+                        ...(existingTest || { numeroEleve: student.numeroEleve, nomEleve: student.nomEleve, sexe: student.sexe, className: selectedClass }),
+                        vma: matchTest?.vma ?? matchVma?.vma ?? existingTest?.vma,
+                        vitesse30m: matchTest?.vitesse30m ?? existingTest?.vitesse30m,
+                        vitesse60m: matchTest?.vitesse60m ?? existingTest?.vitesse60m,
+                        vitesse100m: matchTest?.vitesse100m ?? existingTest?.vitesse100m,
+                        sautHorizontal: matchTest?.sautHorizontal ?? existingTest?.sautHorizontal,
+                        sautVertical: matchTest?.sautVertical ?? existingTest?.sautVertical,
+                        lancerMedball: matchTest?.lancerMedball ?? existingTest?.lancerMedball,
+                        souplesseAssis: matchTest?.souplesseAssis ?? existingTest?.souplesseAssis,
+                        souplesseDebout: matchTest?.souplesseDebout ?? existingTest?.souplesseDebout,
+                        equilibreStatique: matchTest?.equilibreStatique ?? existingTest?.equilibreStatique,
+                        sautLong: matchTest?.sautLong ?? existingTest?.sautLong,
+                        lancerPoids: matchTest?.lancerPoids ?? existingTest?.lancerPoids,
+                        enduranceTemps: matchTest?.enduranceTemps ?? existingTest?.enduranceTemps
+                    };
+                }
+
+                return existingTest || {
+                    numeroEleve: student.numeroEleve,
+                    nomEleve: student.nomEleve,
+                    sexe: student.sexe,
+                    className: selectedClass
+                };
+            });
+
+            setResults(updatedResults);
+            await savePhysicalTests(selectedClass, updatedResults);
+
+            setNotification({
+                message: language === 'ar' ? `تم ملء بيانات الاختبارات البدنية من لوائح طارل بنجاح (${updatedCount} تلميذ محدث)! ⚡` : `Tests physiques remplis depuis TaRL (${updatedCount} mis à jour)!`,
+                type: 'success'
+            });
+            setTimeout(() => setNotification(null), 5000);
+        } catch (err) {
+            console.error('Fill from TaRL error:', err);
+            setNotification({
+                message: language === 'ar' ? 'حدث خطأ أثناء جلب بيانات طارل' : 'Erreur lors du remplissage depuis TaRL',
+                type: 'error'
+            });
+            setTimeout(() => setNotification(null), 4000);
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     const handleExport = () => {
         if (typeof (window as any).XLSX === 'undefined') {
@@ -1028,6 +1108,16 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                             >
                                 <span className="text-xs">☄️</span>
                                 <span>دفع الجلة</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleFillFromTarl}
+                                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-indigo-600 hover:bg-indigo-700 transition active:scale-95 cursor-pointer"
+                                title="ملء بيانات الاختبارات البدنية من لوائح طارل تلقائياً"
+                            >
+                                <span className="text-xs">⚡</span>
+                                <span>ملء من طارل</span>
                             </button>
 
                             <button

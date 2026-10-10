@@ -104,9 +104,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'massar' as ActiveScreen,
-      label: language === 'ar' ? 'فضاء لوائح مسار' : 'Fiches Massar EPS',
+      label: language === 'ar' ? 'فضاء مسار وطارل (TaRL)' : 'Massar & TaRL',
       icon: <DocumentTextIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />,
-      badge: language === 'ar' ? 'مسار' : 'Massar'
+      badge: language === 'ar' ? 'مسار/طارل' : 'TaRL'
     },
     {
       id: 'talent' as ActiveScreen,

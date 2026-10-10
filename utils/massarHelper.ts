@@ -1,4 +1,4 @@
-import type { StudentIdentity, PhysicalTests, StudentResult, MassarActivityKey, MassarGradeRecord, MassarClassConfig } from '../types';
+import type { StudentIdentity, PhysicalTests, StudentResult, MassarActivityKey, MassarGradeRecord, MassarClassConfig, TarlStudentRow } from '../types';
 import { normalizeArabic, isForbiddenStudentName } from './excelHelper';
 import { calculateScore, getCustomScale } from './ScoringConstants';
 
@@ -709,8 +709,177 @@ export const groupClassesByLevel = (classes: { className: string; studentCount?:
 };
 
 /**
+ * Calculates a composite physical fitness and motor performance score (/20)
+ * from all available physical tests (VMA, sprint, jump, throw, flexibility, balance)
+ * and TaRL diagnostic evaluations.
+ */
+export const calculateCompositePhysicalScore = (
+  test?: PhysicalTests,
+  vmaResult?: StudentResult,
+  tarlScore?: number,
+  tarlLevel?: string
+): {
+  compositeScore: number | null;
+  testsCount: number;
+  summary: string;
+  details: {
+    speedScore?: number;
+    enduranceScore?: number;
+    jumpScore?: number;
+    throwScore?: number;
+    flexibilityScore?: number;
+    balanceScore?: number;
+    tarlScore?: number;
+  };
+} => {
+  const scores: number[] = [];
+  const parts: string[] = [];
+  const details: {
+    speedScore?: number;
+    enduranceScore?: number;
+    jumpScore?: number;
+    throwScore?: number;
+    flexibilityScore?: number;
+    balanceScore?: number;
+    tarlScore?: number;
+  } = {};
+
+  const vmaVal = vmaResult?.vma || test?.vma;
+
+  // 1. Speed (السرعة)
+  let speedScore: number | undefined = undefined;
+  if (test?.scoreVitesse30m !== undefined && !isNaN(test.scoreVitesse30m)) {
+    speedScore = Number(test.scoreVitesse30m);
+    parts.push(`سرعة 30م: ${test.scoreVitesse30m}/20`);
+  } else if (test?.scoreVitesse !== undefined && !isNaN(test.scoreVitesse)) {
+    speedScore = Number(test.scoreVitesse);
+    parts.push(`سرعة: ${test.scoreVitesse}/20`);
+  } else if (test?.vitesse30m) {
+    speedScore = calculateScore(test.vitesse30m, getCustomScale('speed'), test.sexe || 'M', true);
+    parts.push(`سرعة 30م: ${test.vitesse30m}ث (${speedScore}/20)`);
+  } else if (test?.scoreVitesse60m !== undefined && !isNaN(test.scoreVitesse60m)) {
+    speedScore = Number(test.scoreVitesse60m);
+    parts.push(`سرعة 60م: ${test.scoreVitesse60m}/20`);
+  }
+  if (speedScore !== undefined && !isNaN(speedScore)) {
+    scores.push(speedScore);
+    details.speedScore = speedScore;
+  }
+
+  // 2. Endurance / VMA (التحمل والسرعة الهوائية)
+  let endScore: number | undefined = undefined;
+  if (test?.scoreEndurance !== undefined && !isNaN(test.scoreEndurance)) {
+    endScore = Number(test.scoreEndurance);
+    parts.push(`تحمل: ${test.scoreEndurance}/20`);
+  } else if (vmaVal !== undefined && !isNaN(vmaVal) && vmaVal > 0) {
+    endScore = Math.min(20, Math.max(6, (vmaVal - 8) * 1.5 + 8));
+    parts.push(`VMA: ${vmaVal} كم/س (${Number(endScore.toFixed(1))}/20)`);
+  } else if (test?.enduranceTemps) {
+    endScore = calculateScore(test.enduranceTemps, getCustomScale('endurance'), test.sexe || 'M', true);
+    parts.push(`تحمل: ${endScore}/20`);
+  }
+  if (endScore !== undefined && !isNaN(endScore)) {
+    scores.push(endScore);
+    details.enduranceScore = endScore;
+  }
+
+  // 3. Jump / Détente (الارتقاء والقفز)
+  let jumpScore: number | undefined = undefined;
+  if (test?.scoreSautLong !== undefined && !isNaN(test.scoreSautLong)) {
+    jumpScore = Number(test.scoreSautLong);
+    parts.push(`قفز طولي: ${test.scoreSautLong}/20`);
+  } else if (test?.scoreSautHorizontal !== undefined && !isNaN(test.scoreSautHorizontal)) {
+    jumpScore = Number(test.scoreSautHorizontal);
+    parts.push(`ارتقاء أفقي: ${test.scoreSautHorizontal}/20`);
+  } else if (test?.scoreSautVertical !== undefined && !isNaN(test.scoreSautVertical)) {
+    jumpScore = Number(test.scoreSautVertical);
+    parts.push(`ارتقاء عمودي: ${test.scoreSautVertical}/20`);
+  } else if (test?.sautHorizontal) {
+    jumpScore = Math.min(20, Math.max(4, test.sautHorizontal * 9));
+    parts.push(`ارتقاء أفقي: ${test.sautHorizontal}م (${Number(jumpScore.toFixed(1))}/20)`);
+  }
+  if (jumpScore !== undefined && !isNaN(jumpScore)) {
+    scores.push(jumpScore);
+    details.jumpScore = jumpScore;
+  }
+
+  // 4. Throwing / Lancer (الرمي والقوة الانفجارية)
+  let throwScore: number | undefined = undefined;
+  if (test?.scoreMedball !== undefined && !isNaN(test.scoreMedball)) {
+    throwScore = Number(test.scoreMedball);
+    parts.push(`رمي كرة طبية: ${test.scoreMedball}/20`);
+  } else if (test?.scoreLancerPoids !== undefined && !isNaN(test.scoreLancerPoids)) {
+    throwScore = Number(test.scoreLancerPoids);
+    parts.push(`دفع الجلة: ${test.scoreLancerPoids}/20`);
+  }
+  if (throwScore !== undefined && !isNaN(throwScore)) {
+    scores.push(throwScore);
+    details.throwScore = throwScore;
+  }
+
+  // 5. Flexibility / Souplesse (المرونة)
+  let flexScore: number | undefined = undefined;
+  if (test?.scoreSouplesse !== undefined && !isNaN(test.scoreSouplesse)) {
+    flexScore = Number(test.scoreSouplesse);
+    parts.push(`مرونة: ${test.scoreSouplesse}/20`);
+  }
+  if (flexScore !== undefined && !isNaN(flexScore)) {
+    scores.push(flexScore);
+    details.flexibilityScore = flexScore;
+  }
+
+  // 6. Balance / Equilibre (التوازن)
+  let balScore: number | undefined = undefined;
+  if (test?.scoreEquilibre !== undefined && !isNaN(test.scoreEquilibre)) {
+    balScore = Number(test.scoreEquilibre);
+    parts.push(`توازن: ${test.scoreEquilibre}/20`);
+  }
+  if (balScore !== undefined && !isNaN(balScore)) {
+    scores.push(balScore);
+    details.balanceScore = balScore;
+  }
+
+  // 7. TaRL Diagnostic Score / Level (تقويم طارل التشخيصي)
+  let tScore: number | undefined = undefined;
+  if (tarlScore !== undefined && !isNaN(tarlScore) && tarlScore > 0) {
+    tScore = tarlScore;
+    parts.push(`تشخيص طارل: ${tarlScore}/20`);
+  } else if (tarlLevel) {
+    const rawLvl = String(tarlLevel).toLowerCase();
+    if (rawLvl.includes('5') || rawLvl.includes('قصة') || rawLvl.includes('قصه') || rawLvl.includes('متفوق')) tScore = 18.5;
+    else if (rawLvl.includes('4') || rawLvl.includes('فقرة') || rawLvl.includes('فقره') || rawLvl.includes('متمكن')) tScore = 15.5;
+    else if (rawLvl.includes('3') || rawLvl.includes('جملة') || rawLvl.includes('جمله')) tScore = 12.5;
+    else if (rawLvl.includes('2') || rawLvl.includes('كلمة') || rawLvl.includes('كلمه')) tScore = 9.5;
+    else if (rawLvl.includes('1') || rawLvl.includes('مبتدئ')) tScore = 6.5;
+    else tScore = 12.5;
+    parts.push(`مستوى طارل: ${tarlLevel} (${tScore}/20)`);
+  }
+  if (tScore !== undefined && !isNaN(tScore)) {
+    scores.push(tScore);
+    details.tarlScore = tScore;
+  }
+
+  if (scores.length === 0) {
+    return {
+      compositeScore: null,
+      testsCount: 0,
+      summary: '',
+      details
+    };
+  }
+
+  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+  return {
+    compositeScore: Number(avg.toFixed(2)),
+    testsCount: scores.length,
+    summary: parts.join(' | '),
+    details
+  };
+};
+
+/**
  * Automatically builds or updates Massar grade records from the app's current test results
- * Supports cross-class matching across all classes of the same level
+ * Supports cross-class matching, TaRL rosters matching, and auto-population from tests/evaluations
  */
 export const autoPopulateMassarGrades = (
   students: (StudentIdentity & { className?: string })[],
@@ -721,6 +890,10 @@ export const autoPopulateMassarGrades = (
   extraLevelData?: {
     tests?: PhysicalTests[];
     vmaList?: StudentResult[];
+    allGlobalTests?: PhysicalTests[];
+    allGlobalVma?: StudentResult[];
+    tarlStudents?: TarlStudentRow[];
+    forceAutoFillFromTarl?: boolean;
   }
 ): MassarGradeRecord[] => {
   const existingMap = new Map<string, MassarGradeRecord>();
@@ -777,7 +950,7 @@ export const autoPopulateMassarGrades = (
 
     let matchedFromClass: string | undefined = undefined;
 
-    // 3. Fallback search across extra level tests/vma (from all other classes of the same level)
+    // 3. Fallback search across extra level tests/vma (from other classes of the same level)
     if (extraLevelData) {
       if (!test && extraLevelData.tests) {
         test = extraLevelData.tests.find(isMatchingStudent);
@@ -792,24 +965,112 @@ export const autoPopulateMassarGrades = (
           matchedFromClass = (vma as any).className;
         }
       }
+
+      // 4. Fallback search across ALL global tests in database, prioritizing TaRL classes
+      if (extraLevelData.allGlobalTests && !test) {
+        // Priority 1: Match from a TaRL class/group
+        const tarlTest = extraLevelData.allGlobalTests.find(t => 
+          isMatchingStudent(t) && t.className && (t.className.includes('طارل') || t.className.toLowerCase().includes('tarl'))
+        );
+        if (tarlTest) {
+          test = tarlTest;
+          matchedFromClass = tarlTest.className;
+        } else {
+          // Priority 2: Match from any other class
+          const anyTest = extraLevelData.allGlobalTests.find(isMatchingStudent);
+          if (anyTest) {
+            test = anyTest;
+            matchedFromClass = anyTest.className;
+          }
+        }
+      }
+
+      if (extraLevelData.allGlobalVma && !vma) {
+        const anyVma = extraLevelData.allGlobalVma.find(isMatchingStudent);
+        if (anyVma) {
+          vma = anyVma;
+          if (!matchedFromClass && (anyVma as any).className) {
+            matchedFromClass = (anyVma as any).className;
+          }
+        }
+      }
     }
 
-    const autoN1 = extractGradeForActivity(config.activity1, test, vma, config.rounding);
-    const autoN2 = extractGradeForActivity(config.activity2, test, vma, config.rounding);
-    const autoN3 = extractGradeForActivity(config.activity3, test, vma, config.rounding);
+    // 5. Check if student has TaRL records in tarlStudents list
+    let tarlRow: TarlStudentRow | undefined = undefined;
+    if (extraLevelData?.tarlStudents) {
+      tarlRow = extraLevelData.tarlStudents.find(isMatchingStudent);
+    }
 
-    // Keep manual overrides if student was already edited or exempted, otherwise use extracted grades
+    const effectiveTarlScore = tarlRow?.tarlScore || student.tarlScore;
+    const effectiveTarlLevel = tarlRow?.tarlLevel || student.tarlLevel;
+    const isTarlIdentified = Boolean(
+      effectiveTarlScore || 
+      effectiveTarlLevel || 
+      student.tarlGroup || 
+      tarlRow?.tarlGroup ||
+      (matchedFromClass && (matchedFromClass.includes('طارل') || matchedFromClass.toLowerCase().includes('tarl'))) ||
+      (test?.className && (test.className.includes('طارل') || test.className.toLowerCase().includes('tarl')))
+    );
+
+    // Compute composite physical & motor tests score
+    const compositeInfo = calculateCompositePhysicalScore(test, vma, effectiveTarlScore, effectiveTarlLevel);
+
+    let autoN1 = extractGradeForActivity(config.activity1, test, vma, config.rounding);
+    let autoN2 = extractGradeForActivity(config.activity2, test, vma, config.rounding);
+    let autoN3 = extractGradeForActivity(config.activity3, test, vma, config.rounding);
+
+    // If an activity grade could not be matched directly, but student has physical tests or TaRL diagnostic data:
+    if (compositeInfo.compositeScore !== null) {
+      const comp = compositeInfo.compositeScore;
+      const det = compositeInfo.details;
+
+      if (autoN1 === null) {
+        // Devoir 1: Sport collectif or general evaluation
+        const baseN1 = det.tarlScore !== undefined ? det.tarlScore : comp;
+        autoN1 = roundScore(baseN1, config.rounding);
+      }
+
+      if (autoN2 === null) {
+        // Devoir 2: Gymnastique or motor coordination
+        let gymSynthesized = comp;
+        if (det.flexibilityScore !== undefined || det.balanceScore !== undefined || det.jumpScore !== undefined) {
+          const comps = [det.flexibilityScore, det.balanceScore, det.jumpScore].filter(v => v !== undefined) as number[];
+          gymSynthesized = comps.reduce((a, b) => a + b, 0) / comps.length;
+        }
+        autoN2 = roundScore(gymSynthesized, config.rounding);
+      }
+
+      if (autoN3 === null) {
+        // Devoir 3: Speed / Endurance / Physical Tests
+        const athlSynthesized = det.speedScore ?? det.enduranceScore ?? det.jumpScore ?? det.throwScore ?? comp;
+        autoN3 = roundScore(athlSynthesized, config.rounding);
+      }
+    }
+
+    // Keep manual overrides if student was already edited or exempted, unless forceAutoFillFromTarl is requested
+    const forceAuto = extraLevelData?.forceAutoFillFromTarl ?? false;
     const isDispense = existing?.isDispense ?? false;
     const isAbsent = existing?.isAbsent ?? false;
 
-    const n1 = isDispense ? null : (autoN1 !== null ? autoN1 : (existing?.noteDevoir1 ?? null));
-    const n2 = isDispense ? null : (autoN2 !== null ? autoN2 : (existing?.noteDevoir2 ?? null));
-    const n3 = isDispense ? null : (autoN3 !== null ? autoN3 : (existing?.noteDevoir3 ?? null));
+    const n1 = isDispense ? null : (forceAuto && autoN1 !== null ? autoN1 : (existing?.noteDevoir1 ?? autoN1));
+    const n2 = isDispense ? null : (forceAuto && autoN2 !== null ? autoN2 : (existing?.noteDevoir2 ?? autoN2));
+    const n3 = isDispense ? null : (forceAuto && autoN3 !== null ? autoN3 : (existing?.noteDevoir3 ?? autoN3));
 
     const avg = calculateMassarAverage(n1, n2, n3, config.rounding);
     const defaultRemarque = getMassarAppreciation(avg, isDispense, isAbsent);
 
     const studentClass = student.className || existing?.className;
+
+    const populatedFromTarl = Boolean(
+      (isTarlIdentified || compositeInfo.testsCount > 0) &&
+      (n1 !== null || n2 !== null || n3 !== null)
+    );
+
+    let tarlSourceDetails = compositeInfo.summary;
+    if (matchedFromClass) {
+      tarlSourceDetails = tarlSourceDetails ? `${tarlSourceDetails} (تم الجلب من: ${matchedFromClass})` : `تم الجلب من: ${matchedFromClass}`;
+    }
 
     return {
       numeroEleve: num,
@@ -824,7 +1085,10 @@ export const autoPopulateMassarGrades = (
       isAbsent,
       remarque: existing?.remarque || defaultRemarque,
       className: studentClass,
-      matchedFromClass: matchedFromClass || existing?.matchedFromClass
+      matchedFromClass: matchedFromClass || existing?.matchedFromClass,
+      populatedFromTarl,
+      tarlSourceDetails,
+      physicalTestsSummary: compositeInfo.summary
     };
   });
 };

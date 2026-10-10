@@ -122,7 +122,10 @@ const saveData = async <T>(storeName: string, className: string, data: T[]) => {
     });
 
     return new Promise<void>((resolve, reject) => {
-        tx.oncomplete = () => resolve();
+        tx.oncomplete = () => {
+            window.dispatchEvent(new CustomEvent('dbUpdated'));
+            resolve();
+        };
         tx.onerror = () => reject(tx.error);
     });
 };
@@ -246,6 +249,54 @@ export const getPhysicalTests = async (className: string): Promise<PhysicalTests
 export const clearPhysicalTests = async (className: string) => {
     await saveData(PHYSICAL_TESTS_STORE, className, []);
     await savePhysicalTestsToCloud(className, []).catch(() => {});
+};
+
+/**
+ * Fetch all physical tests across ALL classes and TaRL groups in local database
+ */
+export const getAllPhysicalTests = async (): Promise<(PhysicalTests & { className?: string })[]> => {
+    const db = await initDB();
+    const tx = db.transaction(PHYSICAL_TESTS_STORE, 'readonly');
+    const store = tx.objectStore(PHYSICAL_TESTS_STORE);
+    const request = store.getAll();
+    return new Promise((resolve, reject) => {
+        request.onsuccess = () => {
+            const raw = request.result || [];
+            resolve(raw.filter((p: any) => p && (!p.nomEleve || !isForbiddenStudentName(p.nomEleve))));
+        };
+        request.onerror = () => reject(request.error);
+    });
+};
+
+/**
+ * Fetch all VMA results across ALL classes and TaRL groups in local database
+ */
+export const getAllVmaResults = async (): Promise<(StudentResult & { className?: string })[]> => {
+    const db = await initDB();
+    const tx = db.transaction(VMA_STORE, 'readonly');
+    const store = tx.objectStore(VMA_STORE);
+    const request = store.getAll();
+    return new Promise((resolve, reject) => {
+        request.onsuccess = () => {
+            const raw = request.result || [];
+            resolve(raw.filter((v: any) => v && (!v.nomEleve || !isForbiddenStudentName(v.nomEleve))));
+        };
+        request.onerror = () => reject(request.error);
+    });
+};
+
+/**
+ * Fetch all student lists across ALL classes in local database
+ */
+export const getAllStudentLists = async (): Promise<{ className: string; students: StudentIdentity[] }[]> => {
+    const db = await initDB();
+    const tx = db.transaction(STUDENTS_STORE, 'readonly');
+    const store = tx.objectStore(STUDENTS_STORE);
+    const request = store.getAll();
+    return new Promise((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => reject(request.error);
+    });
 };
 
 /**

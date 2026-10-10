@@ -18,6 +18,27 @@ export interface StudentIdentity {
   orderIndex?: number;
   codeMassar?: string;
   dateNaissance?: string;
+  tarlLevel?: string;
+  tarlGroup?: string;
+  tarlScore?: number;
+  tarlRemediation?: string;
+}
+
+export type TarlLevelKey = 'niveau_1' | 'niveau_2' | 'niveau_3' | 'niveau_4' | 'niveau_5';
+
+export interface TarlStudentRow {
+  numeroEleve: string;
+  codeMassar?: string;
+  nomEleve: string;
+  sexe?: 'M' | 'F';
+  className?: string;
+  dateNaissance?: string;
+  tarlLevel: TarlLevelKey;
+  tarlLevelLabel: string;
+  tarlGroup: string;
+  tarlScore: number;
+  tarlRemediation: string;
+  observation?: string;
 }
 
 export interface StudentResult {
@@ -304,6 +325,9 @@ export interface MassarGradeRecord {
   remarque?: string;          // ملاحظات الأستاذ
   className?: string;         // القسم الأصلي للتلميذ
   matchedFromClass?: string;  // القسم الذي تم جلب النقط منه (في حالة الأقسام المشتركة أو الموزعة على نفس المستوى)
+  populatedFromTarl?: boolean;        // تم ملء النقط تلقائياً من تقويمات واختبارات طارل
+  tarlSourceDetails?: string;         // تفاصيل الاختبارات البدنية وتقويمات طارل (VMA، السرعة، الارتقاء، إلخ)
+  physicalTestsSummary?: string;      // ملخص الاختبارات البدنية المنجزة
 }
 
 export interface MassarClassConfig {

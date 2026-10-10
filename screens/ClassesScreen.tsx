@@ -89,6 +89,12 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'tested' | 'untested'>('all');
+  const [listTypeFilter, setListTypeFilter] = useState<'all' | 'massar' | 'tarl'>('all');
+
+  const isClassTarl = (className: string): boolean => {
+    const lower = className.toLowerCase();
+    return lower.includes('tarl') || lower.includes('طارل') || lower.includes('دعم') || lower.includes('t-');
+  };
 
   // Teacher and Academic Level Filters
   const [filterTeacher, setFilterTeacher] = useState<string>('ALL');
@@ -120,6 +126,59 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
   // Delete Confirmation Modal
   const [classToDelete, setClassToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Bulk Deletion States
+  const [selectedClassNames, setSelectedClassNames] = useState<string[]>([]);
+  const [bulkDeleteAction, setBulkDeleteAction] = useState<'selected' | 'massar' | 'tarl' | null>(null);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+  const handleToggleSelectAll = () => {
+    if (selectedClassNames.length === filteredClasses.length) {
+      setSelectedClassNames([]);
+    } else {
+      setSelectedClassNames(filteredClasses.map(c => c.className));
+    }
+  };
+
+  const handleToggleSelectClass = (className: string) => {
+    setSelectedClassNames(prev =>
+      prev.includes(className) ? prev.filter(c => c !== className) : [...prev, className]
+    );
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    if (!bulkDeleteAction) return;
+    setIsBulkDeleting(true);
+    try {
+      let classesToDelete: string[] = [];
+      if (bulkDeleteAction === 'selected') {
+        classesToDelete = selectedClassNames;
+      } else if (bulkDeleteAction === 'massar') {
+        classesToDelete = classes.filter(c => !isClassTarl(c.className)).map(c => c.className);
+      } else if (bulkDeleteAction === 'tarl') {
+        classesToDelete = classes.filter(c => isClassTarl(c.className)).map(c => c.className);
+      }
+
+      for (const cName of classesToDelete) {
+        await deleteClass(cName);
+      }
+
+      showToast(
+        language === 'ar'
+          ? `تم حذف ${classesToDelete.length} لائحة بنجاح.`
+          : `${classesToDelete.length} listes supprimées avec succès.`
+      );
+      setSelectedClassNames([]);
+      setBulkDeleteAction(null);
+      window.dispatchEvent(new CustomEvent('dbUpdated'));
+      await fetchClassesData();
+    } catch (err) {
+      console.error('Bulk delete failed:', err);
+      showToast(language === 'ar' ? 'حدث خطأ أثناء الحذف الجماعي' : 'Erreur lors de la suppression groupée');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
 
   // Notification / Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -196,10 +255,18 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
             existingList.forEach(s => studentMap.set(s.numeroEleve, s));
             group.students.forEach(s => {
               if (studentMap.has(s.numeroEleve)) {
+                const prev = studentMap.get(s.numeroEleve)!;
                 studentMap.set(s.numeroEleve, {
-                  ...studentMap.get(s.numeroEleve)!,
-                  nomEleve: s.nomEleve || studentMap.get(s.numeroEleve)!.nomEleve,
-                  sexe: s.sexe || studentMap.get(s.numeroEleve)!.sexe
+                  ...prev,
+                  ...s,
+                  nomEleve: s.nomEleve || prev.nomEleve,
+                  sexe: s.sexe || prev.sexe,
+                  codeMassar: s.codeMassar || prev.codeMassar,
+                  dateNaissance: s.dateNaissance || prev.dateNaissance,
+                  tarlLevel: s.tarlLevel || prev.tarlLevel,
+                  tarlGroup: s.tarlGroup || prev.tarlGroup,
+                  tarlScore: s.tarlScore !== undefined ? s.tarlScore : prev.tarlScore,
+                  tarlRemediation: s.tarlRemediation || prev.tarlRemediation
                 });
               } else {
                 studentMap.set(s.numeroEleve, s);
@@ -453,11 +520,20 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
   const vmaRate = totalStudents > 0 ? Math.round((totalVmaTested / totalStudents) * 100) : 0;
   const measurementsRate = totalStudents > 0 ? Math.round((totalMeasured / totalStudents) * 100) : 0;
 
-  // Filtered classes (by search, status, teacher, and level)
+  // List type counts and statistics breakdown
+  const massarClassesCount = classes.filter(c => !isClassTarl(c.className)).length;
+  const tarlClassesCount = classes.filter(c => isClassTarl(c.className)).length;
+  const massarStudentsCount = classes.filter(c => !isClassTarl(c.className)).reduce((acc, c) => acc + c.studentCount, 0);
+  const tarlStudentsCount = classes.filter(c => isClassTarl(c.className)).reduce((acc, c) => acc + c.studentCount, 0);
+
+  // Filtered classes (by search, status, teacher, level, and list type filter)
   const filteredClasses = useMemo(() => {
     return classes.filter(c => {
       const matchesSearch = c.className.toLowerCase().includes(searchQuery.toLowerCase().trim());
       if (!matchesSearch) return false;
+
+      if (listTypeFilter === 'massar' && isClassTarl(c.className)) return false;
+      if (listTypeFilter === 'tarl' && !isClassTarl(c.className)) return false;
 
       if (filterStatus === 'tested') {
         if (c.testedCount === 0 && c.vmaCount === 0) return false;
@@ -480,11 +556,15 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
 
       return true;
     });
-  }, [classes, searchQuery, filterStatus, filterTeacher, filterLevel]);
+  }, [classes, searchQuery, filterStatus, filterTeacher, filterLevel, listTypeFilter]);
 
-  // Filtered students list across all classes (by teacher, level, and search)
+  // Filtered students list across all classes (by teacher, level, search, and list type)
   const filteredStudentsList = useMemo(() => {
     return globalStudents.filter(item => {
+      const isTarl = isClassTarl(item.className);
+      if (listTypeFilter === 'massar' && isTarl) return false;
+      if (listTypeFilter === 'tarl' && !isTarl) return false;
+
       // Filter by Teacher
       if (filterTeacher !== 'ALL') {
         const teacher = getTeacherForClass(item.className);
@@ -499,7 +579,7 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
 
       return true;
     });
-  }, [globalStudents, filterTeacher, filterLevel]);
+  }, [globalStudents, filterTeacher, filterLevel, listTypeFilter]);
 
   // Export filtered students list to Excel
   const handleExportFilteredStudents = () => {
@@ -666,7 +746,7 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
         <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
-              {language === 'ar' ? 'إجمالي الأقسام' : 'Total Classes'}
+              {language === 'ar' ? 'إجمالي الأقسام (حسب اللوائح)' : 'Total Classes'}
             </span>
             <span className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
               <AcademicCapIcon className="w-4 h-4" />
@@ -676,8 +756,10 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
             <span className="text-2xl font-black text-gray-900 dark:text-white">{totalClasses}</span>
             <span className="text-xs font-medium text-gray-400">{language === 'ar' ? 'قسم' : 'classes'}</span>
           </div>
-          <div className="mt-1 text-[11px] text-gray-400">
-            {language === 'ar' ? `القسم الحالي: ${selectedClass || 'غير محدد'}` : `Actuelle: ${selectedClass || '-'}`}
+          <div className="mt-1 flex items-center gap-2 text-[10px] font-bold text-gray-500 dark:text-gray-400">
+            <span className="text-indigo-600 dark:text-indigo-400">📄 مسار: {massarClassesCount}</span>
+            <span>•</span>
+            <span className="text-amber-600 dark:text-amber-400">⚡ طارل: {tarlClassesCount}</span>
           </div>
         </div>
 
@@ -685,7 +767,7 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
         <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
-              {language === 'ar' ? 'إجمالي التلاميذ' : 'Total Élèves'}
+              {language === 'ar' ? 'إجمالي التلاميذ (حسب اللوائح)' : 'Total Élèves'}
             </span>
             <span className="p-1.5 rounded-lg bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400">
               <UsersIcon />
@@ -695,10 +777,10 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
             <span className="text-2xl font-black text-gray-900 dark:text-white">{totalStudents}</span>
             <span className="text-xs font-medium text-gray-400">{language === 'ar' ? 'تلميذ' : 'élèves'}</span>
           </div>
-          <div className="mt-1 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
-            <span>{language === 'ar' ? `ذكور: ${totalBoys}` : `G: ${totalBoys}`}</span>
+          <div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold text-gray-500 dark:text-gray-400">
+            <span className="text-indigo-600 dark:text-indigo-400">📄 مسار: {massarStudentsCount}</span>
             <span>•</span>
-            <span>{language === 'ar' ? `إناث: ${totalGirls}` : `F: ${totalGirls}`}</span>
+            <span className="text-amber-600 dark:text-amber-400">⚡ طارل: {tarlStudentsCount}</span>
           </div>
         </div>
 
@@ -869,13 +951,58 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
               </select>
             </div>
 
+            {/* Filter by List Type (Massar vs TaRL) */}
+            <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-900/60 px-2.5 py-1 rounded-xl border border-gray-200 dark:border-gray-700">
+              <span className="text-xs font-bold text-gray-500 dark:text-gray-400 shrink-0">
+                {language === 'ar' ? 'نوع اللوائح:' : 'Type :'}
+              </span>
+              <div className="flex items-center bg-white dark:bg-gray-800 p-0.5 rounded-lg border border-gray-200 dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => setListTypeFilter('all')}
+                  className={`px-2 py-0.5 rounded text-[11px] font-black transition cursor-pointer ${
+                    listTypeFilter === 'all'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                  }`}
+                >
+                  {language === 'ar' ? 'الكل' : 'Tous'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setListTypeFilter('massar')}
+                  className={`px-2 py-0.5 rounded text-[11px] font-black transition cursor-pointer ${
+                    listTypeFilter === 'massar'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                  }`}
+                  title="لوائح مسار الرسمية"
+                >
+                  📄 {language === 'ar' ? 'مسار' : 'Massar'} ({massarClassesCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setListTypeFilter('tarl')}
+                  className={`px-2 py-0.5 rounded text-[11px] font-black transition cursor-pointer ${
+                    listTypeFilter === 'tarl'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
+                  }`}
+                  title="لوائح طارل (TaRL)"
+                >
+                  ⚡ {language === 'ar' ? 'طارل' : 'TaRL'} ({tarlClassesCount})
+                </button>
+              </div>
+            </div>
+
             {/* Clear filters pill */}
-            {(filterTeacher !== 'ALL' || filterLevel !== 'ALL') && (
+            {(filterTeacher !== 'ALL' || filterLevel !== 'ALL' || listTypeFilter !== 'all') && (
               <button
                 type="button"
                 onClick={() => {
                   setFilterTeacher('ALL');
                   setFilterLevel('ALL');
+                  setListTypeFilter('all');
                 }}
                 className="text-[11px] font-bold px-2 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 transition flex items-center gap-1"
               >
@@ -1056,6 +1183,7 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                     <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-400 uppercase text-[10px] font-black bg-gray-50/40 dark:bg-gray-800/40">
                       <th className="py-3 px-3 text-start">#</th>
                       <th className="py-3 px-3 text-start">{t.studentName}</th>
+                      <th className="py-3 px-3 text-center">{language === 'ar' ? 'تاريخ الازدياد' : 'Date de naissance'}</th>
                       <th className="py-3 px-3 text-start">{language === 'ar' ? 'القسم' : 'Classe'}</th>
                       <th className="py-3 px-3 text-center">{language === 'ar' ? 'المستوى' : 'Niveau'}</th>
                       <th className="py-3 px-3 text-center">{language === 'ar' ? 'الأستاذ المكلف' : 'Professeur'}</th>
@@ -1097,6 +1225,9 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                                 </span>
                               </div>
                             </button>
+                          </td>
+                          <td className="py-2.5 px-3 text-center text-gray-600 dark:text-gray-300 font-mono text-xs">
+                            {item.student.dateNaissance || '-'}
                           </td>
                           <td className="py-2.5 px-3">
                             <button
@@ -1295,21 +1426,93 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
             </div>
           )}
 
+          {/* Bulk deletion & selection toolbar */}
+          {searchMode === 'classes' && classes.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 p-3.5 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xs flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-gray-700 dark:text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={filteredClasses.length > 0 && selectedClassNames.length === filteredClasses.length}
+                    onChange={handleToggleSelectAll}
+                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <span>{language === 'ar' ? 'تحديد الكل المفلتر' : 'Tout sélectionner'}</span>
+                </label>
+                {selectedClassNames.length > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                    {language === 'ar' ? `تم تحديد ${selectedClassNames.length} لائحة` : `${selectedClassNames.length} sélectionnées`}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {selectedClassNames.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setBulkDeleteAction('selected')}
+                    className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                  >
+                    <TrashIcon />
+                    <span>{language === 'ar' ? `حذف المحدد (${selectedClassNames.length})` : 'Supprimer la sélection'}</span>
+                  </button>
+                )}
+
+                {massarClassesCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setBulkDeleteAction('massar')}
+                    className="px-3 py-1.5 rounded-xl border border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                    title="حذف جميع لوائح مسار دفعة واحدة"
+                  >
+                    <TrashIcon />
+                    <span>{language === 'ar' ? `حذف جميع مسار (${massarClassesCount})` : 'Supprimer toutes Massar'}</span>
+                  </button>
+                )}
+
+                {tarlClassesCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setBulkDeleteAction('tarl')}
+                    className="px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                    title="حذف جميع لوائح طارل دفعة واحدة"
+                  >
+                    <TrashIcon />
+                    <span>{language === 'ar' ? `حذف جميع طارل (${tarlClassesCount})` : 'Supprimer toutes TaRL'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {filteredClasses.map((item) => {
             const isCurrent = selectedClass === item.className;
             const physPercent = item.studentCount > 0 ? Math.round((item.testedCount / item.studentCount) * 100) : 0;
             const vmaPercent = item.studentCount > 0 ? Math.round((item.vmaCount / item.studentCount) * 100) : 0;
+            const isSelected = selectedClassNames.includes(item.className);
 
             return (
               <div
                 key={item.className}
-                className={`bg-white dark:bg-gray-800 rounded-2xl border transition-all duration-200 flex flex-col justify-between shadow-sm hover:shadow-md ${
-                  isCurrent
+                className={`relative bg-white dark:bg-gray-800 rounded-2xl border transition-all duration-200 flex flex-col justify-between shadow-sm hover:shadow-md ${
+                  isSelected
+                    ? 'border-rose-500 ring-2 ring-rose-500/20'
+                    : isCurrent
                     ? 'border-indigo-500 ring-2 ring-indigo-500/20 dark:ring-indigo-500/30'
                     : 'border-gray-200 dark:border-gray-700'
                 }`}
               >
+                {/* Selection Checkbox */}
+                <div className="absolute top-3 left-3 z-10">
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => handleToggleSelectClass(item.className)}
+                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                    title="تحديد للحذف الجماعي"
+                  />
+                </div>
                 {/* Card Top: Class Info & Badge */}
                 <div className="p-5 border-b border-gray-100 dark:border-gray-700/60 space-y-3">
                   <div className="flex items-start justify-between gap-3">
@@ -1322,10 +1525,23 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                         <AcademicCapIcon className="w-6 h-6" />
                       </div>
                       <div>
-                        <h3 className="text-base sm:text-lg font-black text-gray-900 dark:text-white">
-                          {item.className}
-                        </h3>
-                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 font-medium">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-base sm:text-lg font-black text-gray-900 dark:text-white">
+                            {item.className}
+                          </h3>
+                        </div>
+                        <div className="mt-1">
+                          {isClassTarl(item.className) ? (
+                            <span className="inline-block px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-[10px] font-black border border-amber-200 dark:border-amber-800">
+                              ⚡ طارل (TaRL)
+                            </span>
+                          ) : (
+                            <span className="inline-block px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-[10px] font-black border border-indigo-200 dark:border-indigo-800">
+                              📄 مسار رسمي
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1.5 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 font-medium">
                           <span>{item.studentCount} {language === 'ar' ? 'تلميذ' : 'élèves'}</span>
                           <span>•</span>
                           <span>{item.boysCount} {language === 'ar' ? 'ذكر' : 'G'}</span>
@@ -1601,6 +1817,7 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                       <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-400 uppercase text-[10px] font-black">
                         <th className="py-2.5 px-3 text-start">#</th>
                         <th className="py-2.5 px-3 text-start">{t.studentName}</th>
+                        <th className="py-2.5 px-3 text-center">{language === 'ar' ? 'تاريخ الازدياد' : 'Date de naissance'}</th>
                         <th className="py-2.5 px-3 text-center">{t.gender}</th>
                         <th className="py-2.5 px-3 text-center">{t.navPhysicalTests}</th>
                         <th className="py-2.5 px-3 text-center">{t.vmaTitle}</th>
@@ -1632,6 +1849,9 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
                                 </span>
                               </div>
                             </button>
+                          </td>
+                          <td className="py-2 px-3 text-center text-gray-600 dark:text-gray-300 font-mono text-xs">
+                            {row.student.dateNaissance || '-'}
                           </td>
                           <td className="py-2 px-3 text-center">
                             <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-black ${
@@ -1805,6 +2025,46 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
               >
                 {deleting && <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                 <span>{language === 'ar' ? 'نعم، حذف القسم' : 'Supprimer définitivement'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Bulk Delete Confirmation */}
+      {bulkDeleteAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-2xl p-6 shadow-2xl border border-gray-200 dark:border-gray-700 space-y-4 animate-fadeIn">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950">
+                <TrashIcon />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                {language === 'ar' ? 'تأكيد الحذف الجماعي للوائح' : 'Confirmer la suppression groupée'}
+              </h3>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
+              {bulkDeleteAction === 'selected'
+                ? (language === 'ar' ? `هل أنت متأكد من رغبة حذف ${selectedClassNames.length} لائحة مَحَدّدة نهائياً مع كافة بياناتها؟` : `Voulez-vous vraiment supprimer définitivement ${selectedClassNames.length} listes sélectionnées ?`)
+                : bulkDeleteAction === 'massar'
+                ? (language === 'ar' ? `هل أنت متأكد من رغبة حذف جميع لوائح مسار (${classes.filter(c => !isClassTarl(c.className)).length} لائحة) نهائياً؟` : `Supprimer toutes les listes Massar ?`)
+                : (language === 'ar' ? `هل أنت متأكد من رغبة حذف جميع لوائح طارل (${classes.filter(c => isClassTarl(c.className)).length} لائحة) نهائياً؟` : `Supprimer toutes les listes TaRL ?`)}
+            </p>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setBulkDeleteAction(null)}
+                disabled={isBulkDeleting}
+                className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+              >
+                {t.cancel}
+              </button>
+              <button
+                onClick={handleConfirmBulkDelete}
+                disabled={isBulkDeleting}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition flex items-center gap-2"
+              >
+                {isBulkDeleting && <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                <span>{language === 'ar' ? 'نعم، حذف الكل نهائياً' : 'Supprimer tout'}</span>
               </button>
             </div>
           </div>

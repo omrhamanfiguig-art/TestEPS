@@ -29,6 +29,7 @@ export const AddEditStudentModal: React.FC<AddEditStudentModalProps> = ({
   const [nomEleve, setNomEleve] = useState('');
   const [numeroEleve, setNumeroEleve] = useState('');
   const [sexe, setSexe] = useState<'M' | 'F'>('M');
+  const [dateNaissance, setDateNaissance] = useState('');
   const [photoUrl, setPhotoUrl] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -43,6 +44,7 @@ export const AddEditStudentModal: React.FC<AddEditStudentModalProps> = ({
       setNomEleve(studentToEdit.nomEleve || '');
       setNumeroEleve(studentToEdit.numeroEleve || '');
       setSexe(studentToEdit.sexe || 'M');
+      setDateNaissance(studentToEdit.dateNaissance || '');
       setPhotoUrl(studentToEdit.photoUrl || undefined);
     } else {
       setNomEleve('');
@@ -50,6 +52,7 @@ export const AddEditStudentModal: React.FC<AddEditStudentModalProps> = ({
       const nextNum = existingStudentsCount > 0 ? String(existingStudentsCount + 1) : '1';
       setNumeroEleve(nextNum);
       setSexe('M');
+      setDateNaissance('');
       setPhotoUrl(undefined);
     }
   }, [isOpen, studentToEdit, existingStudentsCount]);
@@ -99,6 +102,7 @@ export const AddEditStudentModal: React.FC<AddEditStudentModalProps> = ({
         nomEleve: cleanName,
         numeroEleve: cleanNum,
         sexe,
+        dateNaissance: dateNaissance.trim() || undefined,
         photoUrl: photoUrl || undefined
       };
 
@@ -260,6 +264,20 @@ export const AddEditStudentModal: React.FC<AddEditStudentModalProps> = ({
               onChange={(e) => setNumeroEleve(e.target.value)}
               placeholder={language === 'ar' ? 'مثال: 12' : 'Ex: 12'}
               className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          {/* Date of Birth */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
+              {language === 'ar' ? 'تاريخ الازدياد (تاريخ الميلاد)' : 'Date de naissance'}
+            </label>
+            <input
+              type="text"
+              value={dateNaissance}
+              onChange={(e) => setDateNaissance(e.target.value)}
+              placeholder={language === 'ar' ? 'مثال: 2012-07-18 أو 2012' : 'Ex: 2012-07-18'}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 

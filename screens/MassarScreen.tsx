@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import type { StudentIdentity, PhysicalTests, StudentResult, MassarActivityKey, MassarGradeRecord, MassarClassConfig } from '../types';
+import type { StudentIdentity, PhysicalTests, StudentResult, MassarActivityKey, MassarGradeRecord, MassarClassConfig, TarlLevelKey, TarlStudentRow } from '../types';
 import { 
   getStudentList, 
   getPhysicalTests, 
@@ -7,7 +7,9 @@ import {
   getVmaResults, 
   saveStudentList, 
   getAllClasses, 
-  ClassStats 
+  ClassStats,
+  getAllPhysicalTests,
+  getAllVmaResults
 } from '../utils/db';
 import { 
   MASSAR_ACTIVITIES, 
@@ -29,6 +31,17 @@ import {
   SchoolLevel
 } from '../utils/massarHelper';
 import { 
+  TARL_LEVELS, 
+  getTarlLevelMeta, 
+  detectTarlLevelFromString, 
+  convertMassarToTarlRows, 
+  exportTarlWorkbook, 
+  downloadBlankTarlTemplate 
+} from '../utils/tarlHelper';
+import { TarlConversionModal } from '../components/TarlConversionModal';
+import { TarlRosterView } from '../components/TarlRosterView';
+import { parseStudentExcel } from '../utils/excelHelper';
+import { 
   ExcelIcon, 
   ArrowDownTrayIcon, 
   ArrowUpTrayIcon, 
@@ -42,7 +55,8 @@ import {
   PencilSquareIcon,
   SparklesIcon,
   Cog6ToothIcon,
-  CheckIcon
+  CheckIcon,
+  ArrowsRightLeftIcon
 } from '../components/Icons';
 import { StudentAvatar } from '../components/StudentAvatar';
 import { QuickEvaluationModal } from '../components/QuickEvaluationModal';
@@ -59,11 +73,17 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
 }) => {
   const { language } = useLanguage();
 
-  // Scope and Display View states
+  // Scope, Format Mode, and Display View states
   const [scopeMode, setScopeMode] = useState<'level' | 'class'>('level');
   const [selectedLevelId, setSelectedLevelId] = useState<string>('');
   const [crossClassSearchEnabled, setCrossClassSearchEnabled] = useState(true);
+  const [listFormatMode, setListFormatMode] = useState<'massar' | 'tarl'>('massar');
   const [displayView, setDisplayView] = useState<'table' | 'roster'>('table');
+
+  // TaRL state
+  const [tarlStudents, setTarlStudents] = useState<TarlStudentRow[]>([]);
+  const [isTarlConversionModalOpen, setIsTarlConversionModalOpen] = useState(false);
+  const [tarlFilterLevel, setTarlFilterLevel] = useState<'all' | TarlLevelKey>('all');
 
   // Data states
   const [classList, setClassList] = useState<ClassStats[]>([]);
@@ -73,6 +93,8 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
   const [extraLevelTests, setExtraLevelTests] = useState<PhysicalTests[]>([]);
   const [extraLevelVma, setExtraLevelVma] = useState<StudentResult[]>([]);
   const [extraLevelRecords, setExtraLevelRecords] = useState<MassarGradeRecord[]>([]);
+  const [allGlobalTests, setAllGlobalTests] = useState<PhysicalTests[]>([]);
+  const [allGlobalVma, setAllGlobalVma] = useState<StudentResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Massar Configuration state
@@ -144,16 +166,23 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
     setImportedFileName('');
 
     if (scopeMode === 'level' && activeLevel) {
-      // Level Mode: Fetch all classes belonging to this level
+      // Level Mode: Fetch all classes belonging to this level + global tests for TaRL
       const lvlConfig = getMassarConfig(`level_${activeLevel.id}`);
       setConfig({ ...lvlConfig, className: activeLevel.name });
 
-      Promise.all(activeLevel.classes.map(cName => Promise.all([
-        getStudentList(cName),
-        getPhysicalTests(cName),
-        getVmaResults(cName),
-        Promise.resolve(getMassarGrades(cName))
-      ]))).then(results => {
+      Promise.all([
+        getAllPhysicalTests(),
+        getAllVmaResults(),
+        Promise.all(activeLevel.classes.map(cName => Promise.all([
+          getStudentList(cName),
+          getPhysicalTests(cName),
+          getVmaResults(cName),
+          Promise.resolve(getMassarGrades(cName))
+        ])))
+      ]).then(([allPTests, allVmaRes, results]) => {
+        setAllGlobalTests(allPTests || []);
+        setAllGlobalVma(allVmaRes || []);
+
         const combinedStudents: (StudentIdentity & { className: string })[] = [];
         const combinedTests: PhysicalTests[] = [];
         const combinedVma: StudentResult[] = [];
@@ -174,11 +203,18 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
         setExtraLevelVma(combinedVma);
         setExtraLevelRecords(combinedSavedGrades);
 
+        const extraData = {
+          tests: combinedTests,
+          vmaList: combinedVma,
+          allGlobalTests: allPTests || [],
+          allGlobalVma: allVmaRes || []
+        };
+
         if (combinedSavedGrades.length > 0) {
-          const merged = autoPopulateMassarGrades(combinedStudents, combinedTests, combinedVma, lvlConfig, combinedSavedGrades);
+          const merged = autoPopulateMassarGrades(combinedStudents, combinedTests, combinedVma, lvlConfig, combinedSavedGrades, extraData);
           setRecords(merged);
         } else {
-          const initial = autoPopulateMassarGrades(combinedStudents, combinedTests, combinedVma, lvlConfig);
+          const initial = autoPopulateMassarGrades(combinedStudents, combinedTests, combinedVma, lvlConfig, [], extraData);
           setRecords(initial);
           // persist initial
           activeLevel.classes.forEach(cName => {
@@ -195,7 +231,7 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
       });
 
     } else if (scopeMode === 'class' && selectedClass) {
-      // Single Class Mode: Fetch class data + load peer classes in background
+      // Single Class Mode: Fetch class data + global tests + load peer classes in background
       const loadedConfig = getMassarConfig(selectedClass);
       setConfig(loadedConfig);
 
@@ -205,6 +241,8 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
         .map(c => c.className);
 
       Promise.all([
+        getAllPhysicalTests(),
+        getAllVmaResults(),
         getStudentList(selectedClass),
         getPhysicalTests(selectedClass),
         getVmaResults(selectedClass),
@@ -213,7 +251,10 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
           getVmaResults(c),
           Promise.resolve(getMassarGrades(c))
         ])))
-      ]).then(([stds, tests, vma, peerData]) => {
+      ]).then(([allPTests, allVmaRes, stds, tests, vma, peerData]) => {
+        setAllGlobalTests(allPTests || []);
+        setAllGlobalVma(allVmaRes || []);
+
         setStudents(stds || []);
         setPhysicalTests(tests || []);
         setVmaResults(vma || []);
@@ -234,7 +275,12 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
         setExtraLevelRecords(peerGrades);
 
         const savedGrades = getMassarGrades(selectedClass);
-        const extraData = crossClassSearchEnabled ? { tests: peerTests, vmaList: peerVma } : undefined;
+        const extraData = {
+          tests: peerTests,
+          vmaList: peerVma,
+          allGlobalTests: allPTests || [],
+          allGlobalVma: allVmaRes || []
+        };
 
         if (savedGrades && savedGrades.length > 0) {
           const merged = autoPopulateMassarGrades(stds || [], tests || [], vma || [], loadedConfig, savedGrades, extraData);
@@ -253,6 +299,34 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
       });
     }
   }, [selectedClass, scopeMode, selectedLevelId, classList, crossClassSearchEnabled]);
+
+  // Keep TaRL students in sync with students and records
+  useEffect(() => {
+    if (students.length > 0) {
+      setTarlStudents(prev => {
+        const prevMap = new Map<string, TarlStudentRow>();
+        prev.forEach(p => prevMap.set(p.numeroEleve, p));
+
+        const targetClass = scopeMode === 'level' && activeLevel ? activeLevel.name : selectedClass;
+        const generated = convertMassarToTarlRows(students, records, targetClass);
+        return generated.map(gen => {
+          const old = prevMap.get(gen.numeroEleve);
+          if (old && (old.tarlLevel !== 'niveau_3' || old.tarlGroup || old.tarlRemediation)) {
+            return {
+              ...gen,
+              tarlLevel: old.tarlLevel,
+              tarlLevelLabel: old.tarlLevelLabel,
+              tarlGroup: old.tarlGroup || gen.tarlGroup,
+              tarlScore: old.tarlScore || gen.tarlScore,
+              tarlRemediation: old.tarlRemediation || gen.tarlRemediation,
+              observation: old.observation || gen.observation
+            };
+          }
+          return gen;
+        });
+      });
+    }
+  }, [students, records, selectedClass, scopeMode, activeLevel]);
 
   // Persist records to storage (handles level breakdown or single class)
   const persistRecords = (updatedRecords: MassarGradeRecord[]) => {
@@ -285,9 +359,14 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
 
   // One-click Auto Populate from App Tests
   const handleAutoPopulate = () => {
-    const extraData = (scopeMode === 'class' && crossClassSearchEnabled) || scopeMode === 'level'
-      ? { tests: extraLevelTests, vmaList: extraLevelVma }
-      : undefined;
+    const extraData = {
+      tests: scopeMode === 'level' ? extraLevelTests : physicalTests,
+      vmaList: scopeMode === 'level' ? extraLevelVma : vmaResults,
+      allGlobalTests,
+      allGlobalVma,
+      tarlStudents,
+      forceAutoFillFromTarl: false
+    };
 
     const studentListForPopulate = (importedResult?.fileStudents && importedResult.fileStudents.length > 0)
       ? importedResult.fileStudents
@@ -312,14 +391,68 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
     }
 
     const filledCount = populated.filter(r => !r.isDispense && (r.noteDevoir1 !== null || r.noteDevoir2 !== null || r.noteDevoir3 !== null)).length;
-    const crossClassCount = populated.filter(r => r.matchedFromClass).length;
+    const tarlCount = populated.filter(r => r.populatedFromTarl).length;
 
     const levelTitle = scopeMode === 'level' && activeLevel ? activeLevel.shortName : (detectClassLevel(selectedClass).shortName);
     setNotification({
-      message: `تم ملء نقط الفروض الثلاثة لـ ${filledCount} تلميذ بنجاح! ${crossClassCount > 0 ? `(تم جلب نقط ${crossClassCount} تلميذ من أقسام المستوى ${levelTitle})` : ''} ⚡`,
+      message: `تم ملء نقط الفروض الثلاثة لـ ${filledCount} تلميذ بنجاح! ${tarlCount > 0 ? `(يشمل ${tarlCount} تلميذ تم استيراد تقويماتهم واختباراتهم من طارل 🎯)` : ''} ⚡`,
       type: 'success'
     });
     setTimeout(() => setNotification(null), 5000);
+  };
+
+  // Dedicated Auto-Fill from TaRL Tests and Assessments
+  const handleAutoFillFromTarl = async () => {
+    setIsLoading(true);
+    try {
+      const allPTests = await getAllPhysicalTests();
+      const allVmaRes = await getAllVmaResults();
+      setAllGlobalTests(allPTests || []);
+      setAllGlobalVma(allVmaRes || []);
+
+      const extraData = {
+        tests: scopeMode === 'level' ? extraLevelTests : physicalTests,
+        vmaList: scopeMode === 'level' ? extraLevelVma : vmaResults,
+        allGlobalTests: allPTests || allGlobalTests,
+        allGlobalVma: allVmaRes || allGlobalVma,
+        tarlStudents,
+        forceAutoFillFromTarl: true
+      };
+
+      const studentListForPopulate = (importedResult?.fileStudents && importedResult.fileStudents.length > 0)
+        ? importedResult.fileStudents
+        : students;
+
+      const populated = autoPopulateMassarGrades(studentListForPopulate, physicalTests, vmaResults, config, records, extraData);
+      setRecords(populated);
+      persistRecords(populated);
+
+      if (importedFileBuffer) {
+        const res = fillImportedMassarExcel(
+          importedFileBuffer, 
+          studentListForPopulate, 
+          populated, 
+          config, 
+          importedFileName, 
+          extraLevelRecords
+        );
+        if (res.success) {
+          setImportedResult(res);
+        }
+      }
+
+      const tarlCount = populated.filter(r => r.populatedFromTarl).length;
+      setNotification({
+        message: `تم ملء لوائح مسار بالتقويمات والاختبارات البدنية التي قام بها التلاميذ عندما كانوا في لوائح طارل بنجاح (${tarlCount} تلميذ تم تحديثهم)! 🎯⚡`,
+        type: 'success'
+      });
+      setTimeout(() => setNotification(null), 6000);
+    } catch (err) {
+      console.error('AutoFill from TaRL error:', err);
+      setNotification({ message: 'حدث خطأ أثناء ملء بيانات طارل', type: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Apply Quick Preset for 3 activities
@@ -340,9 +473,14 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
       saveMassarConfig(selectedClass, updated);
     }
 
-    const extraData = (scopeMode === 'class' && crossClassSearchEnabled) || scopeMode === 'level'
-      ? { tests: extraLevelTests, vmaList: extraLevelVma }
-      : undefined;
+    const extraData = {
+      tests: (scopeMode === 'class' && crossClassSearchEnabled) || scopeMode === 'level' ? extraLevelTests : physicalTests,
+      vmaList: (scopeMode === 'class' && crossClassSearchEnabled) || scopeMode === 'level' ? extraLevelVma : vmaResults,
+      allGlobalTests,
+      allGlobalVma,
+      tarlStudents,
+      forceAutoFillFromTarl: false
+    };
 
     const studentListForPopulate = (importedResult?.fileStudents && importedResult.fileStudents.length > 0)
       ? importedResult.fileStudents
@@ -467,7 +605,7 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
     setTimeout(() => setNotification(null), 2500);
   };
 
-  // Handle Import of Blank Massar Excel File
+  // Handle Import of Blank Massar or TaRL Excel File
   const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -477,9 +615,63 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
       setImportedFileBuffer(buffer);
       setImportedFileName(file.name);
 
-      const extraData = (scopeMode === 'class' && crossClassSearchEnabled) || scopeMode === 'level'
-        ? { tests: extraLevelTests, vmaList: extraLevelVma }
-        : undefined;
+      const XLSX = (window as any).XLSX;
+      let isTarlFile = false;
+      if (XLSX) {
+        try {
+          const wb = XLSX.read(buffer, { type: 'array' });
+          const firstSheet = wb.Sheets[wb.SheetNames[0]];
+          const jsonText = JSON.stringify(XLSX.utils.sheet_to_json(firstSheet, { header: 1 })).toLowerCase();
+          const lowerName = file.name.toLowerCase();
+          if (
+            lowerName.includes('tarl') || 
+            file.name.includes('طارل') || 
+            jsonText.includes('طارل') || 
+            jsonText.includes('tarl') || 
+            jsonText.includes('مستوى طارل') || 
+            jsonText.includes('فوج طارل') || 
+            jsonText.includes('الرائز التشخيصي') ||
+            jsonText.includes('خطة الدعم')
+          ) {
+            isTarlFile = true;
+          }
+        } catch (e) {
+          console.warn('File inspection warning', e);
+        }
+      }
+
+      if (isTarlFile) {
+        const parsedGroups = parseStudentExcel(buffer);
+        if (parsedGroups.length > 0 && parsedGroups[0].students.length > 0) {
+          const importedStds = parsedGroups.flatMap(g => g.students);
+          setStudents(importedStds);
+          if (scopeMode === 'class' && selectedClass) {
+            saveStudentList(selectedClass, importedStds).catch(console.error);
+          }
+
+          const targetClass = scopeMode === 'level' && activeLevel ? activeLevel.name : selectedClass;
+          const tRows = convertMassarToTarlRows(importedStds, records, targetClass);
+          setTarlStudents(tRows);
+          setListFormatMode('tarl');
+
+          setNotification({
+            message: `تم استيراد لائحة طارل بنجاح (${importedStds.length} تلميذ)! تم تحويل التطبيق لإظهار «لوائح طارل». يمكنك الآن الضغط على زر «تحويل من طارل إلى مسار» لتحويل النقط فوراً لمسار! 🚀`,
+            type: 'success'
+          });
+          return;
+        }
+      }
+
+      // Otherwise proceed with official Massar file logic
+      setListFormatMode('massar');
+      const extraData = {
+        tests: (scopeMode === 'class' && crossClassSearchEnabled) || scopeMode === 'level' ? extraLevelTests : physicalTests,
+        vmaList: (scopeMode === 'class' && crossClassSearchEnabled) || scopeMode === 'level' ? extraLevelVma : vmaResults,
+        allGlobalTests,
+        allGlobalVma,
+        tarlStudents,
+        forceAutoFillFromTarl: false
+      };
 
       // First pass: inspect sheet and extract all students directly from the imported Excel
       const initialRes = fillImportedMassarExcel(
@@ -501,9 +693,12 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
       if (initialRes.fileStudents && initialRes.fileStudents.length > 0) {
         effectiveStudents = initialRes.fileStudents;
         setStudents(effectiveStudents);
+        if (scopeMode === 'class' && selectedClass) {
+          saveStudentList(selectedClass, effectiveStudents).catch(console.error);
+        }
       }
 
-      // Auto-populate grades for all students in the imported sheet across all level classes
+      // Auto-populate grades for all students in the imported sheet across all level classes & TaRL
       const populated = autoPopulateMassarGrades(effectiveStudents, physicalTests, vmaResults, config, records, extraData);
       setRecords(populated);
       persistRecords(populated);
@@ -523,15 +718,16 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
 
       const levelTitle = scopeMode === 'level' && activeLevel ? activeLevel.shortName : (detectClassLevel(selectedClass).shortName);
       const filledCountNow = populated.filter(r => !r.isDispense && (r.noteDevoir1 !== null || r.noteDevoir2 !== null || r.noteDevoir3 !== null)).length;
+      const tarlFilledCount = populated.filter(r => r.populatedFromTarl).length;
 
       if (res.matchedCount > 0 || filledCountNow > 0) {
         setNotification({
-          message: `تم استيراد ورقة مسار الأصلية بنجاح! تم إظهار ${effectiveStudents.length} تلميذ ومطابقة/ملء نقط ${Math.max(res.matchedCount, filledCountNow)} تلميذ تلقائياً بالبحث في أقسام المستوى (${levelTitle})! 📤 جاهز للتصدير.`,
+          message: `تم استيراد ورقة مسار الأصلية بنجاح! تم إظهار ${effectiveStudents.length} تلميذ ومطابقة/ملء نقط ${Math.max(res.matchedCount, filledCountNow)} تلميذ تلقائياً بالبحث في روائز المستوى واختبارات طارل (${levelTitle})${tarlFilledCount > 0 ? ` (بما فيها تقويمات واختبارات ${tarlFilledCount} تلميذ من طارل 🎯)` : ''}! 📤 جاهز للتصدير.`,
           type: 'success'
         });
       } else {
         setNotification({
-          message: `تم استيراد ورقة مسار بنجاح وتم إظهار ${effectiveStudents.length} تلميذ بالجدول. اضغط على "ملء تلقائي لنقط الفروض الثلاثة" للبحث عن نقطهم في روائز مادة التربية البدنية.`,
+          message: `تم استيراد ورقة مسار بنجاح وتم إظهار ${effectiveStudents.length} تلميذ بالجدول. اضغط على "ملء لوائح مسار بالتقويمات والاختبارات البدنية من طارل" للبحث عن نقطهم وملئها.`,
           type: 'info'
         });
       }
@@ -612,6 +808,81 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
     window.print();
   };
 
+  // Apply conversion from TaRL to Massar records
+  const handleApplyTarlConversion = (convertedRecords: MassarGradeRecord[]) => {
+    setRecords(convertedRecords);
+    persistRecords(convertedRecords);
+    if (scopeMode === 'class' && selectedClass) {
+      saveMassarGrades(selectedClass, convertedRecords);
+    } else if (scopeMode === 'level' && activeLevel) {
+      activeLevel.classes.forEach(cName => {
+        const subset = convertedRecords.filter(r => (r.className || '').trim() === cName);
+        if (subset.length > 0) saveMassarGrades(cName, subset);
+      });
+    }
+
+    setListFormatMode('massar');
+    setDisplayView('roster');
+    setNotification({
+      message: `تم بنجاح تحويل بيانات ${convertedRecords.length} تلميذ من طارل إلى لوائح مسار وملء نقط الفروض الثلاثة وملاحظات الأستاذ! جاهز للمعاينة والتصدير إلى مسار. 📤`,
+      type: 'success'
+    });
+  };
+
+  // Convert Massar grades into TaRL ability groups and levels
+  const handleConvertMassarToTarl = () => {
+    const targetClass = scopeMode === 'level' && activeLevel ? activeLevel.name : selectedClass;
+    const tRows = convertMassarToTarlRows(students, records, targetClass);
+    setTarlStudents(tRows);
+    setListFormatMode('tarl');
+    setNotification({
+      message: `تم تفييء وتوزيع ${tRows.length} تلميذ على مستويات وأفواج طارل (TaRL) بنجاح بناءً على نقط المراقبة المستمرة لمسار!`,
+      type: 'success'
+    });
+  };
+
+  // Export TaRL Excel file
+  const handleExportTarl = () => {
+    if (tarlStudents.length === 0) {
+      setNotification({ message: 'لا توجد بيانات تلاميذ في لائحة طارل لتصديرها.', type: 'error' });
+      return;
+    }
+    const targetLabel = scopeMode === 'level' && activeLevel ? activeLevel.shortName : selectedClass;
+    exportTarlWorkbook(targetLabel, tarlStudents, config.schoolYear, config.teacherName);
+    setNotification({
+      message: `تم تصدير لائحة طارل (${targetLabel}) بصيغة Excel بنجاح! 📊`,
+      type: 'success'
+    });
+  };
+
+  // Download Blank TaRL Template
+  const handleDownloadBlankTarl = () => {
+    const targetLabel = scopeMode === 'level' && activeLevel ? activeLevel.shortName : selectedClass;
+    downloadBlankTarlTemplate(targetLabel);
+    setNotification({
+      message: `تم تنزيل نموذج لائحة طارل فارغة لـ ${targetLabel}`,
+      type: 'success'
+    });
+  };
+
+  // Inline edit a TaRL student's level or group
+  const handleUpdateTarlStudent = (numeroEleve: string, updates: Partial<TarlStudentRow>) => {
+    setTarlStudents(prev => prev.map(t => {
+      if (t.numeroEleve === numeroEleve) {
+        const updated = { ...t, ...updates };
+        if (updates.tarlLevel) {
+          const meta = getTarlLevelMeta(updates.tarlLevel);
+          updated.tarlLevelLabel = meta.nameAr;
+          if (!updates.tarlRemediation) {
+            updated.tarlRemediation = meta.defaultRemediation;
+          }
+        }
+        return updated;
+      }
+      return t;
+    }));
+  };
+
   // Filtered students for display
   const filteredRecords = useMemo(() => {
     return records.filter(rec => {
@@ -642,6 +913,24 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
       return true;
     });
   }, [records, searchQuery, filterMode, config.rounding]);
+
+  // Filtered TaRL students for display
+  const filteredTarlStudents = useMemo(() => {
+    return tarlStudents.filter(t => {
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchName = t.nomEleve.toLowerCase().includes(q);
+        const matchCode = (t.codeMassar || '').toLowerCase().includes(q);
+        const matchNum = t.numeroEleve.toLowerCase().includes(q);
+        const matchGroup = (t.tarlGroup || '').toLowerCase().includes(q);
+        if (!matchName && !matchCode && !matchNum && !matchGroup) return false;
+      }
+      if (tarlFilterLevel !== 'all' && t.tarlLevel !== tarlFilterLevel) {
+        return false;
+      }
+      return true;
+    });
+  }, [tarlStudents, searchQuery, tarlFilterLevel]);
 
   // Count of students with populated grades
   const filledCount = useMemo(() => {
@@ -755,20 +1044,79 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
             <div>
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-lg font-black text-gray-900 dark:text-white">
-                  فضاء مسار (Massar)
+                  فضاء مسار وطارل (Massar & TaRL)
                 </h1>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                  رسمي
+                  مسار رسمي + طارل
                 </span>
               </div>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-                ملء، استيراد وتصدير لوائح إكسيل متوافقة مع مسار.
+                استيراد، ملء وتصدير لوائح مسار الرسمية، مع دعم لوائح طارل وتحويل البيانات بينهما بضغطة واحدة.
               </p>
             </div>
           </div>
 
-          {/* Quick Selectors (Scope, Level/Class & Semester & Settings) */}
+          {/* Quick Selectors & Master Format Switch */}
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Master Roster Format Switch: Massar Lists vs TaRL Lists */}
+            <div className="flex items-center bg-gray-100 dark:bg-gray-900 p-1 rounded-2xl border border-gray-200 dark:border-gray-700 text-xs font-black shadow-xs">
+              <button
+                onClick={() => setListFormatMode('massar')}
+                className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer ${
+                  listFormatMode === 'massar'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <span>📋 لوائح مسار</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">
+                  {records.length}
+                </span>
+              </button>
+              <button
+                onClick={() => setListFormatMode('tarl')}
+                className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer ${
+                  listFormatMode === 'tarl'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <span>🎯 لوائح طارل (TaRL)</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">
+                  {tarlStudents.length}
+                </span>
+              </button>
+            </div>
+
+            {/* Quick Action: Auto-fill from TaRL */}
+            <button
+              onClick={handleAutoFillFromTarl}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-amber-500 hover:bg-amber-600 text-gray-900 text-xs font-black shadow-xs transition cursor-pointer"
+              title="ملء لوائح مسار بالتقويمات والاختبارات البدنية التي أنجزها التلاميذ في لوائح طارل تلقائياً"
+            >
+              <BoltIcon className="w-4 h-4 text-gray-900" />
+              <span>⚡ ملء مسار من طارل</span>
+            </button>
+
+            {/* Quick Action: Convert TaRL to Massar */}
+            <button
+              onClick={() => setIsTarlConversionModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black shadow-xs transition cursor-pointer"
+              title="تحويل بيانات ومستويات التلاميذ من طارل إلى لوائح مسار وملء نقط الفروض الثلاثة"
+            >
+              <ArrowsRightLeftIcon className="w-4 h-4 text-amber-200" />
+              <span>تحويل من طارل إلى مسار</span>
+            </button>
+
+            {/* Quick Import Button */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 text-gray-700 dark:text-gray-300 text-xs font-black shadow-xs transition cursor-pointer"
+              title="استيراد ورقة مسار أو لائحة طارل بصيغة Excel"
+            >
+              <ArrowUpTrayIcon className="w-4 h-4 text-emerald-600" />
+              <span>استيراد Excel</span>
+            </button>
             {/* Scope Mode Switch: Level vs Single Class */}
             <div className="flex items-center bg-gray-100 dark:bg-gray-900 p-0.5 rounded-xl border border-gray-200 dark:border-gray-700 text-[10px] font-black shadow-xs">
               <button
@@ -887,6 +1235,30 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
         )}
       </div>
 
+      {/* Roster Display Format: TaRL Mode vs Massar Mode */}
+      {listFormatMode === 'tarl' ? (
+        <TarlRosterView
+          students={students}
+          tarlStudents={tarlStudents}
+          selectedClass={selectedClass}
+          scopeMode={scopeMode}
+          activeLevel={activeLevel}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          filterLevel={tarlFilterLevel}
+          setFilterLevel={setTarlFilterLevel}
+          onOpenConversionModal={() => setIsTarlConversionModalOpen(true)}
+          onConvertMassarToTarl={handleConvertMassarToTarl}
+          onExportTarl={handleExportTarl}
+          onDownloadBlankTarl={handleDownloadBlankTarl}
+          onTriggerImport={() => fileInputRef.current?.click()}
+          onUpdateTarlStudent={handleUpdateTarlStudent}
+          physicalTests={physicalTests.length > 0 ? physicalTests : allGlobalTests}
+          vmaList={vmaResults.length > 0 ? vmaResults : allGlobalVma}
+          onAutoFillMassarFromTarl={handleAutoFillFromTarl}
+        />
+      ) : (
+        <>
       {/* 3 Selected Activities Configuration Cards */}
       <div className="bg-gradient-to-br from-indigo-50/50 via-white to-emerald-50/40 dark:from-gray-800/80 dark:via-gray-800 dark:to-gray-800/60 rounded-3xl p-5 md:p-6 border border-indigo-100/80 dark:border-gray-700 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
@@ -1035,8 +1407,17 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
           </div>
         </div>
 
-        {/* Auto Fill Button - Centered on mobile */}
-        <div className="mt-4 flex items-center justify-center sm:justify-end">
+        {/* Auto Fill Buttons - Centered on mobile */}
+        <div className="mt-4 flex items-center justify-center sm:justify-end gap-2.5 flex-wrap">
+          <button
+            onClick={handleAutoFillFromTarl}
+            className="flex items-center justify-center gap-1.5 px-4 py-2 sm:px-5 sm:py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs sm:text-sm shadow-md shadow-amber-500/25 active:scale-95 transition cursor-pointer w-full sm:w-auto"
+            title="ملء لوائح مسار بالتقويمات والاختبارات البدنية التي قام بها التلاميذ عندما كانوا في لوائح طارل"
+          >
+            <BoltIcon className="w-4 h-4 text-white shrink-0" />
+            <span>ملء لوائح مسار بالتقويمات والاختبارات البدنية من طارل 🎯</span>
+          </button>
+
           <button
             onClick={handleAutoPopulate}
             className="flex items-center justify-center gap-1.5 px-4 py-2 sm:px-5 sm:py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-black text-xs sm:text-sm shadow-md shadow-indigo-500/25 active:scale-95 transition cursor-pointer w-full sm:w-auto"
@@ -1182,30 +1563,41 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
             )}
           </div>
 
-          {/* View Switcher: Interactive Table vs Official Massar Roster */}
-          <div className="flex items-center bg-gray-100 dark:bg-gray-800 p-1 rounded-2xl border border-gray-200 dark:border-gray-700 text-xs font-black shadow-xs self-start sm:self-auto">
+          {/* View Switcher: Interactive Table vs Official Massar Roster + Convert to TaRL */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center bg-gray-100 dark:bg-gray-800 p-1 rounded-2xl border border-gray-200 dark:border-gray-700 text-xs font-black shadow-xs self-start sm:self-auto">
+              <button
+                onClick={() => setDisplayView('table')}
+                className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
+                  displayView === 'table'
+                    ? 'bg-white dark:bg-gray-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <span>📋 جدول المسك والتعديل السريع</span>
+              </button>
+              <button
+                onClick={() => setDisplayView('roster')}
+                className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
+                  displayView === 'roster'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                <span>📜 كشف نقط مسار المعبأة (معاينة وطباعة)</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 text-white">
+                  {filledCount}
+                </span>
+              </button>
+            </div>
+
             <button
-              onClick={() => setDisplayView('table')}
-              className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
-                displayView === 'table'
-                  ? 'bg-white dark:bg-gray-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
+              onClick={handleConvertMassarToTarl}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-bold transition cursor-pointer"
+              title="تفييء التلاميذ وتوزيعهم على مجموعات طارل بناءً على نقط المراقبة"
             >
-              <span>📋 جدول المسك والتعديل السريع</span>
-            </button>
-            <button
-              onClick={() => setDisplayView('roster')}
-              className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
-                displayView === 'roster'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              <span>📜 كشف نقط مسار المعبأة (معاينة وطباعة)</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 text-white">
-                {filledCount}
-              </span>
+              <ArrowsRightLeftIcon className="w-3.5 h-3.5" />
+              <span>تفييء إلى طارل 🎯</span>
             </button>
           </div>
         </div>
@@ -1407,7 +1799,19 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
                           {rec.codeMassar || rec.numeroEleve}
                         </td>
                         <td className="py-2 px-3 font-bold text-gray-900 dark:text-white border-l border-gray-200 dark:border-gray-700">
-                          {rec.nomEleve}
+                          <div>{rec.nomEleve}</div>
+                          {rec.populatedFromTarl && (
+                            <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                                🎯 مأخوذ من طارل
+                              </span>
+                              {rec.tarlSourceDetails && (
+                                <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-normal truncate max-w-[200px]" title={rec.tarlSourceDetails}>
+                                  {rec.tarlSourceDetails}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
                         <td className="py-2 px-2 text-center border-l border-gray-200 dark:border-gray-700">
                           <span className="px-2 py-0.5 rounded font-bold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
@@ -1855,6 +2259,8 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
         </div>
       </div>
       )}
+      </>
+      )}
 
       {/* Settings Modal */}
       {isSettingsModalOpen && (
@@ -2019,6 +2425,21 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
             setNotification({ message: 'تم تحديث نقط مسار للتلميذ بنجاح!', type: 'success' });
             setTimeout(() => setNotification(null), 2500);
           }}
+        />
+      )}
+
+      {/* TaRL to Massar Conversion Modal */}
+      {isTarlConversionModalOpen && (
+        <TarlConversionModal
+          isOpen={isTarlConversionModalOpen}
+          onClose={() => setIsTarlConversionModalOpen(false)}
+          students={students}
+          tarlStudents={tarlStudents}
+          config={config}
+          existingRecords={records}
+          onApplyConversion={handleApplyTarlConversion}
+          physicalTests={physicalTests.length > 0 ? physicalTests : allGlobalTests}
+          vmaList={vmaResults.length > 0 ? vmaResults : allGlobalVma}
         />
       )}
     </div>

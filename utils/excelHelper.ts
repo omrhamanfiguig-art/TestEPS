@@ -185,59 +185,23 @@ export const parseStudentExcel = (data: ArrayBuffer): { students: StudentIdentit
 
     if (!json || json.length === 0) return;
 
-    let defaultClassName = sheetName; // Default to sheet name
-    
-    // Search for Class Name in top 15 rows
-    for (let i = 0; i < Math.min(json.length, 15); i++) {
-      const row = json[i];
-      if (!row) continue;
-      for (let j = 0; j < row.length; j++) {
-        const val = String(row[j] || '').trim();
-        const normVal = normalizeArabic(val);
-        if (normVal.includes('القسم') && !normVal.includes('اسم التلميذ')) {
-          const cleaned = val.replace(/القسم\s*[:：]/g, '').trim();
-          if (cleaned && cleaned.length > 0 && !cleaned.includes('المستوى') && !cleaned.includes('الأستاذ') && !cleaned.includes('المؤسسة')) {
-            defaultClassName = cleaned;
-          } else {
-            // Check adjacent cells (e.g. j+1, j+2, j+3) in the same row
-            for (let offset = 1; offset <= 4; offset++) {
-              const candidate = String(row[j + offset] || '').trim();
-              if (candidate && candidate.length > 0 && !candidate.includes(':') && !candidate.includes('الأستاذ') && !candidate.includes('المستوى') && !candidate.includes('المؤسسة')) {
-                defaultClassName = candidate;
-                break;
-              }
-            }
-          }
-          break;
-        } else if (normVal.includes('classe') && !normVal.includes('eleve')) {
-          const cleaned = val.replace(/classe\s*[:：]/gi, '').trim();
-          if (cleaned && cleaned.length > 0) {
-            defaultClassName = cleaned;
-          } else {
-            for (let offset = 1; offset <= 4; offset++) {
-              const candidate = String(row[j + offset] || '').trim();
-              if (candidate && candidate.length > 0 && !candidate.includes(':')) {
-                defaultClassName = candidate;
-                break;
-              }
-            }
-          }
-          break;
-        }
-      }
-      if (defaultClassName !== sheetName) break;
-    }
+    let defaultClassName = sheetName; // Name of the list is the sheet name in Excel
 
-    // Now find the best student header row
     let bestHeaderRowIndex = -1;
     let maxHeaderScore = 0;
     let colMap = {
       idCol: -1,
-      massarCol: -1,
+      massarCol: 1,      // Column B
       nameCol: -1,
-      sexCol: -1,
+      lastNameCol: 2,    // Column C (النسب)
+      firstNameCol: 3,   // Column D (الاسم)
+      sexCol: 4,         // Column E (الجنس)
       classCol: -1,
-      dobCol: -1
+      dobCol: 5,         // Column F (تاريخ الازدياد)
+      tarlLevelCol: -1,
+      tarlGroupCol: -1,
+      tarlScoreCol: -1,
+      tarlRemediationCol: -1
     };
 
     for (let r = 0; r < Math.min(json.length, 35); r++) {
@@ -248,9 +212,15 @@ export const parseStudentExcel = (data: ArrayBuffer): { students: StudentIdentit
       let idIdx = -1;
       let massarIdx = -1;
       let nameIdx = -1;
+      let lastNameIdx = -1;
+      let firstNameIdx = -1;
       let sexIdx = -1;
       let classIdx = -1;
       let dobIdx = -1;
+      let tarlLvlIdx = -1;
+      let tarlGrpIdx = -1;
+      let tarlScrIdx = -1;
+      let tarlRemIdx = -1;
 
       for (let c = 0; c < row.length; c++) {
         const cellRaw = String(row[c] || '').trim();
@@ -283,7 +253,19 @@ export const parseStudentExcel = (data: ArrayBuffer): { students: StudentIdentit
           score += 3;
         } 
         
-        // Student Name (handles إسم التلميذ, اسم التلميذ, الاسم والنسب, Nom, etc.)
+        // Last Name (النسب)
+        if (cellNorm.includes('النسب') || cellNorm.includes('نسب') || cellNorm === 'nom') {
+          lastNameIdx = c;
+          score += 4;
+        }
+
+        // First Name (الاسم)
+        if ((cellNorm.includes('الاسم') || cellNorm.includes('اسم') || cellNorm.includes('prenom')) && !cellNorm.includes('نسب')) {
+          firstNameIdx = c;
+          score += 4;
+        }
+
+        // Student Name (Full name or fallback)
         if (
           cellNorm.includes('إسم التلميذ') || 
           cellNorm.includes('اسم التلميذ') || 
@@ -291,8 +273,6 @@ export const parseStudentExcel = (data: ArrayBuffer): { students: StudentIdentit
           cellNorm.includes('اسم و نسب') || 
           cellNorm.includes('الاسم الكامل') || 
           cellNorm.includes('اسم الطالب') ||
-          cellNorm.includes('nom') || 
-          cellNorm.includes('prenom') || 
           cellNorm.includes('eleve') ||
           cellNorm.includes('etudiant')
         ) {
@@ -300,9 +280,6 @@ export const parseStudentExcel = (data: ArrayBuffer): { students: StudentIdentit
             nameIdx = c;
             score += 5;
           }
-        } else if ((cellNorm.includes('اسم') || cellNorm.includes('نسب')) && !cellNorm.includes('مؤسسة') && !cellNorm.includes('استاذ') && !cellNorm.includes('مادة') && !cellNorm.includes('قسم')) {
-          nameIdx = c;
-          score += 3;
         }
 
         // Gender
@@ -334,45 +311,48 @@ export const parseStudentExcel = (data: ArrayBuffer): { students: StudentIdentit
           classIdx = c;
           score += 1;
         }
+
+        // TaRL Level
+        if (cellNorm.includes('طارل') || cellNorm.includes('tarl')) {
+          score += 4;
+          if (cellNorm.includes('مستوى') || cellNorm.includes('niveau')) {
+            tarlLvlIdx = c;
+          } else if (cellNorm.includes('فوج') || cellNorm.includes('مجموعه') || cellNorm.includes('groupe')) {
+            tarlGrpIdx = c;
+          } else if (cellNorm.includes('نقط') || cellNorm.includes('رائز') || cellNorm.includes('score') || cellNorm.includes('note')) {
+            tarlScrIdx = c;
+          } else {
+            tarlLvlIdx = c;
+          }
+        } else if (cellNorm.includes('خطة الدعم') || cellNorm.includes('الاجراء العلاجي') || cellNorm.includes('معالجه') || cellNorm.includes('remediation')) {
+          tarlRemIdx = c;
+          score += 2;
+        }
       }
 
-      // If this row has both an ID/Massar column and a Name column, it's a confirmed table header!
-      if ((idIdx !== -1 || massarIdx !== -1) && nameIdx !== -1 && score > maxHeaderScore) {
+      if ((idIdx !== -1 || massarIdx !== -1 || lastNameIdx !== -1 || firstNameIdx !== -1 || nameIdx !== -1) && score > maxHeaderScore) {
         maxHeaderScore = score;
         bestHeaderRowIndex = r;
         colMap = {
-          idCol: idIdx !== -1 ? idIdx : massarIdx,
-          massarCol: massarIdx !== -1 ? massarIdx : idIdx,
+          idCol: idIdx !== -1 ? idIdx : (massarIdx !== -1 ? massarIdx : 1),
+          massarCol: massarIdx !== -1 ? massarIdx : 1,
           nameCol: nameIdx,
-          sexCol: sexIdx,
+          lastNameCol: lastNameIdx !== -1 ? lastNameIdx : 2,
+          firstNameCol: firstNameIdx !== -1 ? firstNameIdx : 3,
+          sexCol: sexIdx !== -1 ? sexIdx : 4,
           classCol: classIdx,
-          dobCol: dobIdx
+          dobCol: dobIdx !== -1 ? dobIdx : 5,
+          tarlLevelCol: tarlLvlIdx,
+          tarlGroupCol: tarlGrpIdx,
+          tarlScoreCol: tarlScrIdx,
+          tarlRemediationCol: tarlRemIdx
         };
       }
     }
 
-    let startRow = 0;
+    let startRow = 10; // Default start from row 11 (index 10) for Massar
     if (bestHeaderRowIndex !== -1) {
-      startRow = bestHeaderRowIndex + 1;
-    } else {
-      // Fallback: search for first row that looks like student data (has a Massar code or full name)
-      for (let r = 0; r < Math.min(json.length, 25); r++) {
-        const row = json[r];
-        if (!row) continue;
-        const rowStr = row.join(' ');
-        if (/[A-Z][0-9]{8,9}/i.test(rowStr) || (row.length >= 2 && !isForbiddenStudentName(String(row[1] || '')))) {
-          startRow = r;
-          break;
-        }
-      }
-      colMap = {
-        idCol: 0,
-        massarCol: 0,
-        nameCol: 1,
-        sexCol: 2,
-        classCol: -1,
-        dobCol: -1
-      };
+      startRow = Math.max(bestHeaderRowIndex + 1, 10);
     }
 
     let autoCounter = 1;
@@ -384,7 +364,14 @@ export const parseStudentExcel = (data: ArrayBuffer): { students: StudentIdentit
       // Extract raw values
       let id = colMap.idCol !== -1 && row[colMap.idCol] !== undefined ? String(row[colMap.idCol]).trim() : '';
       let massarCode = colMap.massarCol !== -1 && row[colMap.massarCol] !== undefined ? String(row[colMap.massarCol]).trim() : '';
-      let name = colMap.nameCol !== -1 && row[colMap.nameCol] !== undefined ? String(row[colMap.nameCol]).trim() : '';
+      let lastName = (colMap as any).lastNameCol !== undefined && (colMap as any).lastNameCol !== -1 && row[(colMap as any).lastNameCol] !== undefined ? String(row[(colMap as any).lastNameCol]).trim() : '';
+      let firstName = (colMap as any).firstNameCol !== undefined && (colMap as any).firstNameCol !== -1 && row[(colMap as any).firstNameCol] !== undefined ? String(row[(colMap as any).firstNameCol]).trim() : '';
+      let name = '';
+      if (lastName || firstName) {
+        name = `${lastName} ${firstName}`.trim();
+      } else if (colMap.nameCol !== -1 && row[colMap.nameCol] !== undefined) {
+        name = String(row[colMap.nameCol]).trim();
+      }
       let sexRaw = colMap.sexCol !== -1 && row[colMap.sexCol] !== undefined ? String(row[colMap.sexCol]).trim() : '';
 
       // If name is empty, try scanning row for a valid non-empty text string that is not forbidden
@@ -458,10 +445,22 @@ export const parseStudentExcel = (data: ArrayBuffer): { students: StudentIdentit
         }
       }
 
+      const tarlLvlVal = colMap.tarlLevelCol !== -1 && row[colMap.tarlLevelCol] !== undefined ? String(row[colMap.tarlLevelCol]).trim() : undefined;
+      const tarlGrpVal = colMap.tarlGroupCol !== -1 && row[colMap.tarlGroupCol] !== undefined ? String(row[colMap.tarlGroupCol]).trim() : undefined;
+      const tarlScrVal = colMap.tarlScoreCol !== -1 ? parseNumericCell(row[colMap.tarlScoreCol]) : undefined;
+      const tarlRemVal = colMap.tarlRemediationCol !== -1 && row[colMap.tarlRemediationCol] !== undefined ? String(row[colMap.tarlRemediationCol]).trim() : undefined;
+      const dobVal = colMap.dobCol !== -1 && row[colMap.dobCol] !== undefined ? String(row[colMap.dobCol]).trim() : undefined;
+
       const studentObj: StudentIdentity = {
         numeroEleve: finalId,
+        codeMassar: massarCode || (/^[A-Za-z][0-9]{8,10}$/.test(finalId) ? finalId : undefined),
         nomEleve: name,
-        sexe
+        sexe,
+        dateNaissance: dobVal,
+        tarlLevel: tarlLvlVal,
+        tarlGroup: tarlGrpVal,
+        tarlScore: tarlScrVal,
+        tarlRemediation: tarlRemVal
       };
 
       if (!resultsMap.has(rowClass)) {
