@@ -194,6 +194,9 @@ export const getActivityMeta = (key: MassarActivityKey): MassarActivityMeta => {
  * Applies rounding to a score
  */
 export const roundScore = (val: number, rounding: MassarClassConfig['rounding']): number => {
+  if (val === undefined || val === null || isNaN(val)) {
+    return 0;
+  }
   if (rounding === '0.25') {
     return Math.round(val * 4) / 4;
   }
@@ -1053,9 +1056,24 @@ export const autoPopulateMassarGrades = (
     const isDispense = existing?.isDispense ?? false;
     const isAbsent = existing?.isAbsent ?? false;
 
-    const n1 = isDispense ? null : (forceAuto && autoN1 !== null ? autoN1 : (existing?.noteDevoir1 ?? autoN1));
-    const n2 = isDispense ? null : (forceAuto && autoN2 !== null ? autoN2 : (existing?.noteDevoir2 ?? autoN2));
-    const n3 = isDispense ? null : (forceAuto && autoN3 !== null ? autoN3 : (existing?.noteDevoir3 ?? autoN3));
+    const sanitizeGrade = (val: any): number | null => {
+      if (val === null || val === undefined || val === '') return null;
+      const num = typeof val === 'number' ? val : Number(val);
+      if (isNaN(num)) return null;
+      return Math.min(20, Math.max(0, num));
+    };
+
+    const cleanAuto1 = sanitizeGrade(autoN1);
+    const cleanAuto2 = sanitizeGrade(autoN2);
+    const cleanAuto3 = sanitizeGrade(autoN3);
+
+    const rawN1 = forceAuto && cleanAuto1 !== null ? cleanAuto1 : (sanitizeGrade(existing?.noteDevoir1) ?? cleanAuto1);
+    const rawN2 = forceAuto && cleanAuto2 !== null ? cleanAuto2 : (sanitizeGrade(existing?.noteDevoir2) ?? cleanAuto2);
+    const rawN3 = forceAuto && cleanAuto3 !== null ? cleanAuto3 : (sanitizeGrade(existing?.noteDevoir3) ?? cleanAuto3);
+
+    const n1 = isDispense ? null : rawN1;
+    const n2 = isDispense ? null : rawN2;
+    const n3 = isDispense ? null : rawN3;
 
     const avg = calculateMassarAverage(n1, n2, n3, config.rounding);
     const defaultRemarque = getMassarAppreciation(avg, isDispense, isAbsent);

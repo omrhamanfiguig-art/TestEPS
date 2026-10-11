@@ -353,7 +353,14 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
         setTimeout(() => setSaveStatus('idle'), 2500);
     };
 
-    // Helper functions to prevent React "Received NaN for the defaultValue attribute" error
+    // Helper functions to prevent React "Received NaN for the defaultValue or value attribute" error
+    const toSafeInputValue = (val: any): string | number => {
+        if (val === undefined || val === null || val === '') return '';
+        const num = typeof val === 'number' ? val : Number(val);
+        if (isNaN(num)) return '';
+        return num;
+    };
+
     const toSafeDefaultValue = (val: any): string | number => {
         if (val === undefined || val === null || val === '') return '';
         const num = typeof val === 'number' ? val : Number(val);
@@ -1938,7 +1945,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                             step="0.1"
                                             min="0"
                                             max="30"
-                                            value={formData.vma ?? ''}
+                                            value={toSafeInputValue(formData.vma)}
                                             onChange={e => handleInputChange('vma', e.target.value)}
                                             placeholder=""
                                             className="w-44 px-4 py-2.5 rounded-xl border border-amber-300 dark:bg-gray-700 dark:border-amber-600 font-extrabold text-lg text-amber-700 dark:text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-sm font-mono text-center"
@@ -1963,7 +1970,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                             <input 
                                                 type="number" 
                                                 step="0.01" 
-                                                value={formData.vitesse30m ?? ''} 
+                                                value={toSafeInputValue(formData.vitesse30m)} 
                                                 onChange={e => handleInputChange('vitesse30m', e.target.value)}
                                                 placeholder=""
                                                 className="w-full rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 py-2 px-3 text-sm text-center font-bold" 
@@ -1975,7 +1982,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                             <input 
                                                 type="number" 
                                                 step="0.01" 
-                                                value={formData.vitesse100m ?? ''} 
+                                                value={toSafeInputValue(formData.vitesse100m)} 
                                                 onChange={e => handleInputChange('vitesse100m', e.target.value)}
                                                 placeholder=""
                                                 className="w-full rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 py-2 px-3 text-sm text-center font-bold" 
@@ -1987,7 +1994,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                             <input 
                                                 type="number" 
                                                 step="1" 
-                                                value={formData.sautHorizontal ?? ''} 
+                                                value={toSafeInputValue(formData.sautHorizontal)} 
                                                 onChange={e => handleInputChange('sautHorizontal', e.target.value)}
                                                 placeholder=""
                                                 className="w-full rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 py-2 px-3 text-sm text-center font-bold" 
@@ -1999,7 +2006,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                             <input 
                                                 type="number" 
                                                 step="0.01" 
-                                                value={formData.lancerMedball ?? ''} 
+                                                value={toSafeInputValue(formData.lancerMedball)} 
                                                 onChange={e => handleInputChange('lancerMedball', e.target.value)}
                                                 placeholder=""
                                                 className="w-full rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 py-2 px-3 text-sm text-center font-bold" 
@@ -2019,7 +2026,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                             <input 
                                                 type="number" 
                                                 step="0.5" 
-                                                value={formData.souplesseAssis ?? ''} 
+                                                value={toSafeInputValue(formData.souplesseAssis)} 
                                                 onChange={e => handleInputChange('souplesseAssis', e.target.value)}
                                                 placeholder=""
                                                 className="w-full rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 py-2 px-3 text-sm text-center font-bold" 
@@ -2031,7 +2038,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                             <input 
                                                 type="number" 
                                                 step="0.5" 
-                                                value={formData.souplesseDebout ?? ''} 
+                                                value={toSafeInputValue(formData.souplesseDebout)} 
                                                 onChange={e => handleInputChange('souplesseDebout', e.target.value)}
                                                 placeholder=""
                                                 className="w-full rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 py-2 px-3 text-sm text-center font-bold" 
@@ -2043,7 +2050,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                             <input 
                                                 type="number" 
                                                 step="0.5" 
-                                                value={formData.equilibreStatique ?? ''} 
+                                                value={toSafeInputValue(formData.equilibreStatique)} 
                                                 onChange={e => handleInputChange('equilibreStatique', e.target.value)}
                                                 placeholder=""
                                                 className="w-full rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 py-2 px-3 text-sm text-center font-bold" 
@@ -2063,7 +2070,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                             <input 
                                                 type="number" 
                                                 step="1" 
-                                                value={formData.sautVertical ?? ''} 
+                                                value={toSafeInputValue(formData.sautVertical)} 
                                                 onChange={e => handleInputChange('sautVertical', e.target.value)}
                                                 placeholder=""
                                                 className="w-full rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 py-2 px-3 text-sm text-center font-bold" 
@@ -2127,7 +2134,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                         type="number" 
                                                         step="0.01"
                                                         placeholder="0.00"
-                                                        value={formData.sautLong ?? ''} 
+                                                        value={toSafeInputValue(formData.sautLong)} 
                                                         onChange={e => handleInputChange('sautLong', e.target.value)}
                                                         className="w-full rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 py-2 px-2 text-sm text-center font-bold" 
                                                     />
@@ -2154,7 +2161,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                         type="number" 
                                                         step="0.01" 
                                                         placeholder="0.00" 
-                                                        value={formData.lancerPoids ?? ''} 
+                                                        value={toSafeInputValue(formData.lancerPoids)} 
                                                         onChange={e => handleInputChange('lancerPoids', e.target.value)} 
                                                         className="w-full rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 py-2 px-2 text-sm text-center font-bold" 
                                                     />

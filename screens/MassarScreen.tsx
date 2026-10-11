@@ -60,6 +60,7 @@ import {
 } from '../components/Icons';
 import { StudentAvatar } from '../components/StudentAvatar';
 import { QuickEvaluationModal } from '../components/QuickEvaluationModal';
+import { PrintPreviewModal, PrintPreviewColumn } from '../components/PrintPreviewModal';
 import { useLanguage } from '../utils/i18n';
 
 interface MassarScreenProps {
@@ -115,7 +116,8 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
   const [isQuickEvalOpen, setIsQuickEvalOpen] = useState(false);
   const [quickEvalStudentNumber, setQuickEvalStudentNumber] = useState<string | null>(null);
 
-  // Settings & Feedback state
+  // Settings, Print Preview & Feedback state
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [editingMassarCodeNum, setEditingMassarCodeNum] = useState<string | null>(null);
@@ -533,7 +535,8 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
     setRecords(prev => {
       const updated = prev.map(rec => {
         if (rec.numeroEleve === studentNum) {
-          const current = rec[field] ?? 10;
+          const raw = rec[field];
+          const current = (raw !== null && raw !== undefined && !isNaN(raw)) ? raw : 10;
           const nextVal = Math.min(20, Math.max(0, Math.round((current + delta) * 4) / 4));
           const newRec = { ...rec, [field]: nextVal };
           const avg = calculateMassarAverage(newRec.noteDevoir1, newRec.noteDevoir2, newRec.noteDevoir3, config.rounding);
@@ -803,9 +806,9 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
     }
   };
 
-  // Printable view
+  // Open PDF / Formatted Print Preview modal
   const handlePrint = () => {
-    window.print();
+    setIsPrintPreviewOpen(true);
   };
 
   // Apply conversion from TaRL to Massar records
@@ -1000,6 +1003,37 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
   const act1Meta = getActivityMeta(config.activity1);
   const act2Meta = getActivityMeta(config.activity2);
   const act3Meta = getActivityMeta(config.activity3);
+
+  // Print Preview Columns & Data Preparation for PDF Export
+  const printColumns: PrintPreviewColumn[] = useMemo(() => [
+    { key: 'codeMassar', label: 'رقم مسار', width: '110px', align: 'center' },
+    { key: 'nomEleve', label: 'الاسم والنسب', width: '180px', align: 'right' },
+    { key: 'className', label: 'القسم', width: '80px', align: 'center' },
+    { key: 'note1', label: `الفرض 1 (${config.activity1CustomLabel || act1Meta.shortAr})`, width: '100px', align: 'center' },
+    { key: 'note2', label: `الفرض 2 (${config.activity2CustomLabel || act2Meta.shortAr})`, width: '100px', align: 'center' },
+    { key: 'note3', label: `الفرض 3 (${config.activity3CustomLabel || act3Meta.shortAr})`, width: '100px', align: 'center' },
+    { key: 'moyenne', label: 'معدل المراقبة', width: '90px', align: 'center' },
+    { key: 'remarque', label: 'ملاحظات الأستاذ', width: '170px', align: 'right' },
+  ], [config, act1Meta, act2Meta, act3Meta]);
+
+  const printData = useMemo(() => {
+    return filteredRecords.map((rec) => {
+      const avg = calculateMassarAverage(rec.noteDevoir1, rec.noteDevoir2, rec.noteDevoir3, config.rounding);
+      const studentClass = rec.className || (scopeMode === 'class' ? selectedClass : (activeLevel?.name || ''));
+      return {
+        codeMassar: rec.codeMassar || rec.numeroEleve,
+        nomEleve: rec.nomEleve,
+        className: studentClass,
+        note1: rec.isDispense ? 'معفى' : (rec.noteDevoir1 !== null && rec.noteDevoir1 !== undefined && !isNaN(rec.noteDevoir1) ? rec.noteDevoir1 : '-'),
+        note2: rec.isDispense ? 'معفى' : (rec.noteDevoir2 !== null && rec.noteDevoir2 !== undefined && !isNaN(rec.noteDevoir2) ? rec.noteDevoir2 : '-'),
+        note3: rec.isDispense ? 'معفى' : (rec.noteDevoir3 !== null && rec.noteDevoir3 !== undefined && !isNaN(rec.noteDevoir3) ? rec.noteDevoir3 : '-'),
+        moyenne: rec.isDispense ? 'معفى' : (avg !== null && !isNaN(avg) ? avg.toFixed(2) : '-'),
+        remarque: rec.remarque || getMassarAppreciation(avg, rec.isDispense, rec.isAbsent)
+      };
+    });
+  }, [filteredRecords, config.rounding, scopeMode, selectedClass, activeLevel]);
+
+  const targetClassOrLevelLabel = scopeMode === 'level' && activeLevel ? activeLevel.name : selectedClass;
 
   return (
     <div className="p-3 sm:p-5 md:p-8 max-w-7xl mx-auto flex flex-col gap-6" dir="rtl">
@@ -1256,6 +1290,7 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
           physicalTests={physicalTests.length > 0 ? physicalTests : allGlobalTests}
           vmaList={vmaResults.length > 0 ? vmaResults : allGlobalVma}
           onAutoFillMassarFromTarl={handleAutoFillFromTarl}
+          onPrint={handlePrint}
         />
       ) : (
         <>
@@ -1461,13 +1496,14 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
         </div>
 
         <div className="flex items-center justify-center gap-2 w-full sm:w-auto">
-          {/* Printable Sheet */}
+          {/* Printable Sheet / PDF Export */}
           <button
             onClick={handlePrint}
-            className="inline-flex items-center justify-center gap-1 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-[11px] sm:text-xs font-bold transition cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 text-[11px] sm:text-xs font-black transition active:scale-95 shadow-xs cursor-pointer"
+            title="معاينة لائحة نقط الفروض وطباعتها أو استخراجها كملف PDF منسق"
           >
             <PrinterIcon className="w-3.5 h-3.5 shrink-0" />
-            <span>طباعة المحضر</span>
+            <span>معاينة وطباعة / استخراج PDF 🖨️</span>
           </button>
         </div>
       </div>
@@ -1727,10 +1763,11 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={handlePrint}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs font-black shadow-xs hover:opacity-90 transition cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-xs hover:opacity-95 transition cursor-pointer"
+                title="معاينة لائحة نقط الفروض وطباعتها أو حفظها كـ PDF"
               >
                 <PrinterIcon className="w-4 h-4" />
-                <span>طباعة هذا الكشف الرسمي 🖨️</span>
+                <span>معاينة قبل الطباعة / استخراج PDF 📑</span>
               </button>
 
               <button
@@ -1821,7 +1858,7 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
                         <td className="py-2 px-2.5 text-center font-black border-l border-gray-200 dark:border-gray-700 bg-indigo-50/20 dark:bg-indigo-950/10">
                           {rec.isDispense ? (
                             <span className="text-amber-600 font-bold">معفى</span>
-                          ) : rec.noteDevoir1 !== null && rec.noteDevoir1 !== undefined ? (
+                          ) : rec.noteDevoir1 !== null && rec.noteDevoir1 !== undefined && !isNaN(rec.noteDevoir1) ? (
                             <span className="text-indigo-700 dark:text-indigo-300 bg-indigo-100/70 dark:bg-indigo-950 px-2 py-0.5 rounded font-black">
                               {rec.noteDevoir1}
                             </span>
@@ -1832,7 +1869,7 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
                         <td className="py-2 px-2.5 text-center font-black border-l border-gray-200 dark:border-gray-700 bg-purple-50/20 dark:bg-purple-950/10">
                           {rec.isDispense ? (
                             <span className="text-amber-600 font-bold">معفى</span>
-                          ) : rec.noteDevoir2 !== null && rec.noteDevoir2 !== undefined ? (
+                          ) : rec.noteDevoir2 !== null && rec.noteDevoir2 !== undefined && !isNaN(rec.noteDevoir2) ? (
                             <span className="text-purple-700 dark:text-purple-300 bg-purple-100/70 dark:bg-purple-950 px-2 py-0.5 rounded font-black">
                               {rec.noteDevoir2}
                             </span>
@@ -1843,7 +1880,7 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
                         <td className="py-2 px-2.5 text-center font-black border-l border-gray-200 dark:border-gray-700 bg-amber-50/20 dark:bg-amber-950/10">
                           {rec.isDispense ? (
                             <span className="text-amber-600 font-bold">معفى</span>
-                          ) : rec.noteDevoir3 !== null && rec.noteDevoir3 !== undefined ? (
+                          ) : rec.noteDevoir3 !== null && rec.noteDevoir3 !== undefined && !isNaN(rec.noteDevoir3) ? (
                             <span className="text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-950 px-2 py-0.5 rounded font-black">
                               {rec.noteDevoir3}
                             </span>
@@ -2089,11 +2126,11 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
                               step="0.25"
                               min="0"
                               max="20"
-                              value={rec.noteDevoir1 !== null && rec.noteDevoir1 !== undefined ? rec.noteDevoir1 : ''}
+                              value={rec.noteDevoir1 !== null && rec.noteDevoir1 !== undefined && !isNaN(rec.noteDevoir1) ? rec.noteDevoir1 : ''}
                               onChange={(e) => handleGradeChange(rec.numeroEleve, 'noteDevoir1', e.target.value)}
                               placeholder="-"
                               className={`w-14 text-center font-black text-sm py-1 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                                rec.noteDevoir1 !== null && rec.noteDevoir1 !== undefined 
+                                rec.noteDevoir1 !== null && rec.noteDevoir1 !== undefined && !isNaN(rec.noteDevoir1)
                                   ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200' 
                                   : 'bg-white dark:bg-gray-900 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300'
                               }`}
@@ -2127,11 +2164,11 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
                               step="0.25"
                               min="0"
                               max="20"
-                              value={rec.noteDevoir2 !== null && rec.noteDevoir2 !== undefined ? rec.noteDevoir2 : ''}
+                              value={rec.noteDevoir2 !== null && rec.noteDevoir2 !== undefined && !isNaN(rec.noteDevoir2) ? rec.noteDevoir2 : ''}
                               onChange={(e) => handleGradeChange(rec.numeroEleve, 'noteDevoir2', e.target.value)}
                               placeholder="-"
                               className={`w-14 text-center font-black text-sm py-1 rounded-lg border focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                                rec.noteDevoir2 !== null && rec.noteDevoir2 !== undefined 
+                                rec.noteDevoir2 !== null && rec.noteDevoir2 !== undefined && !isNaN(rec.noteDevoir2)
                                   ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200' 
                                   : 'bg-white dark:bg-gray-900 border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300'
                               }`}
@@ -2165,11 +2202,11 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
                               step="0.25"
                               min="0"
                               max="20"
-                              value={rec.noteDevoir3 !== null && rec.noteDevoir3 !== undefined ? rec.noteDevoir3 : ''}
+                              value={rec.noteDevoir3 !== null && rec.noteDevoir3 !== undefined && !isNaN(rec.noteDevoir3) ? rec.noteDevoir3 : ''}
                               onChange={(e) => handleGradeChange(rec.numeroEleve, 'noteDevoir3', e.target.value)}
                               placeholder="-"
                               className={`w-14 text-center font-black text-sm py-1 rounded-lg border focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                                rec.noteDevoir3 !== null && rec.noteDevoir3 !== undefined 
+                                rec.noteDevoir3 !== null && rec.noteDevoir3 !== undefined && !isNaN(rec.noteDevoir3)
                                   ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200' 
                                   : 'bg-white dark:bg-gray-900 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300'
                               }`}
@@ -2440,6 +2477,24 @@ export const MassarScreen: React.FC<MassarScreenProps> = ({
           onApplyConversion={handleApplyTarlConversion}
           physicalTests={physicalTests.length > 0 ? physicalTests : allGlobalTests}
           vmaList={vmaResults.length > 0 ? vmaResults : allGlobalVma}
+        />
+      )}
+
+      {/* Print Preview & PDF Export Modal */}
+      {isPrintPreviewOpen && (
+        <PrintPreviewModal
+          isOpen={isPrintPreviewOpen}
+          onClose={() => setIsPrintPreviewOpen(false)}
+          title={`كشف نقط المراقبة المستمرة (الفروض الثلاثة) - ${targetClassOrLevelLabel}`}
+          subtitle={`مادة التربية البدنية والرياضية • ${config.schoolName || 'المؤسسة التعليمية'}`}
+          institutionName={config.direction ? `وزارة التربية الوطنية والتعليم الأولي والرياضة • ${config.direction}` : 'المملكة المغربية • وزارة التربية الوطنية والتعليم الأولي والرياضة'}
+          academicYear={`الموسم الدراسي: ${config.schoolYear || '2025/2026'} | الأسدوس: ${config.semestre === 1 ? 'الأول' : 'الثاني'}`}
+          columns={printColumns}
+          data={printData}
+          summaryBadge={`إجمالي التلاميذ: ${printData.length} | نسبة النجاح: ${stats.successRate}% | المعدل العام: ${stats.globalAvg}/20`}
+          signature1Title="توقيع وختم رئيس المؤسسة التعليمية"
+          signature2Title={`توقيع أستاذ(ة) المادة${config.teacherName ? `: ${config.teacherName}` : ''}`}
+          onExportExcel={handleExportMassar}
         />
       )}
     </div>

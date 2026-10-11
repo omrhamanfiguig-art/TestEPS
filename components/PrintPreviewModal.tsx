@@ -28,6 +28,9 @@ export interface PrintPreviewModalProps {
   reportText?: string;
   reportImageUrl?: string;
   onExportExcel?: () => void;
+  signature1Title?: string;
+  signature2Title?: string;
+  summaryBadge?: string;
 }
 
 export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
@@ -41,7 +44,10 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
   data,
   reportText,
   reportImageUrl,
-  onExportExcel
+  onExportExcel,
+  signature1Title = 'توقيع وختم رئيس المؤسسة / الإدارة',
+  signature2Title = 'توقيع أستاذ(ة) مادة التربية البدنية والرياضية',
+  summaryBadge
 }) => {
   // Customizable print options state
   const [docTitle, setDocTitle] = useState(initialTitle);
@@ -453,11 +459,13 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
               <h1 className="font-black text-base sm:text-lg md:text-xl tracking-tight leading-snug">
                 {docTitle}
               </h1>
-              {data.length > 0 && (
-                <div className="text-[11px] sm:text-xs font-bold mt-1 opacity-90">
-                  إجمالي المسجلين: {data.length} مشارك ومشاركة
-                </div>
-              )}
+              <div className="text-[11px] sm:text-xs font-bold mt-1 opacity-90 flex items-center justify-center gap-2 flex-wrap">
+                {summaryBadge ? (
+                  <span>{summaryBadge}</span>
+                ) : data.length > 0 ? (
+                  <span>إجمالي التلاميذ / المشاركين: {data.length}</span>
+                ) : null}
+              </div>
             </div>
 
             {/* Optional Report Content if present */}
@@ -518,11 +526,11 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
             {showSignatures && (
               <div className="mt-8 sm:mt-12 pt-4 sm:pt-6 border-t border-slate-300 grid grid-cols-2 gap-4 sm:gap-8 text-center text-[10px] sm:text-xs font-black text-slate-800">
                 <div className="space-y-6 sm:space-y-12">
-                  <div>توقيع وختم رئيس الجمعية الرياضية المدرسية</div>
+                  <div>{signature1Title}</div>
                   <div className="h-8 text-slate-300 text-[10px] overflow-hidden">.........................................................</div>
                 </div>
                 <div className="space-y-6 sm:space-y-12">
-                  <div>توقيع الأستاذ(ة) المشرف(ة)</div>
+                  <div>{signature2Title}</div>
                   <div className="h-8 text-slate-300 text-[10px] overflow-hidden">.........................................................</div>
                 </div>
               </div>

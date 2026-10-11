@@ -26,6 +26,10 @@ import {
 } from '../components/Icons';
 import { StudentAvatar } from '../components/StudentAvatar';
 import { QuickEvaluationModal } from '../components/QuickEvaluationModal';
+import { PrintPreviewModal, PrintPreviewColumn } from '../components/PrintPreviewModal';
+import { 
+  PrinterIcon
+} from '../components/Icons';
 import { 
   getGradingDistribution,
   GradingDistribution,
@@ -111,6 +115,14 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Helper to prevent React "Received NaN for the value attribute" warning
+  const toSafeVal = (val: any): string | number => {
+    if (val === undefined || val === null || val === '') return '';
+    const num = typeof val === 'number' ? val : Number(val);
+    if (isNaN(num)) return '';
+    return num;
+  };
+
   // Evaluation Sub-space state
   const [activeTab, setActiveTab] = useState<'team_games' | 'gymnastics' | 'athletics_sprint' | 'athletics_shot_put' | 'athletics_long_jump'>('team_games');
   const [sprintDistance, setSprintDistance] = useState<'60m' | '80m' | '100m' | '30m'>('60m');
@@ -126,9 +138,10 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
   // Interactive Calculator Modals/States
   const [activeCalculatorStudent, setActiveCalculatorStudent] = useState<string | null>(null);
 
-  // Quick Evaluation Modal State
+  // Quick Evaluation & Print Preview Modal State
   const [isQuickEvalOpen, setIsQuickEvalOpen] = useState(false);
   const [quickEvalStudentNumber, setQuickEvalStudentNumber] = useState<string | null>(null);
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
 
   // Gymnastics Difficulty Details Popover State
   const [expandedDiffDetailsStudent, setExpandedDiffDetailsStudent] = useState<string | null>(null);
@@ -863,6 +876,77 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
     }
   };
 
+  // Prepare columns and data for PDF Print Preview
+  const printColumns: PrintPreviewColumn[] = useMemo(() => {
+    if (activeTab === 'team_games') {
+      const activeSportLabel = sports.find(sp => sp.id === currentSport)?.labelAr || 'الرياضة الجماعية';
+      return [
+        { key: 'numeroEleve', label: 'ر.ت', width: '60px', align: 'center' },
+        { key: 'nomEleve', label: 'الاسم والنسب', width: '180px', align: 'right' },
+        { key: 'sexe', label: 'الجنس', width: '60px', align: 'center' },
+        { key: 'sport', label: 'النشاط', width: '90px', align: 'center' },
+        { key: 'techIndiv', label: 'فردي (/6)', width: '75px', align: 'center' },
+        { key: 'collectif', label: `جماعي (/${teamPlayMax})`, width: '85px', align: 'center' },
+        { key: 'motrice', label: `حركي (/${teamGamesMotriceMax})`, width: '85px', align: 'center' },
+        { key: 'comportement', label: `سلوكي (/${gradingDist.comportement})`, width: '85px', align: 'center' },
+        { key: 'cognitive', label: `معرفي (/${gradingDist.cognitive})`, width: '85px', align: 'center' },
+        { key: 'total', label: 'المعدل (/20)', width: '95px', align: 'center' },
+        { key: 'observation', label: 'ملاحظات', width: '140px', align: 'right' },
+      ];
+    } else {
+      return [
+        { key: 'numeroEleve', label: 'ر.ت', width: '60px', align: 'center' },
+        { key: 'nomEleve', label: 'الاسم والنسب', width: '180px', align: 'right' },
+        { key: 'sexe', label: 'الجنس', width: '60px', align: 'center' },
+        { key: 'diffTotal', label: 'صعوبة (/6)', width: '80px', align: 'center' },
+        { key: 'exigences', label: 'متطلبات (/1.5)', width: '85px', align: 'center' },
+        { key: 'enchainement', label: 'ربط (/0.5)', width: '80px', align: 'center' },
+        { key: 'execution', label: 'تنفيذ (/2)', width: '75px', align: 'center' },
+        { key: 'motrice', label: `حركي (/${teamGamesMotriceMax})`, width: '85px', align: 'center' },
+        { key: 'comportement', label: `سلوكي (/${gradingDist.comportement})`, width: '85px', align: 'center' },
+        { key: 'cognitive', label: `معرفي (/${gradingDist.cognitive})`, width: '85px', align: 'center' },
+        { key: 'total', label: 'المعدل (/20)', width: '95px', align: 'center' },
+      ];
+    }
+  }, [activeTab, currentSport, sports, teamPlayMax, teamGamesMotriceMax, gradingDist]);
+
+  const printData = useMemo(() => {
+    return filteredStudents.map(s => {
+      const test = physicalTests.find(t => t.numeroEleve === s.numeroEleve);
+      if (activeTab === 'team_games') {
+        const sportEval = getStudentSportEvaluation(test, currentSport);
+        const activeSportLabel = sports.find(sp => sp.id === currentSport)?.labelAr || 'الرياضة الجماعية';
+        return {
+          numeroEleve: s.numeroEleve,
+          nomEleve: s.nomEleve,
+          sexe: s.sexe === 'F' ? 'أنثى' : 'ذكر',
+          sport: sportEval?.sportName || activeSportLabel,
+          techIndiv: sportEval?.techIndiv !== undefined ? sportEval.techIndiv : '-',
+          collectif: sportEval?.collectif !== undefined ? sportEval.collectif : '-',
+          motrice: sportEval?.motrice !== undefined ? sportEval.motrice : '-',
+          comportement: sportEval?.comportement !== undefined ? sportEval.comportement : '-',
+          cognitive: sportEval?.cognitive !== undefined ? sportEval.cognitive : '-',
+          total: sportEval?.totalScore !== undefined ? sportEval.totalScore : '-',
+          observation: sportEval?.observation || '-'
+        };
+      } else {
+        return {
+          numeroEleve: s.numeroEleve,
+          nomEleve: s.nomEleve,
+          sexe: s.sexe === 'F' ? 'أنثى' : 'ذكر',
+          diffTotal: test?.gymScoreDifficultes !== undefined ? test.gymScoreDifficultes : '-',
+          exigences: test?.gymScoreExigences !== undefined ? test.gymScoreExigences : '-',
+          enchainement: test?.gymScoreEnchainement !== undefined ? test.gymScoreEnchainement : '-',
+          execution: test?.gymScoreExecution !== undefined ? test.gymScoreExecution : '-',
+          motrice: test?.gymNoteMotrice !== undefined ? test.gymNoteMotrice : '-',
+          comportement: test?.gymNoteComportement !== undefined ? test.gymNoteComportement : '-',
+          cognitive: test?.gymNoteCognitive !== undefined ? test.gymNoteCognitive : '-',
+          total: test?.gymScoreTotal !== undefined ? test.gymScoreTotal : '-',
+        };
+      }
+    });
+  }, [filteredStudents, physicalTests, activeTab, currentSport, sports]);
+
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Top Banner Dashboard */}
@@ -935,6 +1019,16 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
             >
               <ArrowDownTrayIcon className="w-3.5 h-3.5 shrink-0" />
               <span>Excel</span>
+            </button>
+
+            <button
+              onClick={() => setIsPrintPreviewOpen(true)}
+              disabled={isLoading || students.length === 0}
+              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-gray-100 text-white dark:text-gray-900 text-[11px] sm:text-xs font-black rounded-xl shadow-xs transition active:scale-95 disabled:opacity-50 cursor-pointer"
+              title="معاينة لائحة نقط الفروض والطباعة أو استخراجها كـ PDF منسق"
+            >
+              <PrinterIcon className="w-3.5 h-3.5 shrink-0 text-amber-400 dark:text-amber-600" />
+              <span>معاينة / PDF 🖨️</span>
             </button>
 
             <button
@@ -1198,7 +1292,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                             step="0.25"
                             min="0"
                             max="6"
-                            value={tech === undefined ? '' : tech}
+                            value={toSafeVal(tech)}
                             onChange={(e) => handleTeamGamesScoreChange(s.numeroEleve, 'sportColTechIndiv', e.target.value)}
                             placeholder="--"
                             className="w-16 mx-auto block text-center py-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-black"
@@ -1212,7 +1306,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                             step="0.25"
                             min="0"
                             max={teamPlayMax}
-                            value={colScore === undefined ? '' : colScore}
+                            value={toSafeVal(colScore)}
                             onChange={(e) => handleTeamGamesScoreChange(s.numeroEleve, 'sportColCollectif', e.target.value)}
                             placeholder="--"
                             className="w-16 mx-auto block text-center py-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-black"
@@ -1231,7 +1325,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                             step="0.25"
                             min="0"
                             max={gradingDist.comportement}
-                            value={behave === undefined ? '' : behave}
+                            value={toSafeVal(behave)}
                             onChange={(e) => handleTeamGamesScoreChange(s.numeroEleve, 'sportColComportement', e.target.value)}
                             placeholder="--"
                             className="w-16 mx-auto block text-center py-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-black"
@@ -1245,7 +1339,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                             step="0.25"
                             min="0"
                             max={gradingDist.cognitive}
-                            value={cogn === undefined ? '' : cogn}
+                            value={toSafeVal(cogn)}
                             onChange={(e) => handleTeamGamesScoreChange(s.numeroEleve, 'sportColCognitive', e.target.value)}
                             placeholder="--"
                             className="w-16 mx-auto block text-center py-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-black"
@@ -1463,7 +1557,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                                     type="number" 
                                     min="0" 
                                     max="10"
-                                    value={test?.gymDiffCountA === undefined || test.gymDiffCountA === null ? '' : test.gymDiffCountA} 
+                                    value={toSafeVal(test?.gymDiffCountA)} 
                                     onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymDiffCountA', e.target.value === '' ? '' : Number(e.target.value))}
                                     placeholder="0"
                                     title="عدد عناصر صعوبة أ"
@@ -1472,10 +1566,10 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                                   <span className="text-gray-400 font-black">=</span>
                                   <input 
                                     type="number" 
-                                    step="0.25"
+                                    step="0.25" 
                                     min="0" 
                                     max="6"
-                                    value={scoreDiffA === undefined ? '' : scoreDiffA} 
+                                    value={toSafeVal(scoreDiffA)} 
                                     onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymDiffScoreA', e.target.value === '' ? '' : Number(e.target.value))}
                                     placeholder="0"
                                     title="نقطة صعوبة أ المقسمة"
@@ -1496,7 +1590,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                                     type="number" 
                                     min="0" 
                                     max="10"
-                                    value={test?.gymDiffCountB === undefined || test.gymDiffCountB === null ? '' : test.gymDiffCountB} 
+                                    value={toSafeVal(test?.gymDiffCountB)} 
                                     onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymDiffCountB', e.target.value === '' ? '' : Number(e.target.value))}
                                     placeholder="0"
                                     title="عدد عناصر صعوبة ب"
@@ -1505,10 +1599,10 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                                   <span className="text-gray-400 font-black">=</span>
                                   <input 
                                     type="number" 
-                                    step="0.25"
+                                    step="0.25" 
                                     min="0" 
                                     max="6"
-                                    value={scoreDiffB === undefined ? '' : scoreDiffB} 
+                                    value={toSafeVal(scoreDiffB)} 
                                     onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymDiffScoreB', e.target.value === '' ? '' : Number(e.target.value))}
                                     placeholder="0"
                                     title="نقطة صعوبة ب المقسمة"
@@ -1529,7 +1623,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                                     type="number" 
                                     min="0" 
                                     max="10"
-                                    value={test?.gymDiffCountC === undefined || test.gymDiffCountC === null ? '' : test.gymDiffCountC} 
+                                    value={toSafeVal(test?.gymDiffCountC)} 
                                     onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymDiffCountC', e.target.value === '' ? '' : Number(e.target.value))}
                                     placeholder="0"
                                     title="عدد عناصر صعوبة ج"
@@ -1538,10 +1632,10 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                                   <span className="text-gray-400 font-black">=</span>
                                   <input 
                                     type="number" 
-                                    step="0.25"
+                                    step="0.25" 
                                     min="0" 
                                     max="6"
-                                    value={scoreDiffC === undefined ? '' : scoreDiffC} 
+                                    value={toSafeVal(scoreDiffC)} 
                                     onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymDiffScoreC', e.target.value === '' ? '' : Number(e.target.value))}
                                     placeholder="0"
                                     title="نقطة صعوبة ج المقسمة"
@@ -1561,7 +1655,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                                   step="0.25"
                                   min="0"
                                   max="6"
-                                  value={scoreDiff === undefined || scoreDiff === null ? '' : scoreDiff}
+                                  value={toSafeVal(scoreDiff)}
                                   onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymScoreDifficultes', e.target.value)}
                                   placeholder="0.0"
                                   title="مجموع نقطة الصعوبة من 6 ن"
@@ -1593,7 +1687,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                                 step="0.5"
                                 min="0"
                                 max="1.5"
-                                value={scoreExig === undefined || scoreExig === null ? '' : scoreExig}
+                                value={toSafeVal(scoreExig)}
                                 onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymScoreExigences', e.target.value)}
                                 placeholder="--"
                                 className="w-16 text-center py-1 rounded-xl border-2 border-indigo-200 dark:border-gray-600 bg-white dark:bg-gray-700 font-black text-sm text-indigo-700 dark:text-indigo-300 shadow-2xs"
@@ -1663,7 +1757,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                             step="0.25"
                             min="0"
                             max={teamGamesMotriceMax === 14 ? 4.5 : teamGamesMotriceMax === 13 ? 3.5 : 2.5}
-                            value={scoreEnch === undefined ? '' : scoreEnch}
+                            value={toSafeVal(scoreEnch)}
                             onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymScoreEnchainement', e.target.value)}
                             placeholder="--"
                             className="w-16 mx-auto block text-center py-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-black"
@@ -1691,8 +1785,8 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                                     <span>خطأ طفيف (-0.1):</span>
                                     <input 
                                       type="number" 
-                                      min="0"
-                                      value={test?.gymExecutionFaultsPetite || 0}
+                                      min="0" 
+                                      value={toSafeVal(test?.gymExecutionFaultsPetite) || 0}
                                       onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymExecutionFaultsPetite', Number(e.target.value))}
                                       className="w-10 text-center border rounded border-gray-300 dark:border-gray-600"
                                     />
@@ -1701,8 +1795,8 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                                     <span>خطأ متوسط (-0.2):</span>
                                     <input 
                                       type="number" 
-                                      min="0"
-                                      value={test?.gymExecutionFaultsMoyenne || 0}
+                                      min="0" 
+                                      value={toSafeVal(test?.gymExecutionFaultsMoyenne) || 0}
                                       onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymExecutionFaultsMoyenne', Number(e.target.value))}
                                       className="w-10 text-center border rounded border-gray-300 dark:border-gray-600"
                                     />
@@ -1711,8 +1805,8 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                                     <span>خطأ جسيم (-0.3):</span>
                                     <input 
                                       type="number" 
-                                      min="0"
-                                      value={test?.gymExecutionFaultsGrossiere || 0}
+                                      min="0" 
+                                      value={toSafeVal(test?.gymExecutionFaultsGrossiere) || 0}
                                       onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymExecutionFaultsGrossiere', Number(e.target.value))}
                                       className="w-10 text-center border rounded border-gray-300 dark:border-gray-600"
                                     />
@@ -1721,8 +1815,8 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                                     <span>سقوط (-0.5):</span>
                                     <input 
                                       type="number" 
-                                      min="0"
-                                      value={test?.gymExecutionFaultsChutes || 0}
+                                      min="0" 
+                                      value={toSafeVal(test?.gymExecutionFaultsChutes) || 0}
                                       onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymExecutionFaultsChutes', Number(e.target.value))}
                                       className="w-10 text-center border rounded border-gray-300 dark:border-gray-600"
                                     />
@@ -1743,7 +1837,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                               step="0.1"
                               min="0"
                               max="2"
-                              value={scoreExec === undefined ? '' : scoreExec}
+                              value={toSafeVal(scoreExec)}
                               onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymScoreExecution', e.target.value)}
                               placeholder="--"
                               className="w-16 mx-auto block text-center py-0.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-extrabold"
@@ -1763,7 +1857,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                             step="0.25"
                             min="0"
                             max={gradingDist.comportement}
-                            value={behave === undefined ? '' : behave}
+                            value={toSafeVal(behave)}
                             onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymNoteComportement', e.target.value)}
                             placeholder="--"
                             className="w-16 mx-auto block text-center py-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-black"
@@ -1777,7 +1871,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                             step="0.25"
                             min="0"
                             max={gradingDist.cognitive}
-                            value={cogn === undefined ? '' : cogn}
+                            value={toSafeVal(cogn)}
                             onChange={(e) => handleGymScoreChange(s.numeroEleve, 'gymNoteCognitive', e.target.value)}
                             placeholder="--"
                             className="w-16 mx-auto block text-center py-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-black"
@@ -2222,7 +2316,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                       step="0.25"
                       min="0"
                       max="6"
-                      value={scA}
+                      value={toSafeVal(scA)}
                       onChange={(e) => handleGymScoreChange(expandedDiffDetailsStudent, 'gymDiffScoreA', Number(e.target.value))}
                       className="w-14 text-center py-1 rounded-xl bg-white dark:bg-gray-700 border border-blue-300 font-black text-xs text-blue-900 dark:text-blue-200 shadow-2xs"
                       title="تعديل نقطة أ يدوياً"
@@ -2265,7 +2359,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                       step="0.25"
                       min="0"
                       max="6"
-                      value={scB}
+                      value={toSafeVal(scB)}
                       onChange={(e) => handleGymScoreChange(expandedDiffDetailsStudent, 'gymDiffScoreB', Number(e.target.value))}
                       className="w-14 text-center py-1 rounded-xl bg-white dark:bg-gray-700 border border-purple-300 font-black text-xs text-purple-900 dark:text-purple-200 shadow-2xs"
                       title="تعديل نقطة ب يدوياً"
@@ -2308,7 +2402,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                       step="0.25"
                       min="0"
                       max="6"
-                      value={scC}
+                      value={toSafeVal(scC)}
                       onChange={(e) => handleGymScoreChange(expandedDiffDetailsStudent, 'gymDiffScoreC', Number(e.target.value))}
                       className="w-14 text-center py-1 rounded-xl bg-white dark:bg-gray-700 border border-amber-300 font-black text-xs text-amber-900 dark:text-amber-200 shadow-2xs"
                       title="تعديل نقطة ج يدوياً"
@@ -2372,6 +2466,24 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
             {notification.type === 'success' ? <CheckCircleIcon className="w-5 h-5" /> : <XMarkIcon className="w-5 h-5" />}
             <span>{notification.message}</span>
         </div>
+      )}
+
+      {/* Print Preview & Formatted PDF Modal */}
+      {isPrintPreviewOpen && (
+        <PrintPreviewModal
+          isOpen={isPrintPreviewOpen}
+          onClose={() => setIsPrintPreviewOpen(false)}
+          title={`كشف نقط الفروض التقويمية (${activeTab === 'team_games' ? (activeSportInfo?.labelAr || 'الألعاب الجماعية') : 'الجمباز التربوي'}) - ${selectedClass}`}
+          subtitle={`مادة التربية البدنية والرياضية • ${classLevelLabel}`}
+          institutionName="المملكة المغربية • وزارة التربية الوطنية والتعليم الأولي والرياضة"
+          academicYear="الموسم الدراسي: 2025/2026"
+          columns={printColumns}
+          data={printData}
+          summaryBadge={`القسم: ${selectedClass} | إجمالي التلاميذ: ${printData.length} | المعامل والمكونات: (${gradingDist.motrice} حركي / ${gradingDist.comportement} سلوكي / ${gradingDist.cognitive} معرفي)`}
+          signature1Title="توقيع وختم رئيس المؤسسة التعليمية"
+          signature2Title="توقيع أستاذ(ة) مادة التربية البدنية والرياضية"
+          onExportExcel={handleExportExcelAll}
+        />
       )}
     </div>
   );

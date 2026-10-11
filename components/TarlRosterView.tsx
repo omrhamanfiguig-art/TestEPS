@@ -35,6 +35,7 @@ interface TarlRosterViewProps {
   physicalTests?: PhysicalTests[];
   vmaList?: StudentResult[];
   onAutoFillMassarFromTarl?: () => void;
+  onPrint?: () => void;
 }
 
 export const TarlRosterView: React.FC<TarlRosterViewProps> = ({
@@ -55,7 +56,8 @@ export const TarlRosterView: React.FC<TarlRosterViewProps> = ({
   onUpdateTarlStudent,
   physicalTests = [],
   vmaList = [],
-  onAutoFillMassarFromTarl
+  onAutoFillMassarFromTarl,
+  onPrint
 }) => {
   // Statistics on TaRL levels
   const stats = useMemo(() => {
@@ -186,12 +188,12 @@ export const TarlRosterView: React.FC<TarlRosterViewProps> = ({
             </button>
 
             <button
-              onClick={() => window.print()}
+              onClick={onPrint || (() => window.print())}
               className="inline-flex items-center justify-center gap-1.5 px-3 py-3 rounded-2xl bg-white/5 hover:bg-white/15 text-indigo-200 font-bold text-xs border border-white/10 transition cursor-pointer print:hidden"
-              title="طباعة اللائحة"
+              title="معاينة لائحة طارل وطباعتها أو استخراجها كملف PDF"
             >
               <PrinterIcon className="w-4 h-4" />
-              <span>طباعة</span>
+              <span>معاينة / PDF 🖨️</span>
             </button>
           </div>
         </div>
@@ -409,9 +411,11 @@ export const TarlRosterView: React.FC<TarlRosterViewProps> = ({
                           type="number"
                           step="0.25"
                           min="0"
-                          max="20"
-                          value={row.tarlScore !== undefined ? row.tarlScore : ''}
-                          onChange={(e) => onUpdateTarlStudent(row.numeroEleve, { tarlScore: parseFloat(e.target.value) || 0 })}
+                          value={row.tarlScore !== undefined && !isNaN(row.tarlScore) ? row.tarlScore : ''}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            onUpdateTarlStudent(row.numeroEleve, { tarlScore: isNaN(val) ? 0 : val });
+                          }}
                           className="w-16 text-center font-black text-sm py-1 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 focus:outline-none"
                         />
                       </td>

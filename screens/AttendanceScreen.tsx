@@ -25,7 +25,8 @@ import {
   ChevronRightIcon,
   ChevronLeftIcon,
   InformationCircleIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  PrinterIcon
 } from '../components/Icons';
 import { StudentAvatar } from '../components/StudentAvatar';
 import { AddEditStudentModal } from '../components/AddEditStudentModal';
@@ -46,6 +47,7 @@ import {
 } from '../utils/teacherHelper';
 import { useSportsList } from '../utils/SportsConstants';
 import { useLanguage } from '../utils/i18n';
+import { PrintPreviewModal, PrintPreviewColumn } from '../components/PrintPreviewModal';
 
 interface AttendanceScreenProps {
   selectedClass: string;
@@ -135,6 +137,23 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
   const [selectedStudentForReport, setSelectedStudentForReport] = useState<StudentIdentity | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isGroupReportModalOpen, setIsGroupReportModalOpen] = useState(false);
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+  const [isCumulativePrintPreviewOpen, setIsCumulativePrintPreviewOpen] = useState(false);
+  const [reportSportFilter, setReportSportFilter] = useState<string>('all');
+
+  const availableSports = useMemo(() => {
+    const set = new Set<string>();
+    previousSessions.forEach(s => {
+      if (s.topic) set.add(s.topic);
+    });
+    sports.forEach(sp => set.add(sp.labelAr));
+    return Array.from(set);
+  }, [previousSessions, sports]);
+
+  const filteredPreviousSessions = useMemo(() => {
+    if (reportSportFilter === 'all') return previousSessions;
+    return previousSessions.filter(s => s.topic && s.topic.toLowerCase().includes(reportSportFilter.toLowerCase()));
+  }, [previousSessions, reportSportFilter]);
   
   // Import Sessions & Delete Session Modals
   const [isImportSessionsModalOpen, setIsImportSessionsModalOpen] = useState(false);
@@ -780,6 +799,16 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
 
             <button
               type="button"
+              onClick={() => setIsPrintPreviewOpen(true)}
+              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 shadow-xs active:scale-95 transition cursor-pointer"
+              title="معاينة وطباعة تقرير الحضور والغياب بصيغة PDF"
+            >
+              <PrinterIcon className="w-3.5 h-3.5 shrink-0" />
+              <span>معاينة PDF الغياب</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setIsGroupReportModalOpen(true)}
               className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 shadow-xs active:scale-95 transition cursor-pointer"
               title="إنشاء تقرير إداري جماعي وإرساله بالواتساب أو كصورة للإدارة"
@@ -988,6 +1017,31 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
         </div>
       </div>
 
+      {/* Sport / Activity Filter Bar for Reports & PDF Preview */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl p-3.5 shadow-xs border border-gray-100 dark:border-gray-700 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+            <span>🎯</span>
+            <span>تصفية الحصص والتقارير حسب النشاط المعين:</span>
+          </span>
+          <select
+            value={reportSportFilter}
+            onChange={(e) => setReportSportFilter(e.target.value)}
+            className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-1.5 text-xs font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+          >
+            <option value="all">📁 جميع الأنشطة والحصص (بدون تصفية)</option>
+            {availableSports.map(sp => (
+              <option key={sp} value={sp}>{sp}</option>
+            ))}
+          </select>
+        </div>
+        {reportSportFilter !== 'all' && (
+          <span className="text-xs px-3 py-1 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800">
+            الحصص المطابقة للنشاط المعين: {filteredPreviousSessions.length} حصة
+          </span>
+        )}
+      </div>
+
       {/* Tabs Header */}
       <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-3 flex-wrap gap-3">
         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
@@ -1089,6 +1143,15 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
               >
                 <ArrowDownTrayIcon className="w-3.5 h-3.5" />
                 <span>تصدير سجل الأنشطة</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsCumulativePrintPreviewOpen(true)}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-blue-700 text-white hover:bg-blue-800 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                title="معاينة وطباعة التقرير التراكمي للمواظبة والغياب بصيغة PDF"
+              >
+                <PrinterIcon className="w-3.5 h-3.5" />
+                <span>معاينة PDF التراكمي</span>
               </button>
               <button
                 type="button"
@@ -1499,9 +1562,25 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                 تقرير المواظبة والغيابات التراكمي للقسم
               </h3>
               <p className="text-xs text-gray-500 mt-0.5">
-                مجموع الحصص المنجزة: <strong>{previousSessions.length} حصة</strong>
+                مجموع الحصص المنجزة: <strong>{filteredPreviousSessions.length} حصة</strong> {reportSportFilter !== 'all' ? `(حسب النشاط: ${reportSportFilter})` : ''}
               </p>
             </div>
+
+            {/* Filter by Activity (Sport) */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-bold text-gray-500">فلتر النشاط:</label>
+              <select
+                value={reportSportFilter}
+                onChange={(e) => setReportSportFilter(e.target.value)}
+                className="text-xs font-bold bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl px-2 py-1.5 outline-none cursor-pointer"
+              >
+                <option value="all">كل الأنشطة</option>
+                {availableSports.map(sport => (
+                  <option key={sport} value={sport}>{sport}</option>
+                ))}
+              </select>
+            </div>
+
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -1510,6 +1589,15 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
               >
                 <ArrowUpTrayIcon className="w-4 h-4" />
                 <span>استيراد سجل الحصص</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsCumulativePrintPreviewOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs hover:bg-blue-800 transition cursor-pointer"
+                title="معاينة وطباعة التقرير التراكمي بصيغة PDF"
+              >
+                <PrinterIcon className="w-4 h-4" />
+                <span>معاينة PDF التراكمي</span>
               </button>
               <button
                 type="button"
@@ -1546,7 +1634,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                   let lte = 0;
                   let noK = 0;
 
-                  previousSessions.forEach(sess => {
+                  filteredPreviousSessions.forEach(sess => {
                     const r = (sess.records || []).find(rec => rec.studentNumber === s.numeroEleve);
                     const st = r?.status || 'present';
                     if (st === 'present') pres++;
@@ -1556,7 +1644,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
                     else if (st === 'no-kit') { noK++; pres++; }
                   });
 
-                  const total = previousSessions.length;
+                  const total = filteredPreviousSessions.length;
                   const rate = total > 0 ? Math.round((pres / total) * 100) : 100;
 
                   return (
@@ -2339,6 +2427,100 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Print Preview PDF Modal for Attendance */}
+      {isPrintPreviewOpen && (
+        <PrintPreviewModal
+          isOpen={isPrintPreviewOpen}
+          onClose={() => setIsPrintPreviewOpen(false)}
+          title={`تقرير حضور وغياب التلاميذ - قسم: ${selectedClass}`}
+          subtitle={`الحصة: ${sessionNumber} • التاريخ: ${date} • الموضوع: ${topic}`}
+          institutionName="المملكة المغربية • وزارة التربية الوطنية والتعليم الأولي والرياضة"
+          academicYear="الموسم الدراسي: 2025/2026"
+          columns={[
+            { key: 'num', label: 'الرقم', width: '8%', align: 'center' },
+            { key: 'studentId', label: 'رقم مسار / الهوية', width: '18%', align: 'center' },
+            { key: 'name', label: 'الإسم الكامل', width: '32%', align: 'right' },
+            { key: 'status', label: 'حالة الحضور', width: '20%', align: 'center' },
+            { key: 'notes', label: 'ملاحظات / تبرير', width: '22%', align: 'right' },
+          ]}
+          data={students.map((st, idx) => {
+            const rec = records[st.numeroEleve] as AttendanceRecord | undefined;
+            const statusMap: Record<AttendanceStatus, string> = {
+              present: 'حاضر (Présent)',
+              absent: 'غائب (Absent)',
+              justified: 'مبرر (Justifié)',
+              late: 'متأخر (En retard)',
+              'no-kit': 'بدون بذلة (Sans tenue)'
+            };
+            return {
+              num: idx + 1,
+              studentId: st.numeroEleve,
+              name: `${st.nom} ${st.prenom}`,
+              status: statusMap[rec?.status || 'present'],
+              notes: rec?.note || '-'
+            };
+          })}
+          summaryBadge={`إجمالي التلاميذ: ${students.length} | الحاضرون: ${Object.values(records).filter((r: any) => r?.status === 'present' || !r?.status).length} | الغائبون: ${Object.values(records).filter((r: any) => r?.status === 'absent').length}`}
+          signature1Title="توقيع وختم الإدارة التربوية"
+          signature2Title="توقيع الأستاذ(ة)"
+        />
+      )}
+
+      {/* Print Preview PDF Modal for Cumulative Attendance Report */}
+      {isCumulativePrintPreviewOpen && (
+        <PrintPreviewModal
+          isOpen={isCumulativePrintPreviewOpen}
+          onClose={() => setIsCumulativePrintPreviewOpen(false)}
+          title={`تقرير المواظبة والغيابات التراكمي للقسم: ${selectedClass} ${reportSportFilter !== 'all' ? `(النشاط المعين: ${reportSportFilter})` : ''}`}
+          subtitle={`مجموع الحصص المنجزة: ${filteredPreviousSessions.length} حصة • مادة التربية البدنية والرياضية`}
+          institutionName="المملكة المغربية • وزارة التربية الوطنية والتعليم الأولي والرياضة"
+          academicYear="الموسم الدراسي: 2025/2026"
+          columns={[
+            { key: 'num', label: 'الرقم', width: '8%', align: 'center' },
+            { key: 'studentId', label: 'رقم مسار', width: '16%', align: 'center' },
+            { key: 'name', label: 'الإسم الكامل', width: '28%', align: 'right' },
+            { key: 'sessions', label: 'الحصص', width: '10%', align: 'center' },
+            { key: 'rate', label: 'نسبة الحضور', width: '14%', align: 'center' },
+            { key: 'absent', label: 'غياب غير مبرر', width: '12%', align: 'center' },
+            { key: 'evaluation', label: 'التقييم', width: '12%', align: 'center' },
+          ]}
+          data={students.map((s, idx) => {
+            let pres = 0;
+            let abs = 0;
+            let just = 0;
+            let lte = 0;
+            let noK = 0;
+            const total = filteredPreviousSessions.length;
+
+            filteredPreviousSessions.forEach(sess => {
+              const r = (sess.records || []).find(rec => rec.studentNumber === s.numeroEleve);
+              const stStatus = r?.status || 'present';
+              if (stStatus === 'present') pres++;
+              else if (stStatus === 'absent') abs++;
+              else if (stStatus === 'justified') just++;
+              else if (stStatus === 'late') { lte++; pres++; }
+              else if (stStatus === 'no-kit') { noK++; pres++; }
+            });
+
+            const rate = total > 0 ? Math.round((pres / total) * 100) : 100;
+            const evalText = abs === 0 ? 'ممتاز (Assidu)' : abs <= 2 ? 'حسن' : abs <= 4 ? 'متوسط' : 'غير مسجلة / متعثر';
+
+            return {
+              num: idx + 1,
+              studentId: s.numeroEleve,
+              name: `${s.nom} ${s.prenom}`,
+              sessions: total,
+              rate: `${rate}%`,
+              absent: abs,
+              evaluation: evalText
+            };
+          })}
+          summaryBadge={`إجمالي التلاميذ: ${students.length} | الحصص المدرجة: ${filteredPreviousSessions.length} | النشاط المعين: ${reportSportFilter === 'all' ? 'جميع الأنشطة' : reportSportFilter}`}
+          signature1Title="توقيع وختم الإدارة التربوية"
+          signature2Title="توقيع الأستاذ(ة)"
+        />
       )}
     </div>
   );

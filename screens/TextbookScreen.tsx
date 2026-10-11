@@ -39,6 +39,7 @@ import {
   saveTeacherProfileToCloud, 
   fetchTeacherProfilesFromCloud 
 } from '../utils/firebase';
+import { PrintPreviewModal, PrintPreviewColumn } from '../components/PrintPreviewModal';
 
 const SAUT_LONGUEUR_ROWS: CahierGridRow[] = [
   { seanceNumber: 1, title: "Évaluer le niveau initial et prendre des repères de course d'élan", situation: "Situation: Test de performance et prise de marques", classDates: {} },
@@ -232,6 +233,7 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
 
   // Word Export Settings (Mise en Page) State
   const [isWordSettingsModalOpen, setIsWordSettingsModalOpen] = useState(false);
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const [wordFontFamily, setWordFontFamily] = useState("'Segoe UI', Tahoma, Arial, sans-serif");
   const [wordFontSize, setWordFontSize] = useState("11pt");
   const [wordMargins, setWordMargins] = useState("1.2cm");
@@ -1450,6 +1452,16 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
                   <PrinterIcon className="w-4 h-4" />
                   <span>طباعة ({gridSheets.length} أوراق)</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPrintPreviewOpen(true)}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  title="معاينة وطباعة دفتر النصوص والتتبع اليومي بصيغة PDF"
+                >
+                  <PrinterIcon className="w-4 h-4" />
+                  <span>معاينة PDF دفتر النصوص</span>
+                </button>
               </div>
             </div>
 
@@ -1944,6 +1956,35 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Print Preview PDF Modal */}
+      {isPrintPreviewOpen && (
+        <PrintPreviewModal
+          isOpen={isPrintPreviewOpen}
+          onClose={() => setIsPrintPreviewOpen(false)}
+          title={`دفتر النصوص والتتبع اليومي للنشاط الرياضي - ${gridEtablissement}`}
+          subtitle={`المصنف البيداغوجي للحصص المنجزة • الأستاذ: ${gridProfesseur}`}
+          institutionName="المملكة المغربية • وزارة التربية الوطنية والتعليم الأولي والرياضة"
+          academicYear="الموسم الدراسي: 2025/2026"
+          columns={[
+            { key: 'seance', label: 'رقم الحصة', width: '12%', align: 'center' },
+            { key: 'date', label: 'التاريخ والتوقيت', width: '22%', align: 'center' },
+            { key: 'class', label: 'القسم', width: '16%', align: 'center' },
+            { key: 'topic', label: 'النشاط الرياضي / الموضوع', width: '25%', align: 'right' },
+            { key: 'goal', label: 'الهدف البيداغوجي / الإنجاز', width: '25%', align: 'right' },
+          ]}
+          data={sessions.map((s, idx) => ({
+            seance: s.sessionNumber || `الحصة ${idx + 1}`,
+            date: `${s.date || ''} ${s.timeSlot || ''}`.trim(),
+            class: s.className,
+            topic: s.topic || gridAps,
+            goal: s.sessionGoal || s.remarks || '-'
+          }))}
+          summaryBadge={`إجمالي الحصص المسجلة: ${sessions.length} | الأقسام المعنية: ${gridClasses.join(', ')}`}
+          signature1Title="توقيع وختم الإدارة التربوية"
+          signature2Title="توقيع الأستاذ(ة)"
+        />
       )}
     </div>
   );
