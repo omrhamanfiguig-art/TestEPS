@@ -882,21 +882,20 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
       const activeSportLabel = sports.find(sp => sp.id === currentSport)?.labelAr || 'الرياضة الجماعية';
       return [
         { key: 'numeroEleve', label: 'ر.ت', width: '60px', align: 'center' },
-        { key: 'nomEleve', label: 'الاسم والنسب', width: '180px', align: 'right' },
+        { key: 'nomEleve', label: 'الاسم والنسب', width: '200px', align: 'right' },
         { key: 'sexe', label: 'الجنس', width: '60px', align: 'center' },
-        { key: 'sport', label: 'النشاط', width: '90px', align: 'center' },
         { key: 'techIndiv', label: 'فردي (/6)', width: '75px', align: 'center' },
         { key: 'collectif', label: `جماعي (/${teamPlayMax})`, width: '85px', align: 'center' },
         { key: 'motrice', label: `حركي (/${teamGamesMotriceMax})`, width: '85px', align: 'center' },
         { key: 'comportement', label: `سلوكي (/${gradingDist.comportement})`, width: '85px', align: 'center' },
         { key: 'cognitive', label: `معرفي (/${gradingDist.cognitive})`, width: '85px', align: 'center' },
         { key: 'total', label: 'المعدل (/20)', width: '95px', align: 'center' },
-        { key: 'observation', label: 'ملاحظات', width: '140px', align: 'right' },
+        { key: 'observation', label: 'ملاحظات', width: '150px', align: 'right' },
       ];
     } else {
       return [
         { key: 'numeroEleve', label: 'ر.ت', width: '60px', align: 'center' },
-        { key: 'nomEleve', label: 'الاسم والنسب', width: '180px', align: 'right' },
+        { key: 'nomEleve', label: 'الاسم والنسب', width: '200px', align: 'right' },
         { key: 'sexe', label: 'الجنس', width: '60px', align: 'center' },
         { key: 'diffTotal', label: 'صعوبة (/6)', width: '80px', align: 'center' },
         { key: 'exigences', label: 'متطلبات (/1.5)', width: '85px', align: 'center' },
@@ -915,12 +914,10 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
       const test = physicalTests.find(t => t.numeroEleve === s.numeroEleve);
       if (activeTab === 'team_games') {
         const sportEval = getStudentSportEvaluation(test, currentSport);
-        const activeSportLabel = sports.find(sp => sp.id === currentSport)?.labelAr || 'الرياضة الجماعية';
         return {
           numeroEleve: s.numeroEleve,
           nomEleve: s.nomEleve,
           sexe: s.sexe === 'F' ? 'أنثى' : 'ذكر',
-          sport: sportEval?.sportName || activeSportLabel,
           techIndiv: sportEval?.techIndiv !== undefined ? sportEval.techIndiv : '-',
           collectif: sportEval?.collectif !== undefined ? sportEval.collectif : '-',
           motrice: sportEval?.motrice !== undefined ? sportEval.motrice : '-',
@@ -945,7 +942,7 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
         };
       }
     });
-  }, [filteredStudents, physicalTests, activeTab, currentSport, sports]);
+  }, [filteredStudents, physicalTests, activeTab, currentSport]);
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
