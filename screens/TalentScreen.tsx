@@ -20,9 +20,11 @@ import {
   UserGroupIcon,
   RunningManIcon,
   RulerIcon,
-  ScaleIcon
+  ScaleIcon,
+  PrinterIcon
 } from '../components/Icons';
 import { StudentAvatar } from '../components/StudentAvatar';
+import { PrintPreviewModal, PrintPreviewColumn } from '../components/PrintPreviewModal';
 import { 
   calculateScore, 
   getCustomScale, 
@@ -411,6 +413,68 @@ export const TalentScreen: React.FC<TalentScreenProps> = ({
     exportTalentAnalysisToExcel(filterTitle, metricHeaders, exportRows);
   };
 
+  // Print Preview Modal State
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+  const [printPreviewConfig, setPrintPreviewConfig] = useState<{
+    title: string;
+    subtitle?: string;
+    columns: PrintPreviewColumn[];
+    data: Array<Record<string, any>>;
+    onExportExcel?: () => void;
+  }>({
+    title: '',
+    columns: [],
+    data: []
+  });
+
+  const handleOpenPrintPreview = () => {
+    if (rankedData.length === 0) {
+      setNotification({ message: "لا توجد نتائج جاهزة للمعاينة.", type: 'error' });
+      return;
+    }
+
+    const metricCols: PrintPreviewColumn[] = selectedMetrics.map(key => {
+      const cfg = ALL_METRICS.find(m => m.key === key);
+      return {
+        key,
+        label: cfg?.label.split('(')[0].trim() || key,
+        width: '12%',
+        align: 'center'
+      };
+    });
+
+    const columns: PrintPreviewColumn[] = [
+      { key: 'rank', label: '# الترتيب', width: '8%', align: 'center' },
+      { key: 'nomEleve', label: 'الاسم والنسب', width: '25%' },
+      { key: 'className', label: 'القسم', width: '12%' },
+      { key: 'sexeLabel', label: 'الجنس', width: '10%', align: 'center' },
+      ...metricCols,
+      { key: 'averageScoreDisplay', label: 'المعدل (/20)', width: '15%', align: 'center' },
+      { key: 'badge', label: 'تصنيف الموهبة', width: '20%' }
+    ];
+
+    const data = rankedData.map((item, idx) => ({
+      ...item,
+      rank: `${idx + 1}`,
+      nomEleve: item.student.nomEleve,
+      sexeLabel: item.student.sexe === 'F' ? 'أنثى' : 'ذكر',
+      averageScoreDisplay: `${item.averageScoreOut20} / 20 (${item.scorePercent}%)`,
+      ...item.metricValues
+    }));
+
+    const filterTitle = `ترتيب وتصنيف المتفوقين رياضياً - ${filterClass === 'ALL' ? 'جميع الأقسام' : filterClass} (${genderFilter === 'all' ? 'الكل' : genderFilter === 'M' ? 'ذكور' : 'إناث'})`;
+    const subtitle = `المملكة المغربية • وزارة التربية الوطنية والتعليم الأولي والرياضة • الموسم الدراسي 2025/2026 | إجمالي المبرزين: ${rankedData.length}`;
+
+    setPrintPreviewConfig({
+      title: filterTitle,
+      subtitle,
+      columns,
+      data,
+      onExportExcel: handleExportExcel
+    });
+    setIsPrintPreviewOpen(true);
+  };
+
   const top1 = rankedData[0];
   const top2 = rankedData[1];
   const top3 = rankedData[2];
@@ -455,13 +519,22 @@ export const TalentScreen: React.FC<TalentScreenProps> = ({
             </div>
           </div>
 
-          <button
-            onClick={handleExportExcel}
-            className="px-4 py-2.5 sm:px-6 sm:py-3.5 bg-white text-indigo-950 font-black rounded-2xl shadow-lg hover:bg-amber-100 active:scale-95 transition inline-flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm shrink-0 border border-amber-200 w-full sm:w-auto cursor-pointer"
-          >
-            <ArrowDownTrayIcon className="w-4 h-4 text-indigo-600 shrink-0" />
-            <span>تصدير النتائج (Excel)</span>
-          </button>
+          <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full lg:w-auto">
+            <button
+              onClick={handleOpenPrintPreview}
+              className="px-4 py-2.5 sm:px-6 sm:py-3.5 bg-amber-400 text-amber-950 font-black rounded-2xl shadow-lg hover:bg-amber-300 active:scale-95 transition inline-flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm shrink-0 border border-amber-300 w-full sm:w-auto cursor-pointer"
+            >
+              <PrinterIcon className="w-4 h-4 text-amber-950 shrink-0" />
+              <span>معاينة وتصدير PDF</span>
+            </button>
+            <button
+              onClick={handleExportExcel}
+              className="px-4 py-2.5 sm:px-6 sm:py-3.5 bg-white text-indigo-950 font-black rounded-2xl shadow-lg hover:bg-amber-100 active:scale-95 transition inline-flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm shrink-0 border border-amber-200 w-full sm:w-auto cursor-pointer"
+            >
+              <ArrowDownTrayIcon className="w-4 h-4 text-indigo-600 shrink-0" />
+              <span>تصدير النتائج (Excel)</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -834,6 +907,17 @@ export const TalentScreen: React.FC<TalentScreenProps> = ({
           </table>
         </div>
       </div>
+
+      {/* PRINT PREVIEW MODAL */}
+      <PrintPreviewModal
+        isOpen={isPrintPreviewOpen}
+        onClose={() => setIsPrintPreviewOpen(false)}
+        title={printPreviewConfig.title}
+        subtitle={printPreviewConfig.subtitle}
+        columns={printPreviewConfig.columns}
+        data={printPreviewConfig.data}
+        onExportExcel={printPreviewConfig.onExportExcel}
+      />
     </div>
   );
 };

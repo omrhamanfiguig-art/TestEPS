@@ -197,6 +197,7 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
     '3APIC 1', '3APIC 2', '3APIC 3', '3APIC 4', '3APIC 5', '3APIC 6', '3APIC 7', '3APIC 8'
   ]);
   const [gridRows, setGridRows] = useState<CahierGridRow[]>(SAUT_LONGUEUR_ROWS);
+  const [isCustomizationVisible, setIsCustomizationVisible] = useState<boolean>(true);
 
   // Compute multi-sheet chunking for landscape pages (e.g. 8 classes = 2 sheets of 4 classes)
   const gridSheets = useMemo(() => {
@@ -1292,175 +1293,286 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
       {/* TAB 3: OFFICIAL LANDSCAPE GRID VIEW (Matching Moroccan Inspectors Official Model) */}
       {activeTab === 'grid_landscape' && (
         <div className="space-y-6" dir="rtl">
-          {/* Level Filter & Sheet Capacity Bar */}
-          <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-blue-900 text-white p-5 rounded-3xl shadow-lg space-y-4">
-            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-white/10 pb-4">
-              <div>
-                <h2 className="text-base sm:text-lg font-black flex items-center gap-2">
-                  <span>📊</span>
-                  <span>تخصيص دفتر النصوص حسب المستوى والأقسام (A4 Landscape)</span>
-                </h2>
-                <p className="text-xs text-indigo-200 mt-1">
-                  توزيع استخراج دفتر النصوص حسب المستوى الدراسي (الثالثة إعدادي، الثانية، الأولى...) مع تقسيم تلقائي للأوراق بـ 4 أقسام لكل ورقة
-                </p>
-              </div>
-
-              {/* Capacities & Columns Configuration */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                {/* Sheet Capacity Selector */}
-                <div className="flex items-center gap-2 bg-white/10 p-2 rounded-2xl border border-white/10">
-                  <span className="text-xs font-bold text-indigo-100">سعة الورقة الواحدة:</span>
-                  <div className="flex items-center gap-1">
-                    {[2, 3, 4, 5, 6, 8].map(num => (
-                      <button
-                        key={num}
-                        type="button"
-                        onClick={() => setGridColsPerPage(num)}
-                        className={`px-2 py-0.5 rounded-xl text-xs font-black transition cursor-pointer ${
-                          gridColsPerPage === num
-                            ? 'bg-white text-indigo-950 shadow-md scale-105'
-                            : 'bg-white/10 text-white hover:bg-white/20'
-                        }`}
-                      >
-                        {num}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Total Classes Selector */}
-                <div className="flex items-center gap-2 bg-white/10 p-2 rounded-2xl border border-white/10">
-                  <span className="text-xs font-bold text-indigo-100 font-sans">إجمالي الأقسام:</span>
-                  <div className="flex items-center gap-1">
-                    {[3, 4, 8, 12].map(num => (
-                      <button
-                        key={num}
-                        type="button"
-                        onClick={() => handleSetGridClassesCount(num)}
-                        className={`px-2 py-0.5 rounded-xl text-xs font-black transition cursor-pointer ${
-                          gridClasses.length === num
-                            ? 'bg-amber-400 text-slate-950 shadow-md scale-105'
-                            : 'bg-white/10 text-white hover:bg-white/20'
-                        }`}
-                      >
-                        {num}
-                      </button>
-                    ))}
-                    <input
-                      type="number"
-                      min="1"
-                      max="16"
-                      value={gridClasses.length}
-                      onChange={(e) => handleSetGridClassesCount(Number(e.target.value))}
-                      className="w-10 text-center bg-white/25 text-white border border-white/20 rounded-xl py-0.5 px-0.5 font-bold text-[10px]"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Level Selector Tabs */}
-            <div className="space-y-2">
-              <label className="block text-xs font-black text-indigo-200">
-                اختيار المستوى الدراسي المطلوبة طباعته أو تصديره:
-              </label>
-              <div className="flex items-center gap-2 flex-wrap">
-                {[
-                  { id: '3APIC', label: '🎓 السنة الثالثة إعدادي (3APIC)' },
-                  { id: '2APIC', label: '📘 السنة الثانية إعدادي (2APIC)' },
-                  { id: '1APIC', label: '📗 السنة الأولى إعدادي (1APIC)' },
-                  { id: '1_2APIC', label: '📗 الأولى والثانية إعدادي (1AC + 2AC)' },
-                  { id: 'TC', label: '🏛️ الجذوع المشتركة (TC)' },
-                  { id: 'BAC', label: '🎒 الأولى / الثانية باكالوريا' },
-                  { id: 'all', label: '🏫 جميع المستويات (عرض الكل)' }
-                ].map(lvl => (
-                  <button
-                    key={lvl.id}
-                    type="button"
-                    onClick={() => handleLevelChange(lvl.id)}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
-                      gridSelectedLevel === lvl.id
-                        ? 'bg-amber-400 text-slate-950 shadow-lg scale-105'
-                        : 'bg-white/10 text-white hover:bg-white/20'
-                    }`}
-                  >
-                    {lvl.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+          {/* Toggle Customization Section Button */}
+          <div className="flex justify-center sm:justify-start">
+            <button
+              type="button"
+              onClick={() => setIsCustomizationVisible(!isCustomizationVisible)}
+              className="px-4 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-md transition flex items-center gap-2 cursor-pointer active:scale-95"
+            >
+              <span>{isCustomizationVisible ? '👁️‍🗨️ إخفاء إعدادات وتخصيص دفتر النصوص' : '👁️ إظهار إعدادات وتخصيص دفتر النصوص'}</span>
+            </button>
           </div>
 
-          {/* Controls & Options Bar */}
-          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 space-y-5 text-right">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-100 dark:border-gray-700 pb-4">
+          {/* Level Filter & Sheet Capacity Bar */}
+          {isCustomizationVisible && (
+            <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-blue-900 text-white p-5 rounded-3xl shadow-lg space-y-4 animate-in fade-in">
+              <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-white/10 pb-4">
+                <div>
+                  <h2 className="text-base sm:text-lg font-black flex items-center gap-2">
+                    <span>📊</span>
+                    <span>تخصيص دفتر النصوص حسب المستوى والأقسام (A4 Landscape)</span>
+                  </h2>
+                  <p className="text-xs text-indigo-200 mt-1">
+                    توزيع استخراج دفتر النصوص حسب المستوى الدراسي (الثالثة إعدادي، الثانية، الأولى...) مع تقسيم تلقائي للأوراق بـ 4 أقسام لكل ورقة
+                  </p>
+                </div>
+
+                {/* Capacities & Columns Configuration */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  {/* Sheet Capacity Selector */}
+                  <div className="flex items-center gap-2 bg-white/10 p-2 rounded-2xl border border-white/10">
+                    <span className="text-xs font-bold text-indigo-100">سعة الورقة الواحدة:</span>
+                    <div className="flex items-center gap-1">
+                      {[2, 3, 4, 5, 6, 8].map(num => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => setGridColsPerPage(num)}
+                          className={`px-2 py-0.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                            gridColsPerPage === num
+                              ? 'bg-white text-indigo-950 shadow-md scale-105'
+                              : 'bg-white/10 text-white hover:bg-white/20'
+                          }`}
+                        >
+                          {num}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Total Classes Selector */}
+                  <div className="flex items-center gap-2 bg-white/10 p-2 rounded-2xl border border-white/10">
+                    <span className="text-xs font-bold text-indigo-100 font-sans">إجمالي الأقسام:</span>
+                    <div className="flex items-center gap-1">
+                      {[3, 4, 8, 12].map(num => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => handleSetGridClassesCount(num)}
+                          className={`px-2 py-0.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                            gridClasses.length === num
+                              ? 'bg-amber-400 text-slate-950 shadow-md scale-105'
+                              : 'bg-white/10 text-white hover:bg-white/20'
+                          }`}
+                        >
+                          {num}
+                        </button>
+                      ))}
+                      <input
+                        type="number"
+                        min="1"
+                        max="16"
+                        value={gridClasses.length}
+                        onChange={(e) => handleSetGridClassesCount(Number(e.target.value))}
+                        className="w-10 text-center bg-white/25 text-white border border-white/20 rounded-xl py-0.5 px-0.5 font-bold text-[10px]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Level Selector Tabs */}
+              <div className="space-y-2">
+                <label className="block text-xs font-black text-indigo-200">
+                  اختيار المستوى الدراسي المطلوبة طباعته أو تصديره:
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {[
+                    { id: '3APIC', label: '🎓 السنة الثالثة إعدادي (3APIC)' },
+                    { id: '2APIC', label: '📘 السنة الثانية إعدادي (2APIC)' },
+                    { id: '1APIC', label: '📗 السنة الأولى إعدادي (1APIC)' },
+                    { id: '1_2APIC', label: '📗 الأولى والثانية إعدادي (1AC + 2AC)' },
+                    { id: 'TC', label: '🏛️ الجذوع المشتركة (TC)' },
+                    { id: 'BAC', label: '🎒 الأولى / الثانية باكالوريا' },
+                    { id: 'all', label: '🏫 جميع المستويات (عرض الكل)' }
+                  ].map(lvl => (
+                    <button
+                      key={lvl.id}
+                      type="button"
+                      onClick={() => handleLevelChange(lvl.id)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
+                        gridSelectedLevel === lvl.id
+                          ? 'bg-amber-400 text-slate-950 shadow-lg scale-105'
+                          : 'bg-white/10 text-white hover:bg-white/20'
+                      }`}
+                    >
+                      {lvl.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Header Inputs Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-bold pt-2 border-t border-white/10">
+                <div>
+                  <label className="block text-indigo-200 mb-1">Établissement (المؤسسة):</label>
+                  <input
+                    type="text"
+                    value={gridEtablissement}
+                    onChange={(e) => setGridEtablissement(e.target.value)}
+                    className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-indigo-300"
+                    placeholder="Collège Oued Za..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-indigo-200 mb-1">Professeur (الأستاذ):</label>
+                  <input
+                    type="text"
+                    value={gridProfesseur}
+                    onChange={(e) => setGridProfesseur(e.target.value)}
+                    className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-indigo-300"
+                    placeholder="Omar HAMANI..."
+                  />
+                </div>
+
+                <div className="lg:col-span-2">
+                  <label className="block text-indigo-200 mb-1">APS / النشاط والمستوى الدراسي:</label>
+                  <input
+                    type="text"
+                    value={gridAps}
+                    onChange={(e) => setGridAps(e.target.value)}
+                    className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-indigo-300"
+                    placeholder="Saut longueur..."
+                  />
+                </div>
+
+                <div className="lg:col-span-4">
+                  <label className="block text-indigo-200 mb-1">Compétence (الكفاية المستهدفة):</label>
+                  <input
+                    type="text"
+                    value={gridCompetence}
+                    onChange={(e) => setGridCompetence(e.target.value)}
+                    className="w-full bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-xs font-bold text-white placeholder-indigo-300"
+                    placeholder="Envie d'appliquer..."
+                  />
+                </div>
+              </div>
+
+              {/* Selecting Classes for Grid Columns */}
+              <div className="pt-3 border-t border-white/10 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label className="block text-xs font-black text-indigo-200">
+                    قائمة الأقسام المحددة في هذا المستوى ({gridClasses.length} أقسام):
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGridClasses(prev => [...prev, `قسم ${prev.length + 1}`]);
+                      setNotification({ message: 'تم إضافة قسم جديد إلى القائمة! ➕', type: 'success' });
+                    }}
+                    className="px-3 py-1 bg-white/20 hover:bg-white/30 text-white rounded-xl text-xs font-bold border border-white/20 cursor-pointer"
+                  >
+                    + إضافة قسم آخر
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {gridClasses.map((cName, colIdx) => (
+                    <div key={colIdx} className="bg-white/10 p-2 rounded-xl border border-white/15 flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-black text-amber-300 shrink-0">قسم {colIdx + 1}:</span>
+                      <input
+                        type="text"
+                        value={cName || ''}
+                        onChange={(e) => {
+                          const newVal = e.target.value;
+                          setGridClasses(prev => {
+                            const next = [...prev];
+                            next[colIdx] = newVal;
+                            return next;
+                          });
+                        }}
+                        placeholder="اسم القسم..."
+                        className="w-full text-xs font-bold bg-white/20 border border-white/30 rounded-lg px-2 py-1 text-white placeholder-indigo-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGridClasses(prev => prev.filter((_, idx) => idx !== colIdx));
+                        }}
+                        className="text-rose-300 hover:text-rose-100 font-bold px-1 text-xs cursor-pointer"
+                        title="حذف هذا القسم"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Controls & Options Bar - Centered & Professional */}
+          <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6 space-y-4 text-right">
+            <div className="flex flex-col items-center justify-center gap-4 border-b border-gray-100 dark:border-gray-700 pb-4 text-center">
               <div>
-                <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-3 py-1 rounded-xl">
-                  المستوى الحالي: {gridSelectedLevel === 'all' ? 'جميع المستويات' : gridSelectedLevel} • عدد الأقسام الإجمالي: {gridClasses.length} • عدد الأوراق المستخرجة: {gridSheets.length}
+                <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-3.5 py-1.5 rounded-xl inline-block">
+                  المستوى الحالي: {gridSelectedLevel === 'all' ? 'جميع المستويات' : gridSelectedLevel} • عدد الأقسام: {gridClasses.length} • الأوراق المستخرجة: {gridSheets.length}
                 </span>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2 flex-wrap">
+              {/* Action Buttons - Centered professional layout with compact icons */}
+              <div className="flex items-center justify-center gap-2 flex-wrap w-full">
                 <button
                   type="button"
                   onClick={handleAutoFillGridDates}
                   disabled={isLoading}
-                  className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
-                  title="تعبئة تواريخ وحصص الأقسام تلقائياً من غيابات ودروس الأقسام المسجلة"
+                  className="px-3.5 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                  title="تعبئة تواريخ وحصص الأقسام تلقائياً"
                 >
                   <span>⚡</span>
-                  <span>تعبئة التواريخ تلقائياً</span>
+                  <span>تعبئة تلقائية</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleClearGridDates}
-                  className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
-                  title="تفريغ كافة خانات التواريخ بياضاً للكتابة اليدوية بعد الطباعة"
+                  className="px-3.5 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                  title="تفريغ الخانات مسحاً"
                 >
                   <span>🧹</span>
-                  <span>تفريغ الخانات (مسح)</span>
+                  <span>مسح الخانات</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleFillBlankPlaceholders}
-                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
-                  title="وضع أسطر منقطة للتاريخ والتوقيت في الخانات الفارغة"
+                  className="px-3.5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                  title="أسطر للتنقيط"
                 >
                   <span>✏️</span>
-                  <span>أسطر للتنقيط</span>
+                  <span>أسطر منقطة</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleExportGridWord}
-                  className="px-3.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
-                  title="تصدير المستند المنسق بصيغة Word (A4 Landscape / Paysage)"
+                  className="px-3.5 py-2.5 rounded-2xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-black shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                  title="تصدير Word"
                 >
                   <DocumentTextIcon className="w-4 h-4" />
-                  <span>تصدير Word ({gridSheets.length} أوراق)</span>
+                  <span>Word ({gridSheets.length})</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="px-3.5 py-2 rounded-xl bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 text-white text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
-                  title="طباعة جميع الأوراق العرضية مباشرة"
+                  className="px-3.5 py-2.5 rounded-2xl bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 text-white text-xs font-black shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                  title="طباعة الأوراق"
                 >
                   <PrinterIcon className="w-4 h-4" />
-                  <span>طباعة ({gridSheets.length} أوراق)</span>
+                  <span>طباعة ({gridSheets.length})</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setIsPrintPreviewOpen(true)}
-                  className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-black shadow-md transition flex items-center gap-1.5 cursor-pointer active:scale-95"
-                  title="معاينة وطباعة دفتر النصوص والتتبع اليومي بصيغة PDF"
+                  className="px-3.5 py-2.5 rounded-2xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-black shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                  title="معاينة PDF"
                 >
                   <PrinterIcon className="w-4 h-4" />
-                  <span>معاينة PDF دفتر النصوص</span>
+                  <span>معاينة PDF</span>
                 </button>
               </div>
             </div>

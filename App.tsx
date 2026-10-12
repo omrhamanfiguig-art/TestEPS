@@ -53,6 +53,8 @@ const MainLayout: React.FC = () => {
     return localStorage.getItem('eps_theme') === 'dark';
   });
 
+  const [isLandscapeMode, setIsLandscapeMode] = useState<boolean>(false);
+
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -119,7 +121,9 @@ const MainLayout: React.FC = () => {
   }, []);
 
   return (
-    <div className="bg-gray-50 dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 font-sans flex flex-row">
+    <div className={`bg-gray-50 dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 font-sans flex flex-row ${
+      isLandscapeMode ? 'fixed inset-0 z-50 overflow-auto w-screen h-screen scale-100 origin-center bg-white dark:bg-gray-900' : ''
+    }`}>
       {/* Sidebar Navigation */}
       <Sidebar
         activeScreen={activeScreen}
@@ -142,6 +146,8 @@ const MainLayout: React.FC = () => {
           onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
           darkMode={darkMode}
           setDarkMode={setDarkMode}
+          isLandscapeMode={isLandscapeMode}
+          setIsLandscapeMode={setIsLandscapeMode}
         />
 
         <main className="flex-grow">

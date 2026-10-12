@@ -15,6 +15,8 @@ interface TopHeaderProps {
   onOpenMobileMenu: () => void;
   darkMode: boolean;
   setDarkMode: (val: boolean) => void;
+  isLandscapeMode: boolean;
+  setIsLandscapeMode: (val: boolean) => void;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
@@ -24,7 +26,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   setSelectedClass,
   onOpenMobileMenu,
   darkMode,
-  setDarkMode
+  setDarkMode,
+  isLandscapeMode,
+  setIsLandscapeMode
 }) => {
   const { language, setLanguage, t } = useLanguage();
   const [isAboutOpen, setIsAboutOpen] = useState(false);
@@ -133,6 +137,21 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           >
             <GlobeAltIcon className="w-3.5 h-3.5 shrink-0" />
             <span>{language === 'ar' ? 'FR' : 'عربي'}</span>
+          </button>
+
+          {/* Screen Rotation / Landscape Mode Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsLandscapeMode(!isLandscapeMode)}
+            className={`p-1.5 sm:px-2.5 sm:py-1.5 text-[10px] sm:text-xs font-bold rounded-xl border transition inline-flex items-center justify-center gap-1 active:scale-95 cursor-pointer ${
+              isLandscapeMode
+                ? 'bg-amber-500 text-white border-amber-600 shadow-md'
+                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50'
+            }`}
+            title={language === 'ar' ? 'تدوير الشاشة (أفقي/عمودي)' : 'Rotation écran'}
+          >
+            <span className="text-sm">🔄</span>
+            <span className="hidden md:inline">{isLandscapeMode ? 'أفقي (Landscape)' : 'تدوير'}</span>
           </button>
 
           {/* Dark Mode Toggle Button */}

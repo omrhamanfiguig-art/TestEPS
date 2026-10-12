@@ -2457,7 +2457,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
             return {
               num: idx + 1,
               studentId: st.numeroEleve,
-              name: `${st.nom} ${st.prenom}`,
+              name: st.nomEleve,
               status: statusMap[rec?.status || 'present'],
               notes: rec?.note || '-'
             };
@@ -2510,7 +2510,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
             return {
               num: idx + 1,
               studentId: s.numeroEleve,
-              name: `${s.nom} ${s.prenom}`,
+              name: s.nomEleve,
               sessions: total,
               rate: `${rate}%`,
               absent: abs,
