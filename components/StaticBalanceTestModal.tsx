@@ -141,15 +141,34 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
     }
   }, [isOpen, selectedClass, initialClass]);
 
-  // Stopwatch animation loop
+  // Stopwatch animation loop - Capped strictly at 60 seconds (60000ms)
+  const MAX_BALANCE_MS = 60 * 1000;
+
   const updateTimer = () => {
-    setElapsedTime(Date.now() - startTimeRef.current);
+    const elapsed = Date.now() - startTimeRef.current;
+    if (elapsed >= MAX_BALANCE_MS) {
+      setElapsedTime(MAX_BALANCE_MS);
+      setTestState('paused');
+      if (requestRef.current) {
+        cancelAnimationFrame(requestRef.current);
+        requestRef.current = null;
+      }
+      playBeep(1760, 0.35, 'triangle');
+      setTimeout(() => playBeep(2093, 0.4, 'sine'), 150);
+      showFeedback('🔔 انتهى اختبار التوازن الثابت! تم بلوغ الحد الأقصى (60 ثانية).');
+      return;
+    }
+    setElapsedTime(elapsed);
     requestRef.current = requestAnimationFrame(updateTimer);
   };
 
   const startTimer = () => {
     if (testState === 'running') return;
-    if (testState === 'idle') {
+    if (elapsedTime >= MAX_BALANCE_MS) {
+      // If already at or above 60s, restart from 0
+      setElapsedTime(0);
+      startTimeRef.current = Date.now();
+    } else if (testState === 'idle') {
       startTimeRef.current = Date.now();
     } else if (testState === 'paused') {
       startTimeRef.current = Date.now() - elapsedTime;
@@ -325,7 +344,7 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
     showFeedback(`تم مسح نتيجة التلميذ «${nomEleve}» بنجاح.`);
   };
 
-  // Save edited time from table
+  // Save edited time from table (capped strictly at 60 seconds)
   const handleSaveTableEditTime = async () => {
     if (!tableStudentToEdit) return;
     const parsed = parseFloat(tableEditTimeInput);
@@ -333,7 +352,8 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
       showFeedback('يرجى إدخال زمن صحيح (مثال: 25.5)');
       return;
     }
-    const timeSec = Number(parsed.toFixed(2));
+    const rawTime = Number(parsed.toFixed(2));
+    const timeSec = Math.min(60, rawTime);
     
     const studentObj = students.find(s => String(s.numeroEleve) === String(tableStudentToEdit.numeroEleve));
     const currentPhys = [...physicalResults];
@@ -359,7 +379,11 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
     window.dispatchEvent(new CustomEvent('dbUpdated'));
     if (onDataSaved) onDataSaved();
     setTableStudentToEdit(null);
-    showFeedback(`تم تعديل نتيجة «${tableStudentToEdit.nomEleve}» إلى ${timeSec}ث بنجاح.`);
+    if (rawTime > 60) {
+      showFeedback(`تم ضبط نتيجة «${tableStudentToEdit.nomEleve}» في 60ث (الحد الأقصى).`);
+    } else {
+      showFeedback(`تم تعديل نتيجة «${tableStudentToEdit.nomEleve}» إلى ${timeSec}ث بنجاح.`);
+    }
   };
 
   // Automatic Ranking Calculation for current heat
@@ -385,14 +409,14 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
   const finishedCount = rankedRunners.length;
   const nextFinisherRankTitle = getArabicRankName(finishedCount);
 
-  // Single-button fall/finish recording logic (WITHOUT auto-saving to DB)
+  // Single-button fall/finish recording logic (capped at 60s max)
   const recordNextFinisher = () => {
     if (testState === 'idle') {
       startTimer();
       return;
     }
 
-    const timeInSec = Number((elapsedTime / 1000).toFixed(2));
+    const timeInSec = Math.min(60, Number((elapsedTime / 1000).toFixed(2)));
     playBeep(1318.5, 0.15, 'sine');
 
     const newArrivalOrder = selectedRunners.length + 1;
@@ -407,6 +431,25 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
     setHasUnsavedChanges(true);
     setIsBatchSaved(false);
     showFeedback(`تم تسجيل ${getArabicRankName(newArrivalOrder - 1)}: ${timeInSec}ث (بانتظار الحفظ 💾)`);
+  };
+
+  // Helper: Quickly record a student who completed the full 60 seconds (Maximum Cap)
+  const handleRecordMaxBalanceStudent = () => {
+    const timeInSec = 60.0;
+    playBeep(1760, 0.25, 'triangle');
+
+    const newArrivalOrder = selectedRunners.length + 1;
+    const newRunner: BalanceRunner = {
+      laneIndex: newArrivalOrder,
+      studentNumber: '',
+      recordedTime: timeInSec,
+      isFinished: true,
+      arrivalOrder: newArrivalOrder
+    };
+    setSelectedRunners(prev => [...prev, newRunner]);
+    setHasUnsavedChanges(true);
+    setIsBatchSaved(false);
+    showFeedback(`تم تسجيل صمود 60.00ث (الحد الأقصى 🏆) - بانتظار تعيين التلميذ والحفظ`);
   };
 
   // Click on a specific lane tile to record arrival or cancel
@@ -434,14 +477,15 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
     setIsBatchSaved(false);
   };
 
-  // Save edited time in arrival list
+  // Save edited time in arrival list (capped at 60s max)
   const handleSaveEditedTime = (laneIndex: number) => {
     const parsed = parseFloat(tempEditTime);
     if (isNaN(parsed) || parsed <= 0) {
       showFeedback('يرجى إدخال زمن صحيح');
       return;
     }
-    const val = Number(parsed.toFixed(2));
+    const rawVal = Number(parsed.toFixed(2));
+    const val = Math.min(60, rawVal);
     setSelectedRunners(prev => prev.map(r =>
       r.laneIndex === laneIndex ? { ...r, recordedTime: val } : r
     ));
@@ -449,7 +493,11 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
     setTempEditTime('');
     setHasUnsavedChanges(true);
     setIsBatchSaved(false);
-    showFeedback('تم تعديل الزمن بنجاح.');
+    if (rawVal > 60) {
+      showFeedback('تم ضبط الزمن في 60 ثانية (الحد الأقصى للتوازن الثابت).');
+    } else {
+      showFeedback('تم تعديل الزمن بنجاح.');
+    }
   };
 
   const handleStartEditTime = (laneIndex: number, currTime?: number) => {
@@ -556,8 +604,14 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
             </div>
           </div>
 
-          <div className="text-[11px] sm:text-xs text-teal-700 dark:text-teal-300 font-bold bg-teal-50 dark:bg-teal-950/60 px-2.5 py-0.5 rounded-md border border-teal-200 dark:border-teal-800">
-            تسجيل اختلال التوازن المباشر (مفتوح لأي عدد) ⚖️
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] sm:text-xs text-amber-800 dark:text-amber-200 font-black bg-amber-100 dark:bg-amber-950/70 px-2.5 py-0.5 rounded-md border border-amber-300 dark:border-amber-700 flex items-center gap-1 shadow-2xs">
+              <span>⏱️</span>
+              <span>محدد في 60 ثانية كحد أقصى</span>
+            </span>
+            <div className="text-[11px] sm:text-xs text-teal-700 dark:text-teal-300 font-bold bg-teal-50 dark:bg-teal-950/60 px-2.5 py-0.5 rounded-md border border-teal-200 dark:border-teal-800">
+              تسجيل اختلال التوازن المباشر ⚖️
+            </div>
           </div>
         </div>
 
@@ -565,35 +619,82 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
         <div className="p-3 sm:p-5 overflow-y-auto space-y-5 flex-grow custom-scrollbar">
 
           {/* ========================================================= */}
-          {/* STOPWATCH & LIVE RECORDING                                */}
+          {/* STOPWATCH & LIVE RECORDING (CAPPED AT 60s)                 */}
           {/* ========================================================= */}
           <div className="flex flex-col items-center justify-center p-3 sm:p-4 bg-gradient-to-br from-gray-950 via-gray-900 to-slate-900 text-white rounded-3xl shadow-xl border border-gray-700 relative overflow-hidden space-y-2.5">
-            <div className="text-[11px] font-black text-teal-400 uppercase tracking-widest text-center">
-              عداد وقت اختبار التوازن الثابت (ثواني)
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-black text-teal-400 uppercase tracking-widest text-center">
+                عداد وقت اختبار التوازن الثابت
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-950/90 text-teal-300 border border-teal-500/40 font-bold">
+                الحد الأقصى: 60.00 ث ⏱️
+              </span>
             </div>
 
             {/* Giant Digital Stopwatch */}
-            <div className="text-4xl xs:text-5xl sm:text-6xl font-mono font-black tracking-wider text-teal-400 drop-shadow-md my-0.5">
-              {formattedSeconds} <span className="text-lg sm:text-xl font-bold text-gray-400">ثانية</span>
+            <div className="text-4xl xs:text-5xl sm:text-6xl font-mono font-black tracking-wider text-teal-400 drop-shadow-md my-0.5 flex items-baseline gap-1.5">
+              <span>{formattedSeconds}</span>
+              <span className="text-sm xs:text-base sm:text-lg font-bold text-gray-400">/ 60.00 ث</span>
             </div>
 
+            {/* Visual Progress Bar (0 to 60 seconds) */}
+            <div className="w-full max-w-sm sm:max-w-md bg-gray-800/90 rounded-full h-2.5 overflow-hidden border border-gray-700 shadow-inner">
+              <div 
+                className={`h-full transition-all duration-100 ${
+                  elapsedTime >= 60000 
+                    ? 'bg-gradient-to-r from-emerald-400 to-teal-300 shadow-lg shadow-teal-500/50' 
+                    : 'bg-gradient-to-r from-teal-500 via-teal-400 to-amber-400'
+                }`}
+                style={{ width: `${Math.min(100, (elapsedTime / 60000) * 100)}%` }}
+              />
+            </div>
+
+            {/* 60s Reached Celebration Banner */}
+            {elapsedTime >= 60000 && (
+              <div className="bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 px-3.5 py-1.5 rounded-2xl text-xs font-black flex items-center gap-2 animate-bounce shadow-md">
+                <span>🏆</span>
+                <span>تم بلوغ الحد الأقصى (60 ثانية)! اكتمل الاختبار للتلاميذ الصامدين.</span>
+              </div>
+            )}
+
             {/* DYNAMIC FINISHER TAP BUTTON (بشكل مطول وعرض أقصر) */}
-            <div className="w-full flex justify-center px-1 my-1">
+            <div className="w-full flex flex-col items-center justify-center gap-2 px-1 my-1">
               <button
                 type="button"
                 onClick={recordNextFinisher}
-                className="w-40 sm:w-44 py-6 px-3 bg-gradient-to-b from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 text-gray-950 font-black rounded-3xl shadow-xl shadow-amber-500/30 border-2 border-amber-200 transition-all transform active:scale-95 cursor-pointer flex flex-col items-center justify-center gap-2 text-center min-h-[135px]"
+                className={`w-44 sm:w-48 py-5 px-3 font-black rounded-3xl shadow-xl transition-all transform active:scale-95 cursor-pointer flex flex-col items-center justify-center gap-1.5 text-center min-h-[135px] border-2 ${
+                  elapsedTime >= 60000
+                    ? 'bg-gradient-to-b from-emerald-400 via-teal-400 to-emerald-500 hover:from-emerald-300 hover:to-teal-300 text-gray-950 border-emerald-200 shadow-emerald-500/30'
+                    : 'bg-gradient-to-b from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 text-gray-950 border-amber-200 shadow-amber-500/30'
+                }`}
               >
-                <span className="text-3xl animate-bounce">🛑</span>
-                <div className="text-xs sm:text-sm font-black text-gray-950 leading-tight">
+                <span className="text-3xl animate-bounce">
+                  {elapsedTime >= 60000 ? '🏆' : '🛑'}
+                </span>
+                <div className="text-xs sm:text-sm font-black text-gray-950 leading-tight whitespace-pre-line">
                   {testState === 'idle'
                     ? 'انقر للبدء 🚀'
+                    : elapsedTime >= 60000
+                    ? `تسجيل صمود 60 ث (الحد الأقصى)\nالمركز ${nextFinisherRankTitle}`
                     : `تسجيل اختلال التوازن:\nالمركز ${nextFinisherRankTitle}`}
                 </div>
                 <div className="flex items-center gap-1 bg-gray-950 text-amber-300 px-2.5 py-1 rounded-xl text-xs font-mono font-black border border-amber-400/50 shadow-inner">
-                  <span>⏱️ {formattedSeconds} ث</span>
+                  <span>⏱️ {Math.min(60, Number(formattedSeconds)).toFixed(2)} ث</span>
                 </div>
               </button>
+
+              {/* Quick Button to record a student who completed full 60s */}
+              {testState !== 'idle' && (
+                <button
+                  type="button"
+                  onClick={handleRecordMaxBalanceStudent}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-500/20 hover:bg-teal-500/35 border border-teal-400/40 text-teal-200 text-[11px] font-bold rounded-xl transition cursor-pointer active:scale-95 shadow-sm"
+                  title="تسجيل تلميذ صمد حتى 60 ثانية (الحد الأقصى)"
+                >
+                  <span>🌟</span>
+                  <span>تسجيل تلميذ أكمل 60 ثانية (الحد الأقصى)</span>
+                </button>
+              )}
             </div>
 
             {/* Stopwatch control buttons */}
@@ -740,9 +841,11 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
                               <input
                                 type="number"
                                 step="0.01"
+                                min="0"
+                                max="60"
                                 value={tempEditTime}
                                 onChange={(e) => setTempEditTime(e.target.value)}
-                                placeholder="24.50"
+                                placeholder="≤ 60"
                                 className="w-20 px-2 py-1 text-xs font-mono font-black border border-gray-300 dark:border-gray-600 rounded-lg text-center"
                               />
                               <span className="text-xs font-bold">ث</span>
@@ -1087,17 +1190,24 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
             </p>
             <div className="space-y-3 mb-6">
               <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                  الزمن المسجل (ثانية):
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300">
+                    الزمن المسجل (ثانية):
+                  </label>
+                  <span className="text-[11px] font-bold text-teal-600 dark:text-teal-400">
+                    الحد الأقصى: 60 ثانية ⏱️
+                  </span>
+                </div>
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
+                  max="60"
                   autoFocus
                   value={tableEditTimeInput}
                   onChange={(e) => setTableEditTimeInput(e.target.value)}
                   className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 font-mono font-black text-lg text-center text-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500"
-                  placeholder="24.50"
+                  placeholder="الحد الأقصى: 60.00"
                 />
               </div>
             </div>

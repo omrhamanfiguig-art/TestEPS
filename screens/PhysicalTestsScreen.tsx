@@ -252,6 +252,9 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
         }
 
         setFormData(prev => {
+            if (field === 'equilibreStatique' && numVal !== undefined) {
+                numVal = Math.min(60, Math.max(0, numVal));
+            }
             const next = {
                 ...prev,
                 [field]: numVal
@@ -272,6 +275,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                     next.scoreLancerPoids = calculateScore(numVal, getCustomScale('shot-put'), selectedStudent.sexe || 'M', false);
                 } else if (field === 'enduranceTemps') {
                     next.scoreEndurance = calculateScore(numVal, getCustomScale('endurance'), selectedStudent.sexe || 'M', true);
+                } else if (field === 'equilibreStatique') {
+                    next.scoreEquilibre = calculateScore(numVal, getCustomScale('balance'), selectedStudent.sexe || 'M', false);
                 }
             } else {
                 delete next[field];
@@ -290,6 +295,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                     delete next.scoreLancerPoids;
                 } else if (field === 'enduranceTemps') {
                     delete next.scoreEndurance;
+                } else if (field === 'equilibreStatique') {
+                    delete next.scoreEquilibre;
                 }
             }
             return next;
@@ -402,6 +409,9 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
 
         // Automatic score calculation for relevant fields
         if (numVal !== undefined && !isNaN(numVal)) {
+            if (field === 'equilibreStatique') {
+                numVal = Math.min(60, Math.max(0, numVal));
+            }
             updatedItem[field] = numVal;
             if (field === 'vitesse30m') {
                 updatedItem.scoreVitesse30m = calculateScore(numVal, getCustomScale('speed'), student.sexe || 'M', true);
@@ -418,6 +428,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                 updatedItem.scoreLancerPoids = calculateScore(numVal, getCustomScale('shot-put'), student.sexe || 'M', false);
             } else if (field === 'enduranceTemps') {
                 updatedItem.scoreEndurance = calculateScore(numVal, getCustomScale('endurance'), student.sexe || 'M', true);
+            } else if (field === 'equilibreStatique') {
+                updatedItem.scoreEquilibre = calculateScore(numVal, getCustomScale('balance'), student.sexe || 'M', false);
             }
         } else {
             delete updatedItem[field];
@@ -436,6 +448,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                 delete updatedItem.scoreLancerPoids;
             } else if (field === 'enduranceTemps') {
                 delete updatedItem.scoreEndurance;
+            } else if (field === 'equilibreStatique') {
+                delete updatedItem.scoreEquilibre;
             }
         }
 
@@ -1530,17 +1544,27 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                                 />
                                             </td>
 
-                                            {/* Equilibre Statique */}
+                                            {/* Equilibre Statique (Capped at 60s max) */}
                                             <td className="p-1.5">
-                                                <input
-                                                    type="number"
-                                                    step="0.5"
-                                                    placeholder=""
-                                                    defaultValue={toSafeDefaultValue(res?.equilibreStatique)}
-                                                    key={`equilibre-${student.numeroEleve}-${toSafeDefaultValue(res?.equilibreStatique)}`}
-                                                    onBlur={(e) => handleTableFieldChange(student, 'equilibreStatique', e.target.value)}
-                                                    className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                                                />
+                                                <div className="relative">
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        max="60"
+                                                        step="0.5"
+                                                        placeholder="≤ 60"
+                                                        title="التوازن الثابت (الحد الأقصى: 60 ثانية)"
+                                                        defaultValue={toSafeDefaultValue(res?.equilibreStatique)}
+                                                        key={`equilibre-${student.numeroEleve}-${toSafeDefaultValue(res?.equilibreStatique)}`}
+                                                        onBlur={(e) => handleTableFieldChange(student, 'equilibreStatique', e.target.value)}
+                                                        className="w-full text-center py-1.5 px-1 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                                                    />
+                                                    {typeof res?.scoreEquilibre === 'number' && !isNaN(res.scoreEquilibre) && (
+                                                        <span className="block text-[9px] text-teal-600 dark:text-teal-400 font-bold mt-0.5">
+                                                            ن: {res.scoreEquilibre}/20
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
 
                                             {/* Endurance in min:sec (e.g. 03:20) */}
@@ -2046,13 +2070,25 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                         </div>
 
                                         <div>
-                                            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">التوازن الثابت (ثانية)</label>
+                                            <div className="flex items-center justify-between mb-1">
+                                                <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">التوازن الثابت (ثانية)</label>
+                                                <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold">محدد في 60 ثانية كحد أقصى</span>
+                                            </div>
                                             <input 
                                                 type="number" 
+                                                min="0"
+                                                max="60"
                                                 step="0.5" 
                                                 value={toSafeInputValue(formData.equilibreStatique)} 
-                                                onChange={e => handleInputChange('equilibreStatique', e.target.value)}
-                                                placeholder=""
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    if (val !== '' && Number(val) > 60) {
+                                                        handleInputChange('equilibreStatique', '60');
+                                                    } else {
+                                                        handleInputChange('equilibreStatique', val);
+                                                    }
+                                                }}
+                                                placeholder="الحد الأقصى: 60 ثانية"
                                                 className="w-full rounded-lg border border-gray-300 dark:bg-gray-700 dark:border-gray-600 py-2 px-3 text-sm text-center font-bold" 
                                             />
                                         </div>

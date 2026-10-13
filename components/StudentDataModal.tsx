@@ -768,14 +768,23 @@ export const StudentDataModal: React.FC<StudentDataModalProps> = ({
                         <label className="text-xs font-bold text-gray-700 dark:text-gray-300">
                           {language === 'ar' ? 'التوازن الثابت (Flamant Rose)' : 'Équilibre statique'}
                         </label>
-                        <span className="text-[10px] font-bold text-gray-400">sec (ث)</span>
+                        <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400">الحد الأقصى: 60 ث</span>
                       </div>
                       <input
                         type="number"
-                        step="1"
-                        placeholder=""
+                        min="0"
+                        max="60"
+                        step="0.5"
+                        placeholder="≤ 60 ثانية"
                         value={formData.equilibreStatique || ''}
-                        onChange={(e) => handleFieldChange('equilibreStatique', e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val !== '' && Number(val) > 60) {
+                            handleFieldChange('equilibreStatique', '60');
+                          } else {
+                            handleFieldChange('equilibreStatique', val);
+                          }
+                        }}
                         className="w-full text-base font-bold text-center px-3 py-2 rounded-xl border border-gray-300 dark:bg-gray-800 dark:border-gray-600 focus:ring-1 focus:ring-indigo-500 font-mono"
                       />
                     </div>
