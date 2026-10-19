@@ -46,6 +46,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
   const getScreenTitle = () => {
     switch (activeScreen) {
+      case 'home':
+        return language === 'ar' ? 'الرئيسية والبطائق' : 'Accueil & Cartes';
       case 'physical-tests':
         return t.navPhysicalTests;
       case 'athletics':
@@ -83,6 +85,18 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           >
             <Bars3Icon className="w-5 h-5" />
           </button>
+
+          {/* Back to Home Button when not on Home */}
+          {activeScreen !== 'home' && (
+            <button
+              onClick={() => setActiveScreen('home')}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition active:scale-95 cursor-pointer shrink-0 shadow-2xs"
+              title={language === 'ar' ? 'العودة إلى بطائق الصفحة الرئيسية' : 'Retour à l\'accueil'}
+            >
+              <span>🏠</span>
+              <span className="hidden xs:inline">{language === 'ar' ? 'الرئيسية' : 'Accueil'}</span>
+            </button>
+          )}
 
           <h2 className="text-sm sm:text-lg font-black text-gray-900 dark:text-white truncate">
             {getScreenTitle()}

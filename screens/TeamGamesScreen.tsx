@@ -22,14 +22,16 @@ import {
     ArrowPathIcon, 
     PlusIcon, 
     TrashIcon, 
-    BoltIcon 
+    BoltIcon,
+    HomeIcon,
+    ArrowRightIcon,
+    ArrowLeftIcon,
+    PrinterIcon,
+    Squares2X2Icon
 } from '../components/Icons';
 import { StudentAvatar } from '../components/StudentAvatar';
 import { QuickEvaluationModal } from '../components/QuickEvaluationModal';
 import { PrintPreviewModal, PrintPreviewColumn } from '../components/PrintPreviewModal';
-import { 
-  PrinterIcon
-} from '../components/Icons';
 import { 
   getGradingDistribution,
   GradingDistribution,
@@ -48,6 +50,8 @@ import {
   GYM_EXIGENCES_FAMILY_OPTIONS,
   calculateGymDifficultiesWithDetails
 } from '../utils/gymnasticsHelper';
+import { detectLevelFromClassName, EDUCATIONAL_LEVELS } from '../utils/teacherHelper';
+import type { ActiveScreen } from '../components/Sidebar';
 
 export const getStudentSportEvaluation = (
   test: PhysicalTests | undefined, 
@@ -99,15 +103,18 @@ export const getStudentSportEvaluation = (
 interface TeamGamesScreenProps {
   selectedClass: string;
   setSelectedClass: (className: string) => void;
+  onNavigateToScreen?: (screen: ActiveScreen) => void;
 }
 
 export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
   selectedClass,
-  setSelectedClass
+  setSelectedClass,
+  onNavigateToScreen
 }) => {
-  const { t, language } = useLanguage();
+  const { t, language, isRtl } = useLanguage();
   const { sports, addSport, deleteSport } = useSportsList();
   const [classList, setClassList] = useState<ClassStats[]>([]);
+  const [filterLevel, setFilterLevel] = useState<string>('ALL');
   const [students, setStudents] = useState<StudentIdentity[]>([]);
   const [physicalTests, setPhysicalTests] = useState<PhysicalTests[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -122,6 +129,9 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
     if (isNaN(num)) return '';
     return num;
   };
+
+  // View mode: 'cards_hub' (default first screen with 3x3 cards) or 'workspace' (table/interactive evaluation)
+  const [viewMode, setViewMode] = useState<'cards_hub' | 'workspace'>('cards_hub');
 
   // Evaluation Sub-space state
   const [activeTab, setActiveTab] = useState<'team_games' | 'gymnastics' | 'athletics_sprint' | 'athletics_shot_put' | 'athletics_long_jump'>('team_games');
@@ -944,6 +954,12 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
     });
   }, [filteredStudents, physicalTests, activeTab, currentSport]);
 
+  // Filtered classes according to selected level
+  const filteredClasses = useMemo(() => {
+    if (filterLevel === 'ALL') return classList;
+    return classList.filter(c => detectLevelFromClassName(c.className).key === filterLevel);
+  }, [classList, filterLevel]);
+
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Top Banner Dashboard */}
@@ -953,12 +969,36 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
             <UserGroupIcon className="w-8 h-8" />
           </div>
           <div>
-            <h1 className="text-xl md:text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2">
-              <span>فضاء الفروض (الألعاب الجماعية، الجمباز وألعاب القوى)</span>
-              <span className="text-xs bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-extrabold px-3 py-1 rounded-full border border-indigo-200">
-                {classLevelLabel}
-              </span>
-            </h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              {onNavigateToScreen && (
+                <button
+                  type="button"
+                  onClick={() => onNavigateToScreen('home')}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-800 transition active:scale-95 cursor-pointer shadow-2xs shrink-0"
+                  title="العودة إلى بطائق الصفحة الرئيسية"
+                >
+                  <HomeIcon className="w-3.5 h-3.5" />
+                  <span>الرئيسية</span>
+                </button>
+              )}
+              {viewMode === 'workspace' && (
+                <button
+                  type="button"
+                  onClick={() => setViewMode('cards_hub')}
+                  className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-xs font-black border border-indigo-200 dark:border-indigo-800 transition active:scale-95 cursor-pointer shadow-2xs shrink-0"
+                  title="العودة إلى شبكة بطاقات الفروض"
+                >
+                  <ArrowRightIcon className="w-3.5 h-3.5" />
+                  <span>العودة لبطاقات الفروض (3×3)</span>
+                </button>
+              )}
+              <h1 className="text-xl md:text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2">
+                <span>فضاء الفروض والأنشطة الرياضية</span>
+                <span className="text-xs bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-extrabold px-3 py-1 rounded-full border border-indigo-200">
+                  {classLevelLabel}
+                </span>
+              </h1>
+            </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               تسجيل وتدبير نقط الفروض والتقويمات الحركية والسلوكية والمعرفية طبقاً للتوجيهات التربوية المغربية
             </p>
@@ -966,6 +1006,28 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
         </div>
 
         <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center md:justify-end gap-2.5 w-full md:w-auto">
+          {/* Level Filter Dropdown */}
+          <div className="bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600 flex items-center justify-center gap-1.5 w-full sm:w-auto">
+             <span className="text-xs font-bold text-gray-500 dark:text-gray-400 ps-1">المستوى:</span>
+             <select
+                value={filterLevel}
+                onChange={(e) => {
+                  setFilterLevel(e.target.value);
+                  const matched = classList.filter(c => e.target.value === 'ALL' || detectLevelFromClassName(c.className).key === e.target.value);
+                  if (matched.length > 0 && !matched.some(c => c.className === selectedClass)) {
+                    setSelectedClass(matched[0].className);
+                  }
+                }}
+                className="bg-white dark:bg-gray-800 border-none font-bold text-xs text-gray-900 dark:text-white rounded-xl px-2 py-1 focus:ring-0 shadow-xs cursor-pointer"
+             >
+                <option value="ALL">جميع المستويات</option>
+                {EDUCATIONAL_LEVELS.filter(l => l.key !== 'all').map(lvl => (
+                  <option key={lvl.key} value={lvl.key}>{lvl.labelAr}</option>
+                ))}
+             </select>
+          </div>
+
+          {/* Class Select Dropdown */}
           <div className="bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600 flex items-center justify-center gap-2 w-full sm:w-auto">
              <span className="text-xs font-bold text-gray-500 dark:text-gray-400 ps-1.5">القسم:</span>
              <select
@@ -973,10 +1035,44 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
                 onChange={(e) => setSelectedClass(e.target.value)}
                 className="bg-white dark:bg-gray-800 border-none font-bold text-xs text-gray-900 dark:text-white rounded-xl px-2.5 py-1.5 focus:ring-0 shadow-xs flex-1 sm:flex-initial cursor-pointer"
              >
-                {classList.map(c => (
+                {filteredClasses.length === 0 ? (
+                  <option value="" disabled>لا يوجد أقسام</option>
+                ) : (
+                  filteredClasses.map(c => (
                     <option key={c.className} value={c.className}>{c.className}</option>
-                ))}
+                  ))
+                )}
              </select>
+          </div>
+
+          {/* View Mode Switcher */}
+          <div className="flex items-center bg-gray-100 dark:bg-gray-700/60 p-1 rounded-xl border border-gray-200 dark:border-gray-600 shrink-0">
+            <button
+              type="button"
+              onClick={() => setViewMode('cards_hub')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                viewMode === 'cards_hub'
+                  ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
+              }`}
+              title="عرض أسماء الفروض على شكل شبكة بطاقات (3×3)"
+            >
+              <Squares2X2Icon className="w-4 h-4" />
+              <span>بطاقات الفروض (3×3)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('workspace')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                viewMode === 'workspace'
+                  ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
+              }`}
+              title="عرض الجداول وفضاءات التنقيط المباشرة"
+            >
+              <TableCellsIcon className="w-4 h-4" />
+              <span>جدول النقط</span>
+            </button>
           </div>
 
           {isSaving && (
@@ -1041,13 +1137,336 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
         </div>
       </div>
 
-      {/* Tabs navigation for Furood / Devoirs */}
-      <div className="flex border-b border-gray-200 dark:border-gray-700 gap-1.5 sm:gap-2 overflow-x-auto pb-1">
-        <button
-          type="button"
-          onClick={() => setActiveTab('team_games')}
-          className={`px-3 sm:px-4 py-2 sm:py-3 rounded-t-2xl font-black text-[11px] sm:text-xs transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
-            activeTab === 'team_games'
+      {/* VIEW MODE 1: 3x3 CARDS HUB (الصفحة الأولى: شبكة بطاقات الفروض 3×3) */}
+      {viewMode === 'cards_hub' && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Quick Info & Level/Class Header */}
+          <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center font-black text-lg shadow-md shadow-indigo-600/20 shrink-0">
+                3×3
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-gray-900 dark:text-white flex items-center gap-2">
+                  <span>شبكة بطاقات الفروض والأنشطة الرياضية</span>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 font-bold border border-indigo-200">
+                    {selectedClass || 'اختر قسماً'}
+                  </span>
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  3 بطاقات في كل صف عبر 3 صفوف. اضغط على أي بطاقة لفتح فضاء التقييم ورصد النقط الخاص بها مع إمكانية تغيير المستوى والقسم
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-end">
+              <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900/60 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold">
+                <span className="text-gray-500 dark:text-gray-400">مجموع التلاميذ:</span>
+                <span className="text-indigo-600 dark:text-indigo-400">{students.length}</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setViewMode('workspace')}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-xs transition active:scale-95 cursor-pointer"
+              >
+                <TableCellsIcon className="w-3.5 h-3.5" />
+                <span>جدول النقط المفصل</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 3x3 Cards Grid (9 Modules) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+            {/* ROW 1 - CARD 1: الرياضات الجماعية */}
+            <div
+              onClick={() => {
+                setActiveTab('team_games');
+                setViewMode('workspace');
+              }}
+              className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-indigo-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+            >
+              <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-indigo-500/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-indigo-600 to-blue-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-indigo-600/20 group-hover:scale-110 transition-transform shrink-0">
+                    ⚽
+                  </div>
+                  <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                    تقويم شامل /20
+                  </span>
+                </div>
+                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors mb-1">
+                  الرياضات الجماعية (Sports Collectifs)
+                </h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                  كرة القدم، كرة السلة، كرة اليد، الكرة الطائرة، والريكبي مع رصد التقويم الفردي والجماعي والسلوكي والمعرفي.
+                </p>
+              </div>
+
+              <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                <span>فتح شبكة الرياضات الجماعية</span>
+                <span className="group-hover:translate-x-[-4px] transition-transform">←</span>
+              </div>
+            </div>
+
+            {/* ROW 1 - CARD 2: الجمباز الأرضي والأكروبات */}
+            <div
+              onClick={() => {
+                setActiveTab('gymnastics');
+                setViewMode('workspace');
+              }}
+              className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-purple-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+            >
+              <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-purple-500/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-purple-600/20 group-hover:scale-110 transition-transform shrink-0">
+                    🤸
+                  </div>
+                  <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                    الصعوبات A, B, C
+                  </span>
+                </div>
+                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors mb-1">
+                  الجمباز الأرضي والأكروبات (Gymnastique)
+                </h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                  شبكة تنقيط الصعوبات، المتطلبات الأسرية، الربط والانسيابية، وخصم أخطاء السقوط والتنفيذ تلقائياً.
+                </p>
+              </div>
+
+              <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between text-xs font-bold text-purple-600 dark:text-purple-400">
+                <span>فتح فضاء الجمباز</span>
+                <span className="group-hover:translate-x-[-4px] transition-transform">←</span>
+              </div>
+            </div>
+
+            {/* ROW 1 - CARD 3: ألعاب القوى: الجري السريع */}
+            <div
+              onClick={() => {
+                setActiveTab('athletics_sprint');
+                setViewMode('workspace');
+              }}
+              className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-amber-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+            >
+              <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-amber-500/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-amber-500/20 group-hover:scale-110 transition-transform shrink-0">
+                    ⚡
+                  </div>
+                  <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                    30م / 60م / 80م / 100م
+                  </span>
+                </div>
+                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors mb-1">
+                  ألعاب القوى: سباق السرعة (Course de Vitesse)
+                </h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                  تسجيل التوقيت بالثانية وحساب النقطة الفورية وفق سلم التنقيط الوزاري الرسمي للذكور والإناث.
+                </p>
+              </div>
+
+              <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between text-xs font-bold text-amber-600 dark:text-amber-400">
+                <span>فتح جدول سباق السرعة</span>
+                <span className="group-hover:translate-x-[-4px] transition-transform">←</span>
+              </div>
+            </div>
+
+            {/* ROW 2 - CARD 4: ألعاب القوى: القفز الطولي */}
+            <div
+              onClick={() => {
+                setActiveTab('athletics_long_jump');
+                setViewMode('workspace');
+              }}
+              className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-emerald-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+            >
+              <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-emerald-500/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-emerald-600/20 group-hover:scale-110 transition-transform shrink-0">
+                    🎯
+                  </div>
+                  <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                    نظام 3 محاولات
+                  </span>
+                </div>
+                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors mb-1">
+                  ألعاب القوى: القفز الطولي (Saut en Longueur)
+                </h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                  تسجيل المسافات بالأمتار، احتساب أفضل محاولة تلقائياً وتطبيق سلم التنقيط المعتمد.
+                </p>
+              </div>
+
+              <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                <span>فتح جدول القفز الطولي</span>
+                <span className="group-hover:translate-x-[-4px] transition-transform">←</span>
+              </div>
+            </div>
+
+            {/* ROW 2 - CARD 5: ألعاب القوى: دفع الجلة */}
+            <div
+              onClick={() => {
+                setActiveTab('athletics_shot_put');
+                setViewMode('workspace');
+              }}
+              className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-slate-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+            >
+              <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-slate-500/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-slate-700 to-gray-800 text-white flex items-center justify-center text-2xl shadow-lg shadow-slate-700/20 group-hover:scale-110 transition-transform shrink-0">
+                    ☄️
+                  </div>
+                  <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-300 border border-slate-200 dark:border-slate-800">
+                    القوة العضلية والرمي
+                  </span>
+                </div>
+                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-slate-600 dark:group-hover:text-slate-400 transition-colors mb-1">
+                  ألعاب القوى: دفع الجلة (Lancer du Poids)
+                </h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                  قياس مسافات الرمي بالأمتار بنظام المحاولات واحتساب النقطة ومعدل الأداء الفردي والجماعي.
+                </p>
+              </div>
+
+              <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                <span>فتح جدول دفع الجلة</span>
+                <span className="group-hover:translate-x-[-4px] transition-transform">←</span>
+              </div>
+            </div>
+
+            {/* ROW 2 - CARD 6: التقويم السريع الميداني */}
+            <div
+              onClick={() => handleOpenQuickEval()}
+              className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-rose-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+            >
+              <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-rose-500/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-rose-500 to-red-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-rose-500/20 group-hover:scale-110 transition-transform shrink-0">
+                    ⚡
+                  </div>
+                  <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                    رصد فوري بالنقرة
+                  </span>
+                </div>
+                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors mb-1">
+                  التقويم السريع الميداني (Saisie Rapide)
+                </h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                  نافذة ميدانية سريعة تتيح للأستاذ تقويم التلاميذ بضغطة زر واحدة وتوزيع النقط تلقائياً.
+                </p>
+              </div>
+
+              <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between text-xs font-bold text-rose-600 dark:text-rose-400">
+                <span>تشغيل التقويم السريع</span>
+                <span className="group-hover:translate-x-[-4px] transition-transform">←</span>
+              </div>
+            </div>
+
+            {/* ROW 3 - CARD 7: حساب نقط السلوك آلياً */}
+            <div
+              onClick={handleAutoCalculateBehaviorAll}
+              className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-yellow-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+            >
+              <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-yellow-500/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-yellow-500/20 group-hover:scale-110 transition-transform shrink-0">
+                    🌟
+                  </div>
+                  <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800">
+                    من سجل الغياب
+                  </span>
+                </div>
+                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-yellow-600 dark:group-hover:text-yellow-400 transition-colors mb-1">
+                  حساب نقط السلوك آلياً (Auto-Comportement)
+                </h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                  استخراج آلي ودقيق لنقط السلوك والمواظبة لجميع تلاميذ القسم بالاعتماد على سجل الحضور والغياب.
+                </p>
+              </div>
+
+              <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between text-xs font-bold text-amber-600 dark:text-amber-400">
+                <span>تطبيق الحساب الآلي</span>
+                <span className="group-hover:translate-x-[-4px] transition-transform">←</span>
+              </div>
+            </div>
+
+            {/* ROW 3 - CARD 8: معاينة وطباعة لوائح الفروض PDF */}
+            <div
+              onClick={() => setIsPrintPreviewOpen(true)}
+              className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-cyan-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+            >
+              <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-cyan-500/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-cyan-600 to-blue-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-cyan-600/20 group-hover:scale-110 transition-transform shrink-0">
+                    🖨️
+                  </div>
+                  <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800">
+                    استخراج رسمي PDF
+                  </span>
+                </div>
+                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors mb-1">
+                  معاينة وطباعة لوائح الفروض (PDF)
+                </h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                  تصدير وطباعة لوائح نقط الفروض والأنشطة الرياضية بتنسيق رسمي ومظهر عالي الاحترافية.
+                </p>
+              </div>
+
+              <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between text-xs font-bold text-cyan-600 dark:text-cyan-400">
+                <span>فتح نافذة المعاينة والطباعة</span>
+                <span className="group-hover:translate-x-[-4px] transition-transform">←</span>
+              </div>
+            </div>
+
+            {/* ROW 3 - CARD 9: تصدير النتائج إلى Excel */}
+            <div
+              onClick={handleExportExcelAll}
+              className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-emerald-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+            >
+              <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-emerald-500/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-emerald-600 to-green-700 text-white flex items-center justify-center text-2xl shadow-lg shadow-emerald-600/20 group-hover:scale-110 transition-transform shrink-0">
+                    📊
+                  </div>
+                  <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                    ملف Excel
+                  </span>
+                </div>
+                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors mb-1">
+                  تصدير سجل نقط الفروض (Excel)
+                </h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                  تصدير كافة نقط الفروض والأنشطة لجميع التلاميذ إلى ملف Excel متوافق مع منظومة مسار.
+                </p>
+              </div>
+
+              <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                <span>تصدير ملف Excel</span>
+                <span className="group-hover:translate-x-[-4px] transition-transform">←</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW MODE 2: WORKSPACE TABS & DETAILED GRIDS */}
+      {viewMode === 'workspace' && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Tabs navigation for Furood / Devoirs */}
+          <div className="flex border-b border-gray-200 dark:border-gray-700 gap-1.5 sm:gap-2 overflow-x-auto pb-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab('team_games')}
+              className={`px-3 sm:px-4 py-2 sm:py-3 rounded-t-2xl font-black text-[11px] sm:text-xs transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                activeTab === 'team_games'
               ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-600 dark:border-indigo-400 shadow-xs'
               : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
           }`}
@@ -2225,6 +2644,8 @@ export const TeamGamesScreen: React.FC<TeamGamesScreenProps> = ({
               </table>
             </div>
           </div>
+        </div>
+      )}
         </div>
       )}
 

@@ -9,10 +9,13 @@ import {
   CheckCircleIcon, 
   TrophyIcon, 
   TrashIcon, 
-  PencilSquareIcon 
+  PencilSquareIcon,
+  ArrowRightIcon,
+  ArrowLeftIcon
 } from './Icons';
 import { StudentAvatar } from './StudentAvatar';
 import { startBluetoothKeepAlive, stopBluetoothKeepAlive } from '../utils/audioHelper';
+import { detectLevelFromClassName, EDUCATIONAL_LEVELS } from '../utils/teacherHelper';
 
 interface StaticBalanceTestModalProps {
   isOpen: boolean;
@@ -48,6 +51,12 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
 }) => {
   const [selectedClass, setSelectedClass] = useState<string>(initialClass);
   const [classes, setClasses] = useState<string[]>(() => normalizeClassNames(classList));
+  const [filterLevel, setLevelFilter] = useState<string>('ALL');
+
+  const filteredClasses = useMemo(() => {
+    if (filterLevel === 'ALL') return classes;
+    return classes.filter(cls => detectLevelFromClassName(cls).key === filterLevel);
+  }, [classes, filterLevel]);
   
   const [students, setStudents] = useState<StudentIdentity[]>([]);
   const [physicalResults, setPhysicalResults] = useState<PhysicalTests[]>([]);
@@ -559,10 +568,19 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/65 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200">
       <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-700 w-full max-w-5xl max-h-[96vh] flex flex-col overflow-hidden">
         
-        {/* Top Header - Ultra Slim & Simple Title */}
-        <div className="px-3 py-1.5 bg-gradient-to-r from-teal-600 to-teal-700 text-white flex items-center justify-between shrink-0 shadow-xs">
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm font-black flex items-center gap-1">
+        {/* Top Header - With Back Button and Title */}
+        <div className="px-3 py-2 bg-gradient-to-r from-teal-600 to-teal-700 text-white flex items-center justify-between shrink-0 shadow-xs">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-black shadow-xs transition active:scale-95 cursor-pointer"
+              title="العودة إلى شبكة الاختبارات"
+            >
+              <ArrowRightIcon className="w-3.5 h-3.5" />
+              <span>العودة للاختبارات</span>
+            </button>
+            <span className="text-sm font-black flex items-center gap-1.5">
               <span>⚖️</span>
               <span>اختبار التوازن الثابت (Flamant Rose)</span>
             </span>
@@ -573,7 +591,7 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
             className="p-1 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition cursor-pointer"
             title="إغلاق النافذة"
           >
-            <XMarkIcon className="w-4 h-4" />
+            <XMarkIcon className="w-5 h-5" />
           </button>
         </div>
 
@@ -585,9 +603,31 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
           </div>
         )}
 
-        {/* Compact Single-Row: Class Dropdown & Status */}
-        <div className="px-3 sm:px-4 py-1.5 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+        {/* Compact Single-Row: Level & Class Dropdown & Status */}
+        <div className="px-3 sm:px-4 py-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            {/* اختيار المستوى */}
+            <div className="flex items-center gap-1">
+              <label className="font-bold text-gray-700 dark:text-gray-300 shrink-0">المستوى:</label>
+              <select
+                value={filterLevel}
+                onChange={(e) => {
+                  setLevelFilter(e.target.value);
+                  const matched = classes.filter(cls => e.target.value === 'ALL' || detectLevelFromClassName(cls).key === e.target.value);
+                  if (matched.length > 0 && !matched.includes(selectedClass)) {
+                    setSelectedClass(matched[0]);
+                  }
+                }}
+                disabled={testState !== 'idle'}
+                className="px-2 py-1 font-bold bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-teal-500 cursor-pointer text-gray-900 dark:text-white shadow-2xs text-xs"
+              >
+                <option value="ALL">جميع المستويات</option>
+                {EDUCATIONAL_LEVELS.filter(l => l.key !== 'all').map(lvl => (
+                  <option key={lvl.key} value={lvl.key}>{lvl.labelAr}</option>
+                ))}
+              </select>
+            </div>
+
             {/* لائحة القسم */}
             <div className="flex items-center gap-1">
               <label className="font-bold text-gray-700 dark:text-gray-300 shrink-0">القسم:</label>
@@ -597,9 +637,13 @@ export const StaticBalanceTestModal: React.FC<StaticBalanceTestModalProps> = ({
                 disabled={testState !== 'idle'}
                 className="px-2 py-1 font-bold bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-teal-500 cursor-pointer text-gray-900 dark:text-white shadow-2xs text-xs"
               >
-                {classes.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
+                {filteredClasses.length === 0 ? (
+                  <option value="" disabled>لا يوجد أقسام</option>
+                ) : (
+                  filteredClasses.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))
+                )}
               </select>
             </div>
           </div>

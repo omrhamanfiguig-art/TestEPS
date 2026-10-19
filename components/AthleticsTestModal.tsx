@@ -15,7 +15,9 @@ import {
   StopIcon,
   TableCellsIcon,
   ArrowDownTrayIcon,
-  PencilSquareIcon
+  PencilSquareIcon,
+  ArrowRightIcon,
+  ArrowLeftIcon
 } from './Icons';
 import { StudentAvatar } from './StudentAvatar';
 import { 
@@ -28,6 +30,7 @@ import {
   SHOT_PUT_SCALE, 
   ENDURANCE_SCALE_1000M 
 } from '../utils/ScoringConstants';
+import { detectLevelFromClassName, EDUCATIONAL_LEVELS } from '../utils/teacherHelper';
 
 interface AthleticsTestModalProps {
   isOpen: boolean;
@@ -52,6 +55,13 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
 }) => {
   const [selectedClass, setSelectedClass] = useState<string>(initialClass);
   const [classes, setClasses] = useState<string[]>([]);
+  const [filterLevel, setLevelFilter] = useState<string>('ALL');
+
+  const filteredClasses = useMemo(() => {
+    if (filterLevel === 'ALL') return classes;
+    return classes.filter(cls => detectLevelFromClassName(cls).key === filterLevel);
+  }, [classes, filterLevel]);
+  
   const [students, setStudents] = useState<StudentIdentity[]>([]);
   const [physicalResults, setPhysicalResults] = useState<PhysicalTests[]>([]);
   
@@ -483,26 +493,35 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/65 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200">
       <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-700 w-full max-w-5xl max-h-[96vh] flex flex-col overflow-hidden">
         
-        {/* Top Header */}
-        <div className={`px-5 py-3.5 ${
+        {/* Top Header - With Back Button */}
+        <div className={`px-4 sm:px-5 py-3 ${
           testType === 'long-jump'
             ? 'bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700'
             : testType === 'shot-put'
             ? 'bg-gradient-to-r from-slate-700 via-gray-800 to-slate-900'
             : 'bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700'
         } text-white flex items-center justify-between shrink-0 shadow-md`}>
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white/10 rounded-2xl backdrop-blur-md">
-              <TrophyIcon className="w-6 h-6 text-amber-200" />
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-black shadow-xs transition active:scale-95 cursor-pointer shrink-0"
+              title="العودة إلى شبكة الاختبارات"
+            >
+              <ArrowRightIcon className="w-3.5 h-3.5" />
+              <span>العودة للاختبارات</span>
+            </button>
+            <div className="p-2 bg-white/10 rounded-2xl backdrop-blur-md hidden xs:flex">
+              <TrophyIcon className="w-5 h-5 text-amber-200" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-base sm:text-xl font-black">{getTestTitle()}</h2>
+                <h2 className="text-sm sm:text-base md:text-lg font-black">{getTestTitle()}</h2>
                 <span className="text-[10px] font-bold bg-black/30 px-2 py-0.5 rounded-full border border-white/20">
                   {selectedClass || 'قسم'}
                 </span>
               </div>
-              <p className="text-[11px] sm:text-xs text-white/80 font-medium">
+              <p className="text-[10px] sm:text-xs text-white/80 font-medium line-clamp-1">
                 {isFieldTest 
                   ? 'تسجيل المحاولات (1 أو 2 أو 3 محاولات) وتحديد أحسن محاولة وحساب النقطة تلقائياً' 
                   : 'تسجيل التوقيت والترتيب التلقائي'}
@@ -512,10 +531,10 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition cursor-pointer"
+            className="p-1.5 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition cursor-pointer"
             title="إغلاق النافذة"
           >
-            <XMarkIcon className="w-6 h-6" />
+            <XMarkIcon className="w-5 h-5" />
           </button>
         </div>
 
@@ -531,18 +550,44 @@ export const AthleticsTestModal: React.FC<AthleticsTestModalProps> = ({
         <div className="p-3 sm:p-4 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700 space-y-3">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
             
-            {/* Class Selector */}
-            <div className="flex items-center gap-2">
-              <label className="font-bold text-gray-600 dark:text-gray-300 shrink-0">القسم:</label>
-              <select
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-                className="px-3 py-1.5 font-bold bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 text-xs"
-              >
-                {classes.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+            {/* Level & Class Selector */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1">
+                <label className="font-bold text-gray-600 dark:text-gray-300 shrink-0">المستوى:</label>
+                <select
+                  value={filterLevel}
+                  onChange={(e) => {
+                    setLevelFilter(e.target.value);
+                    const matched = classes.filter(cls => e.target.value === 'ALL' || detectLevelFromClassName(cls).key === e.target.value);
+                    if (matched.length > 0 && !matched.includes(selectedClass)) {
+                      setSelectedClass(matched[0]);
+                    }
+                  }}
+                  className="px-2.5 py-1.5 font-bold bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 text-xs shadow-2xs"
+                >
+                  <option value="ALL">جميع المستويات</option>
+                  {EDUCATIONAL_LEVELS.filter(l => l.key !== 'all').map(lvl => (
+                    <option key={lvl.key} value={lvl.key}>{lvl.labelAr}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <label className="font-bold text-gray-600 dark:text-gray-300 shrink-0">القسم:</label>
+                <select
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  className="px-2.5 py-1.5 font-bold bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 text-xs shadow-2xs"
+                >
+                  {filteredClasses.length === 0 ? (
+                    <option value="" disabled>لا يوجد أقسام</option>
+                  ) : (
+                    filteredClasses.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))
+                  )}
+                </select>
+              </div>
             </div>
 
             {/* ATTEMPTS SELECTOR FOR FIELD TESTS (1 محاولة أو 2 أو 3 محاولات) */}

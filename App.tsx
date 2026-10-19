@@ -12,6 +12,7 @@ import { ClassesScreen } from './screens/ClassesScreen';
 import { AttendanceScreen } from './screens/AttendanceScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { ChampionshipsScreen } from './screens/ChampionshipsScreen';
+import { HomeScreen } from './screens/HomeScreen';
 import { SportsAssociationScreen } from './screens/SportsAssociationScreen';
 import { LanguageProvider, useLanguage } from './utils/i18n';
 import { getAllClasses } from './utils/db';
@@ -19,7 +20,7 @@ import { syncCloudToLocalDB, syncLocalToCloudDB, listenToCloudClasses } from './
 import { OfflineIndicator } from './components/OfflineIndicator';
 
 const MainLayout: React.FC = () => {
-  const [activeScreen, setActiveScreen] = useState<ActiveScreen>('classes');
+  const [activeScreen, setActiveScreen] = useState<ActiveScreen>('home');
   
   // Persist selectedClass in localStorage so the user's choice is remembered across refreshes and syncs
   const [selectedClass, setSelectedClassState] = useState<string>(() => {
@@ -151,12 +152,21 @@ const MainLayout: React.FC = () => {
         />
 
         <main className="flex-grow">
+          {activeScreen === 'home' && (
+            <HomeScreen
+              onNavigate={setActiveScreen}
+              selectedClass={selectedClass}
+              setSelectedClass={setSelectedClass}
+            />
+          )}
+
           {activeScreen === 'physical-tests' && (
             <PhysicalTestsScreen
               selectedClass={selectedClass}
               setSelectedClass={setSelectedClass}
               groupSize={groupSize}
               sessionDate={sessionDate}
+              onNavigateToScreen={setActiveScreen}
             />
           )}
 
@@ -164,6 +174,7 @@ const MainLayout: React.FC = () => {
             <TeamGamesScreen
               selectedClass={selectedClass}
               setSelectedClass={setSelectedClass}
+              onNavigateToScreen={setActiveScreen}
             />
           )}
 
@@ -216,6 +227,7 @@ const MainLayout: React.FC = () => {
               selectedClass={selectedClass}
               setSelectedClass={setSelectedClass}
               sessionDate={sessionDate}
+              onNavigateToScreen={setActiveScreen}
             />
           )}
 

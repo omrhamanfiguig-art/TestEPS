@@ -26,8 +26,12 @@ import {
   ChevronLeftIcon,
   InformationCircleIcon,
   DocumentTextIcon,
-  PrinterIcon
+  PrinterIcon,
+  HomeIcon,
+  ArrowRightIcon,
+  ArrowLeftIcon
 } from '../components/Icons';
+import type { ActiveScreen } from '../components/Sidebar';
 import { StudentAvatar } from '../components/StudentAvatar';
 import { AddEditStudentModal } from '../components/AddEditStudentModal';
 import { TextbookScreen } from './TextbookScreen';
@@ -53,6 +57,7 @@ interface AttendanceScreenProps {
   selectedClass: string;
   setSelectedClass: (cls: string) => void;
   sessionDate?: string;
+  onNavigateToScreen?: (screen: ActiveScreen) => void;
 }
 
 const COMMON_TIME_SLOTS = [
@@ -102,7 +107,8 @@ const COMMON_TOPICS = [
 export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
   selectedClass,
   setSelectedClass,
-  sessionDate: initialDate
+  sessionDate: initialDate,
+  onNavigateToScreen
 }) => {
   const { language, isRtl } = useLanguage();
   const [classList, setClassList] = useState<ClassStats[]>([]);
@@ -698,7 +704,18 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
             <CalendarDaysIcon className="w-8 h-8" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {onNavigateToScreen && (
+                <button
+                  type="button"
+                  onClick={() => onNavigateToScreen('home')}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-800 transition active:scale-95 cursor-pointer shadow-2xs shrink-0"
+                  title="العودة إلى بطائق الصفحة الرئيسية"
+                >
+                  <HomeIcon className="w-3.5 h-3.5" />
+                  <span>الرئيسية</span>
+                </button>
+              )}
               <h1 className="text-2xl font-black text-gray-900 dark:text-white">
                 تتبع غياب وحضور التلاميذ
               </h1>

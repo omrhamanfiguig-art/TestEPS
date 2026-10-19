@@ -16,6 +16,7 @@ import {
     TrophyIcon,
     SparklesIcon,
     UserGroupIcon,
+    HomeIcon,
     TableCellsIcon,
     DocumentTextIcon,
     BanknotesIcon
@@ -27,6 +28,7 @@ import type { User } from 'firebase/auth';
 import { AuthModal } from './AuthModal';
 
 export type ActiveScreen = 
+  | 'home'
   | 'classes'
   | 'physical-tests'
   | 'athletics'
@@ -84,6 +86,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }, [selectedClass]);
 
   const navItems = [
+    {
+      id: 'home' as ActiveScreen,
+      label: language === 'ar' ? 'الرئيسية (بطائق)' : 'Accueil',
+      icon: <HomeIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />,
+      badge: language === 'ar' ? 'بطائق' : 'Cards'
+    },
     {
       id: 'classes' as ActiveScreen,
       label: t.navClasses,
@@ -165,13 +173,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         {/* Brand & Collapse Header */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-800">
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white flex items-center justify-center flex-shrink-0 shadow-md font-black text-lg">
+          <button 
+            onClick={() => handleNavClick('home')}
+            className="flex items-center gap-3 overflow-hidden text-start group cursor-pointer focus:outline-none"
+            title={language === 'ar' ? 'الذهاب إلى الصفحة الرئيسية' : 'Aller à l\'accueil'}
+          >
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white flex items-center justify-center flex-shrink-0 shadow-md font-black text-lg group-hover:scale-105 transition-transform">
               EPS
             </div>
             {!isCollapsed && (
               <div className="truncate">
-                <div className="font-extrabold text-sm text-gray-900 dark:text-white truncate">
+                <div className="font-extrabold text-sm text-gray-900 dark:text-white truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                   {t.appName}
                 </div>
                 <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
@@ -179,7 +191,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               </div>
             )}
-          </div>
+          </button>
 
           {/* Desktop Collapse Button */}
           <button

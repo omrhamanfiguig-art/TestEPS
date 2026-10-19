@@ -19,7 +19,10 @@ import {
     ArrowPathIcon,
     TrophyIcon,
     CheckIcon,
-    AcademicCapIcon
+    AcademicCapIcon,
+    ArrowRightIcon,
+    ArrowLeftIcon,
+    HomeIcon
 } from '../components/Icons';
 import { 
     getTeacherProfiles, 
@@ -34,6 +37,7 @@ import { StudentAvatar } from '../components/StudentAvatar';
 import { Sprint30mTestModal, RaceTestType } from '../components/Sprint30mTestModal';
 import { AthleticsTestModal } from '../components/AthleticsTestModal';
 import { StaticBalanceTestModal } from '../components/StaticBalanceTestModal';
+import { FlexibilityTestModal } from '../components/FlexibilityTestModal';
 import { BaremeSettingsModal } from '../components/BaremeSettingsModal';
 import { 
     calculateScore, 
@@ -50,12 +54,14 @@ import { parsePhysicalTestsExcel, downloadPhysicalTestsTemplate, ParsedPhysicalT
 import { LUC_LEGER_DATA } from '../constants';
 import { VmaTestScreen } from './VmaTestScreen';
 import { useLanguage } from '../utils/i18n';
+import type { ActiveScreen } from '../components/Sidebar';
 
 interface PhysicalTestsScreenProps {
     selectedClass: string;
     setSelectedClass: (className: string) => void;
     sessionDate: string;
     groupSize?: number;
+    onNavigateToScreen?: (screen: ActiveScreen) => void;
 }
 
 const findClosestPalier = (vma: number) => {
@@ -78,10 +84,11 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
     selectedClass, 
     setSelectedClass, 
     sessionDate,
-    groupSize = 8
+    groupSize = 8,
+    onNavigateToScreen
 }) => {
-    const { t, language } = useLanguage();
-    const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+    const { t, language, isRtl } = useLanguage();
+    const [viewMode, setViewMode] = useState<'tests_hub' | 'table' | 'cards'>('tests_hub');
     const [classList, setClassList] = useState<ClassStats[]>([]);
     const [studentList, setStudentList] = useState<StudentIdentity[]>([]);
     const [results, setResults] = useState<PhysicalTests[]>([]);
@@ -98,6 +105,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
     const [isAthleticsModalOpen, setIsAthleticsModalOpen] = useState(false);
     const [athleticsTestType, setAthleticsTestType] = useState<'speed' | 'endurance' | 'long-jump' | 'shot-put'>('speed');
     const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
+    const [isFlexibilityModalOpen, setIsFlexibilityModalOpen] = useState(false);
     const [isBaremeModalOpen, setIsBaremeModalOpen] = useState(false);
     
     // Import state
@@ -857,6 +865,33 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
         };
     }, [studentList, results, vmaResults]);
 
+    // Test counts for the 9-cards grid
+    const testCounts = useMemo(() => {
+        let balance = 0;
+        let vma = 0;
+        let sprint30 = 0;
+        let sprint100 = 0;
+        let endurance = 0;
+        let longJump = 0;
+        let shotPut = 0;
+        let souplesse = 0;
+
+        studentList.forEach(s => {
+            const r = results.find(item => item.numeroEleve === s.numeroEleve);
+            const v = vmaResults.find(item => item.numeroEleve === s.numeroEleve);
+            if (r?.equilibreStatique !== undefined && r.equilibreStatique > 0) balance++;
+            if ((r?.vma !== undefined && r.vma > 0) || (v?.vma !== undefined && v.vma > 0)) vma++;
+            if (r?.vitesse30m !== undefined && r.vitesse30m > 0) sprint30++;
+            if ((r?.vitesse100m !== undefined && r.vitesse100m > 0) || (r?.vitesse60m !== undefined && r.vitesse60m > 0) || (r?.vitesse80m !== undefined && r.vitesse80m > 0)) sprint100++;
+            if (r?.enduranceTemps !== undefined && r.enduranceTemps > 0) endurance++;
+            if ((r?.sautHorizontal !== undefined && r.sautHorizontal > 0) || (r?.sautLong !== undefined && r.sautLong > 0)) longJump++;
+            if ((r?.lancerMedball !== undefined && r.lancerMedball > 0) || (r?.lancerPoids !== undefined && r.lancerPoids > 0)) shotPut++;
+            if (r?.souplesseAssis !== undefined || r?.souplesseDebout !== undefined) souplesse++;
+        });
+
+        return { balance, vma, sprint30, sprint100, endurance, longJump, shotPut, souplesse };
+    }, [studentList, results, vmaResults]);
+
     const currentLucLegerVma = selectedStudent ? vmaResults.find(v => v.numeroEleve === selectedStudent.numeroEleve)?.vma : undefined;
 
     return (
@@ -887,7 +922,8 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                 </div>
             )}
 
-            {/* Header Card */}
+            {/* Header Card - Hidden when in tests_hub (cards mode) */}
+            {viewMode !== 'tests_hub' && (
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-5 sm:p-6 space-y-4">
                 {/* Row 1: Title, Subtitle, Background Save Status Badge, and View Switcher */}
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
@@ -897,6 +933,17 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                         </div>
                         <div>
                             <div className="flex items-center gap-2.5 flex-wrap">
+                                {onNavigateToScreen && (
+                                    <button
+                                        type="button"
+                                        onClick={() => onNavigateToScreen('home')}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-800 transition active:scale-95 cursor-pointer shadow-2xs shrink-0"
+                                        title="العودة إلى الصفحة الرئيسية"
+                                    >
+                                        <HomeIcon className="w-3.5 h-3.5" />
+                                        <span>الرئيسية</span>
+                                    </button>
+                                )}
                                 <h1 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white">{t.physicalTestsTitle}</h1>
                                 
                                 {/* Discreet Background Auto-Save Indicator */}
@@ -927,6 +974,19 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                     <div className="flex items-center bg-gray-100 dark:bg-gray-700/60 p-1 rounded-xl border border-gray-200 dark:border-gray-600 self-end lg:self-auto shrink-0">
                         <button
                             type="button"
+                            onClick={() => setViewMode('tests_hub')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                viewMode === 'tests_hub'
+                                    ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                                    : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
+                            }`}
+                            title="عرض أسماء الاختبارات على شكل شبكة بطاقات (3×3)"
+                        >
+                            <Squares2X2Icon className="w-4 h-4" />
+                            <span>شبكة الروائز (3×3)</span>
+                        </button>
+                        <button
+                            type="button"
                             onClick={() => setViewMode('table')}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                                 viewMode === 'table'
@@ -948,7 +1008,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                             }`}
                             title="عرض بطاقة تفصيلية لكل تلميذ"
                         >
-                            <Squares2X2Icon className="w-4 h-4" />
+                            <span>👤</span>
                             <span>بطاقات فردية</span>
                         </button>
                     </div>
@@ -1168,6 +1228,398 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                     </div>
                 </div>
             </div>
+            )}
+
+            {/* VIEW MODE 0: 3x3 TEST CARDS HUB (الصفحة الأولى: شبكة بطاقات الاختبارات 3×3) */}
+            {viewMode === 'tests_hub' && (
+                <div className="space-y-6 animate-fadeIn">
+                    {/* Level & Class Quick Info Bar */}
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-black text-lg">
+                                3×3
+                            </div>
+                            <div>
+                                <h3 className="text-sm sm:text-base font-black text-gray-900 dark:text-white flex items-center gap-2">
+                                    <span>شبكة الروائز والاختبارات البدنية المعتمدة</span>
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 font-bold">
+                                        {selectedClass || 'اختر قسماً'}
+                                    </span>
+                                </h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {language === 'ar' 
+                                        ? '3 أيقونات في كل صف عبر 3 صفوف. اضغط على أي بطاقة لفتح فضاء التقييم الميداني الخاص بها' 
+                                        : '3 icônes par ligne sur 3 rangées. Cliquez sur une carte pour lancer l\'épreuve'}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Quick Stats & Table Switcher */}
+                        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-end">
+                            <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900/60 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold">
+                                <span className="text-gray-500 dark:text-gray-400">مجموع التلاميذ:</span>
+                                <span className="text-indigo-600 dark:text-indigo-400">{studentList.length}</span>
+                                <span className="text-gray-300 dark:text-gray-600">|</span>
+                                <span className="text-emerald-600 dark:text-emerald-400">المقيّمون: {completedStudents.length}</span>
+                                <span className="text-gray-300 dark:text-gray-600">|</span>
+                                <span className="text-amber-600 dark:text-amber-400">المتبقون: {pendingStudents.length}</span>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('table')}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-xs transition active:scale-95 cursor-pointer"
+                                title="عرض الجدول الشامل لكل التلاميذ"
+                            >
+                                <TableCellsIcon className="w-3.5 h-3.5" />
+                                <span>السجل الشامل</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* 3x3 Cards Grid (9 Test Modules) */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+                        {/* ROW 1 - CARD 1: اختبار التوازن الثابت */}
+                        <div 
+                            onClick={() => setIsBalanceModalOpen(true)}
+                            className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-teal-400 dark:hover:border-teal-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+                        >
+                            <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-teal-500/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+                            <div>
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                    <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-teal-500 to-emerald-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-teal-500/20 group-hover:scale-110 transition-transform shrink-0">
+                                        🧘
+                                    </div>
+                                    <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+                                        ⏱️ محدد في 60 ثانية
+                                    </span>
+                                </div>
+                                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors mb-1">
+                                    اختبار التوازن الثابت (Flamant Rose)
+                                </h4>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                                    الوقوف المتوازن على رجل واحدة مع ميقاتي دقيق محدد في 60 ثانية كحد أقصى وفق المعايير الرسمية.
+                                </p>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
+                                <div className="text-[11px] font-bold text-gray-500 dark:text-gray-400">
+                                    <span>المقيّمون: </span>
+                                    <span className="font-black text-teal-600 dark:text-teal-400">{testCounts.balance}</span>
+                                    <span> / {studentList.length}</span>
+                                </div>
+                                <div className="inline-flex items-center gap-1 text-xs font-bold text-teal-600 dark:text-teal-400 group-hover:underline">
+                                    <span>إجراء الاختبار</span>
+                                    <span>←</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ROW 1 - CARD 2: اختبار السرعة القصوى الهوائية Luc Léger */}
+                        <div 
+                            onClick={() => setIsLucLegerModalOpen(true)}
+                            className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-amber-400 dark:hover:border-amber-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+                        >
+                            <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-amber-500/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+                            <div>
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                    <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-amber-500/20 group-hover:scale-110 transition-transform shrink-0">
+                                        🏃
+                                    </div>
+                                    <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                        🔊 إشارات صوتية 20م
+                                    </span>
+                                </div>
+                                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors mb-1">
+                                    اختبار Luc Léger (VMA)
+                                </h4>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                                    رائز المكوك الصوتي 20 متراً لتحديد السرعة القصوى الهوائية والباليي المنجز مع تسجيل الأفواج.
+                                </p>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
+                                <div className="text-[11px] font-bold text-gray-500 dark:text-gray-400">
+                                    <span>المقيّمون: </span>
+                                    <span className="font-black text-amber-600 dark:text-amber-400">{testCounts.vma}</span>
+                                    <span> / {studentList.length}</span>
+                                </div>
+                                <div className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400 group-hover:underline">
+                                    <span>تشغيل الرائز</span>
+                                    <span>←</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ROW 1 - CARD 3: سباق السرعة 30 متر */}
+                        <div 
+                            onClick={() => {
+                                setSprintTestType('speed');
+                                setIsSprintModalOpen(true);
+                            }}
+                            className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-orange-400 dark:hover:border-orange-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+                        >
+                            <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-orange-500/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+                            <div>
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                    <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-orange-500 to-red-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-orange-500/20 group-hover:scale-110 transition-transform shrink-0">
+                                        ⏱️
+                                    </div>
+                                    <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300 border border-orange-200 dark:border-orange-800">
+                                        ⚡ ميقاتي ومسارات
+                                    </span>
+                                </div>
+                                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors mb-1">
+                                    سباق السرعة (30 متر)
+                                </h4>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                                    قياس السرعة القصوى ورد الفعل السريع مع ميقاتي ومسارات وصول لترتيب التلاميذ آلياً.
+                                </p>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
+                                <div className="text-[11px] font-bold text-gray-500 dark:text-gray-400">
+                                    <span>المقيّمون: </span>
+                                    <span className="font-black text-orange-600 dark:text-orange-400">{testCounts.sprint30}</span>
+                                    <span> / {studentList.length}</span>
+                                </div>
+                                <div className="inline-flex items-center gap-1 text-xs font-bold text-orange-600 dark:text-orange-400 group-hover:underline">
+                                    <span>تشغيل الميقاتي</span>
+                                    <span>←</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ROW 2 - CARD 1: سباق السرعة 60م / 100م */}
+                        <div 
+                            onClick={() => {
+                                setSprintTestType('speed-100');
+                                setIsSprintModalOpen(true);
+                            }}
+                            className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-rose-400 dark:hover:border-rose-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+                        >
+                            <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-rose-500/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+                            <div>
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                    <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-rose-500 to-pink-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-rose-500/20 group-hover:scale-110 transition-transform shrink-0">
+                                        ⚡
+                                    </div>
+                                    <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                                        🏃‍♂️ الجري السريع
+                                    </span>
+                                </div>
+                                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors mb-1">
+                                    سباق السرعة (60م / 100م)
+                                </h4>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                                    سباق الجري السريع للمسافات المعتمدة في المنهاج التربوي للثانوي الإعدادي والتأهيلي.
+                                </p>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
+                                <div className="text-[11px] font-bold text-gray-500 dark:text-gray-400">
+                                    <span>المقيّمون: </span>
+                                    <span className="font-black text-rose-600 dark:text-rose-400">{testCounts.sprint100}</span>
+                                    <span> / {studentList.length}</span>
+                                </div>
+                                <div className="inline-flex items-center gap-1 text-xs font-bold text-rose-600 dark:text-rose-400 group-hover:underline">
+                                    <span>تشغيل السباق</span>
+                                    <span>←</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ROW 2 - CARD 2: سباق التحمل ونصف الطويل */}
+                        <div 
+                            onClick={() => {
+                                setSprintTestType('endurance');
+                                setIsSprintModalOpen(true);
+                            }}
+                            className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-red-400 dark:hover:border-red-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+                        >
+                            <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-red-600/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+                            <div>
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                    <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-red-600 to-rose-700 text-white flex items-center justify-center text-2xl shadow-lg shadow-red-500/20 group-hover:scale-110 transition-transform shrink-0">
+                                        ⏳
+                                    </div>
+                                    <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border border-red-200 dark:border-red-800">
+                                        ⌛ دقائق وثواني
+                                    </span>
+                                </div>
+                                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors mb-1">
+                                    سباق التحمل والجري المستمر
+                                </h4>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                                    سباق 600م إلى 1000م لقياس القدرة على تحمل الجهد المستمر واحتساب النقطة بالدقائق والثواني.
+                                </p>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
+                                <div className="text-[11px] font-bold text-gray-500 dark:text-gray-400">
+                                    <span>المقيّمون: </span>
+                                    <span className="font-black text-red-600 dark:text-red-400">{testCounts.endurance}</span>
+                                    <span> / {studentList.length}</span>
+                                </div>
+                                <div className="inline-flex items-center gap-1 text-xs font-bold text-red-600 dark:text-red-400 group-hover:underline">
+                                    <span>تشغيل الميقاتي</span>
+                                    <span>←</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ROW 2 - CARD 3: اختبار القفز الطولي / الأفقي */}
+                        <div 
+                            onClick={() => {
+                                setAthleticsTestType('long-jump');
+                                setIsAthleticsModalOpen(true);
+                            }}
+                            className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-indigo-400 dark:hover:border-indigo-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+                        >
+                            <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-indigo-600/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+                            <div>
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                    <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform shrink-0">
+                                        🎯
+                                    </div>
+                                    <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                        📏 قفز ومحاولات
+                                    </span>
+                                </div>
+                                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors mb-1">
+                                    اختبار القفز الطولي / الأفقي
+                                </h4>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                                    قياس القوة الانفجارية للأطراف السفلية بنظام المحاولات (1 أو 2 أو 3 محاولات) واختيار أحسن مسافة.
+                                </p>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
+                                <div className="text-[11px] font-bold text-gray-500 dark:text-gray-400">
+                                    <span>المقيّمون: </span>
+                                    <span className="font-black text-indigo-600 dark:text-indigo-400">{testCounts.longJump}</span>
+                                    <span> / {studentList.length}</span>
+                                </div>
+                                <div className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 group-hover:underline">
+                                    <span>تسجيل القفز</span>
+                                    <span>←</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ROW 3 - CARD 1: اختبار دفع الجلة ورمي الكرة */}
+                        <div 
+                            onClick={() => {
+                                setAthleticsTestType('shot-put');
+                                setIsAthleticsModalOpen(true);
+                            }}
+                            className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-slate-400 dark:hover:border-slate-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+                        >
+                            <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-slate-600/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+                            <div>
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                    <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-slate-700 to-indigo-800 text-white flex items-center justify-center text-2xl shadow-lg shadow-slate-500/20 group-hover:scale-110 transition-transform shrink-0">
+                                        ☄️
+                                    </div>
+                                    <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
+                                        🏋️ رمي ومحاولات
+                                    </span>
+                                </div>
+                                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors mb-1">
+                                    اختبار دفع الجلة والرمي
+                                </h4>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                                    قياس القوة الانفجارية للأطراف العلوية مع تسجيل المحاولات واحتساب أفضل رمية بالمتر تلقائياً.
+                                </p>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
+                                <div className="text-[11px] font-bold text-gray-500 dark:text-gray-400">
+                                    <span>المقيّمون: </span>
+                                    <span className="font-black text-slate-700 dark:text-slate-300">{testCounts.shotPut}</span>
+                                    <span> / {studentList.length}</span>
+                                </div>
+                                <div className="inline-flex items-center gap-1 text-xs font-bold text-slate-700 dark:text-slate-300 group-hover:underline">
+                                    <span>تسجيل الرمي</span>
+                                    <span>←</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ROW 3 - CARD 2: اختبار المرونة البدنية */}
+                        <div 
+                            onClick={() => setIsFlexibilityModalOpen(true)}
+                            className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-cyan-400 dark:hover:border-cyan-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+                        >
+                            <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-cyan-600/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+                            <div>
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                    <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-cyan-600 to-teal-700 text-white flex items-center justify-center text-2xl shadow-lg shadow-cyan-500/20 group-hover:scale-110 transition-transform shrink-0">
+                                        🤸
+                                    </div>
+                                    <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-cyan-100 text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800">
+                                        📐 ثني الجذع (سم)
+                                    </span>
+                                </div>
+                                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors mb-1">
+                                    اختبار المرونة البدنية (Souplesse)
+                                </h4>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                                    قياس مرونة الجذع والمفاصل بالسنتيمتر (cm) من وضع الجلوس أو الوقوف مع الحفظ الفوري.
+                                </p>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
+                                <div className="text-[11px] font-bold text-gray-500 dark:text-gray-400">
+                                    <span>المقيّمون: </span>
+                                    <span className="font-black text-cyan-600 dark:text-cyan-400">{testCounts.souplesse}</span>
+                                    <span> / {studentList.length}</span>
+                                </div>
+                                <div className="inline-flex items-center gap-1 text-xs font-bold text-cyan-600 dark:text-cyan-400 group-hover:underline">
+                                    <span>تسجيل المرونة</span>
+                                    <span>←</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* ROW 3 - CARD 3: السجل العام للتنقيط والباريم */}
+                        <div 
+                            onClick={() => setViewMode('table')}
+                            className="group relative bg-white dark:bg-gray-800 rounded-3xl p-5 border border-gray-200 dark:border-gray-700 hover:border-violet-400 dark:hover:border-violet-500 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between overflow-hidden active:scale-[0.98]"
+                        >
+                            <div className="absolute top-0 end-0 w-24 h-24 bg-gradient-to-br from-violet-600/10 to-transparent rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+                            <div>
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                    <div className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-700 text-white flex items-center justify-center text-2xl shadow-lg shadow-violet-500/20 group-hover:scale-110 transition-transform shrink-0">
+                                        📋
+                                    </div>
+                                    <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300 border border-violet-200 dark:border-violet-800">
+                                        📊 السجل والباريم
+                                    </span>
+                                </div>
+                                <h4 className="text-base font-black text-gray-900 dark:text-white group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors mb-1">
+                                    السجل العام والباريم والتنقيط
+                                </h4>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-medium line-clamp-2">
+                                    معاينة نتائج القسم كاملة، التنقيط الآلي وفق المعايير الرسمية، تعديل سلم التنقيط وتصدير Excel.
+                                </p>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between">
+                                <div className="text-[11px] font-bold text-gray-500 dark:text-gray-400">
+                                    <span>المقيّمون: </span>
+                                    <span className="font-black text-violet-600 dark:text-violet-400">{completedStudents.length}</span>
+                                    <span> / {studentList.length}</span>
+                                </div>
+                                <div className="inline-flex items-center gap-1 text-xs font-bold text-violet-600 dark:text-violet-400 group-hover:underline">
+                                    <span>فتح السجل الشامل</span>
+                                    <span>←</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* VIEW MODE 1: COMPREHENSIVE TABLE MODE */}
             {viewMode === 'table' && (
@@ -1175,6 +1627,17 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                     {/* Table Toolbar */}
                     <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-gray-50/50 dark:bg-gray-800/50">
                         <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 w-full lg:w-auto">
+                            {/* Return to 3x3 Hub Button */}
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('tests_hub')}
+                                className="inline-flex items-center justify-center gap-1 px-3 py-1.5 sm:px-3.5 sm:py-2 text-[11px] sm:text-xs font-black rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 active:scale-95 transition cursor-pointer"
+                                title="العودة إلى شبكة بطاقات الاختبارات (3×3)"
+                            >
+                                {isRtl ? <ArrowRightIcon className="w-3.5 h-3.5 shrink-0" /> : <ArrowLeftIcon className="w-3.5 h-3.5 shrink-0" />}
+                                <span>شبكة الروائز (3×3)</span>
+                            </button>
+
                             <div className="relative w-full sm:w-64">
                                 <input
                                     type="text"
@@ -1793,6 +2256,15 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4 flex flex-col h-[650px]">
                         <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
                             <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setViewMode('tests_hub')}
+                                    className="p-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-indigo-600 dark:text-indigo-400 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                                    title="العودة إلى شبكة بطاقات الاختبارات"
+                                >
+                                    {isRtl ? <ArrowRightIcon className="w-3.5 h-3.5 shrink-0" /> : <ArrowLeftIcon className="w-3.5 h-3.5 shrink-0" />}
+                                    <span>الروائز (3×3)</span>
+                                </button>
                                 <h2 className="text-base font-bold text-gray-800 dark:text-gray-200">لائحة التلاميذ</h2>
                                 <span className="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full font-bold text-gray-600 dark:text-gray-300">
                                     {studentList.length}
@@ -2436,6 +2908,15 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                 <StaticBalanceTestModal
                     isOpen={isBalanceModalOpen}
                     onClose={() => setIsBalanceModalOpen(false)}
+                    initialClass={selectedClass || (classList.length > 0 ? classList[0].className : '')}
+                    onDataSaved={() => loadClassData(selectedClass)}
+                />
+            )}
+
+            {isFlexibilityModalOpen && (
+                <FlexibilityTestModal
+                    isOpen={isFlexibilityModalOpen}
+                    onClose={() => setIsFlexibilityModalOpen(false)}
                     initialClass={selectedClass || (classList.length > 0 ? classList[0].className : '')}
                     onDataSaved={() => loadClassData(selectedClass)}
                 />
