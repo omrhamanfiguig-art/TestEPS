@@ -10,6 +10,8 @@ import { TalentScreen } from './screens/TalentScreen';
 import { BiometricMeasurementsScreen } from './screens/BiometricMeasurementsScreen';
 import { ClassesScreen } from './screens/ClassesScreen';
 import { AttendanceScreen } from './screens/AttendanceScreen';
+import { ReportsScreen } from './screens/ReportsScreen';
+import { ImportExportScreen } from './screens/ImportExportScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { ChampionshipsScreen } from './screens/ChampionshipsScreen';
 import { HomeScreen } from './screens/HomeScreen';
@@ -228,6 +230,21 @@ const MainLayout: React.FC = () => {
               setSelectedClass={setSelectedClass}
               sessionDate={sessionDate}
               onNavigateToScreen={setActiveScreen}
+            />
+          )}
+
+          {activeScreen === 'reports' && (
+            <ReportsScreen
+              selectedClass={selectedClass}
+              setSelectedClass={setSelectedClass}
+            />
+          )}
+
+          {activeScreen === 'import-export' && (
+            <ImportExportScreen
+              selectedClass={selectedClass}
+              setSelectedClass={setSelectedClass}
+              groupSize={groupSize}
             />
           )}
 

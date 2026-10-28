@@ -59,9 +59,13 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       case 'talent':
         return t.navTalent;
       case 'attendance':
-        return language === 'ar' ? 'التتبع والغياب ودفتر النصوص' : 'Suivi & Présence';
+        return language === 'ar' ? 'تتبع الغياب والمواظبة' : 'Suivi des Absences';
       case 'textbook':
-        return language === 'ar' ? 'دفتر النصوص الرياضي' : 'Cahier de Textes';
+        return language === 'ar' ? 'دفتر النصوص الرياضي' : 'Cahier de Textes EPS';
+      case 'reports':
+        return language === 'ar' ? 'التقارير البيداغوجية والإدارية' : 'Rapports Pédagogiques';
+      case 'import-export':
+        return language === 'ar' ? 'مركز الاستيراد والتصدير' : 'Centre Import / Export';
       case 'measurements':
         return t.navMeasurements;
       case 'classes':

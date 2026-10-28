@@ -25,9 +25,9 @@ export const GroupReportModal: React.FC<GroupReportModalProps> = ({
   isOpen,
   onClose,
   className,
-  students,
-  currentRecords,
-  previousSessions,
+  students = [],
+  currentRecords = {},
+  previousSessions = [],
   sessionDate,
   sessionTopic = "التربية البدنية والرياضية"
 }) => {
@@ -35,9 +35,12 @@ export const GroupReportModal: React.FC<GroupReportModalProps> = ({
   const [reportType, setReportType] = useState<'absence' | 'no_kit' | 'discipline' | 'custom'>('absence');
   const [selectedStudentNumbers, setSelectedStudentNumbers] = useState<string[]>(() => {
     // Default to today's absentees and no-kit students
-    return students
+    const validStudents = students || [];
+    const records = currentRecords || {};
+    return validStudents
       .filter(s => {
-        const status = currentRecords[s.numeroEleve]?.status;
+        if (!s || !s.numeroEleve) return false;
+        const status = records[s.numeroEleve]?.status;
         return status === 'absent' || status === 'no-kit' || status === 'late';
       })
       .map(s => s.numeroEleve);
@@ -75,11 +78,16 @@ export const GroupReportModal: React.FC<GroupReportModalProps> = ({
   // Compute student cumulative stats
   const studentsStatsMap = useMemo(() => {
     const map: Record<string, { present: number; absent: number; late: number; noKit: number; justified: number }> = {};
+    const validStudents = students || [];
+    const sessions = previousSessions || [];
+    const records = currentRecords || {};
     
-    students.forEach(s => {
+    validStudents.forEach(s => {
+      if (!s || !s.numeroEleve) return;
       let present = 0, absent = 0, late = 0, noKit = 0, justified = 0;
       
-      previousSessions.forEach(sess => {
+      sessions.forEach(sess => {
+        if (!sess || !sess.records) return;
         const rec = sess.records.find(r => r.studentNumber === s.numeroEleve);
         if (rec) {
           if (rec.status === 'present') present++;
@@ -91,7 +99,7 @@ export const GroupReportModal: React.FC<GroupReportModalProps> = ({
       });
 
       // Include today's active record if not yet saved in previous sessions
-      const todayRec = currentRecords[s.numeroEleve];
+      const todayRec = records[s.numeroEleve];
       if (todayRec) {
         if (todayRec.status === 'present') present++;
         if (todayRec.status === 'absent') absent++;
@@ -108,22 +116,28 @@ export const GroupReportModal: React.FC<GroupReportModalProps> = ({
 
   // Quick selection helpers
   const handleSelectAbsentees = () => {
-    const ids = students.filter(s => currentRecords[s.numeroEleve]?.status === 'absent').map(s => s.numeroEleve);
+    const validStudents = students || [];
+    const records = currentRecords || {};
+    const ids = validStudents.filter(s => s && s.numeroEleve && records[s.numeroEleve]?.status === 'absent').map(s => s.numeroEleve);
     setSelectedStudentNumbers(ids);
   };
 
   const handleSelectNoKit = () => {
-    const ids = students.filter(s => currentRecords[s.numeroEleve]?.status === 'no-kit').map(s => s.numeroEleve);
+    const validStudents = students || [];
+    const records = currentRecords || {};
+    const ids = validStudents.filter(s => s && s.numeroEleve && records[s.numeroEleve]?.status === 'no-kit').map(s => s.numeroEleve);
     setSelectedStudentNumbers(ids);
   };
 
   const handleSelectFrequentAbsentees = () => {
-    const ids = students.filter(s => (studentsStatsMap[s.numeroEleve]?.absent || 0) >= 2).map(s => s.numeroEleve);
+    const validStudents = students || [];
+    const ids = validStudents.filter(s => s && s.numeroEleve && (studentsStatsMap[s.numeroEleve]?.absent || 0) >= 2).map(s => s.numeroEleve);
     setSelectedStudentNumbers(ids);
   };
 
   const handleSelectAll = () => {
-    setSelectedStudentNumbers(students.map(s => s.numeroEleve));
+    const validStudents = students || [];
+    setSelectedStudentNumbers(validStudents.filter(s => s && s.numeroEleve).map(s => s.numeroEleve));
   };
 
   const handleClearAll = () => {

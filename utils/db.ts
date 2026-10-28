@@ -14,7 +14,8 @@ import {
   deleteClassFromCloud,
   saveAttendanceSessionToCloud,
   deleteAttendanceSessionFromCloud,
-  fetchAttendanceSessionsFromCloud
+  fetchAttendanceSessionsFromCloud,
+  fetchAllClassesFromCloud
 } from './firebase';
 
 export { mergePhysicalTests, mergeStudentResults, mergeStudentLists };
@@ -176,16 +177,48 @@ export const saveStudentList = async (
 };
 
 export const getStudentList = async (className: string): Promise<StudentIdentity[]> => {
+    if (!className || !className.trim()) return [];
     const db = await initDB();
     const tx = db.transaction(STUDENTS_STORE, 'readonly');
     const store = tx.objectStore(STUDENTS_STORE);
     const request = store.get(className);
 
     return new Promise((resolve, reject) => {
-        request.onsuccess = () => {
-          const rawStudents: StudentIdentity[] = request.result?.students || [];
+        request.onsuccess = async () => {
+          let rawStudents: StudentIdentity[] = request.result?.students || [];
+          
+          // Fallback 1: Case-insensitive or trimmed local lookup
+          if (rawStudents.length === 0) {
+            try {
+              const all = await getAllStudentLists();
+              const found = all.find(item => 
+                item.className.trim().toLowerCase() === className.trim().toLowerCase()
+              );
+              if (found && found.students && found.students.length > 0) {
+                rawStudents = found.students;
+              }
+            } catch (e) {}
+          }
+
+          // Fallback 2: Cloud Firestore sync if local is empty
+          if (rawStudents.length === 0) {
+            try {
+              const cloudClasses = await fetchAllClassesFromCloud();
+              const foundCloud = cloudClasses.find(c => 
+                c.className.trim().toLowerCase() === className.trim().toLowerCase()
+              );
+              if (foundCloud && foundCloud.students && foundCloud.students.length > 0) {
+                rawStudents = foundCloud.students;
+                // Cache into local database for offline / fast access
+                saveStudentList(className, rawStudents, { skipCloudSync: true }).catch(() => {});
+              }
+            } catch (e) {
+              console.warn('Cloud student fallback error:', e);
+            }
+          }
+
           const cleanStudents = rawStudents.filter(s => s && s.nomEleve && !isForbiddenStudentName(s.nomEleve));
-          if (rawStudents.length !== cleanStudents.length) {
+          if (rawStudents.length !== cleanStudents.length && cleanStudents.length > 0) {
             saveStudentList(className, cleanStudents, { skipCloudSync: true }).catch(() => {});
           }
           resolve(cleanStudents);
@@ -404,6 +437,34 @@ export const getAllClasses = async (): Promise<ClassStats[]> => {
                     stats.vmaCount++;
                 }
             });
+
+            // If local IndexedDB is empty, check Firestore cloud cache
+            if (classMap.size === 0) {
+                fetchAllClassesFromCloud().then(cloudClasses => {
+                    if (cloudClasses && cloudClasses.length > 0) {
+                        cloudClasses.forEach(cc => {
+                            const validStudents = (cc.students || []).filter(s => s && s.nomEleve && !isForbiddenStudentName(s.nomEleve));
+                            const boys = validStudents.filter(s => s.sexe === 'M').length;
+                            const girls = validStudents.filter(s => s.sexe === 'F').length;
+                            classMap.set(cc.className, {
+                                className: cc.className,
+                                studentCount: validStudents.length,
+                                boysCount: boys,
+                                girlsCount: girls,
+                                testedCount: 0,
+                                vmaCount: 0,
+                                measurementsCount: 0
+                            });
+                            // Cache to local IndexedDB
+                            saveStudentList(cc.className, validStudents, { skipCloudSync: true }).catch(() => {});
+                        });
+                    }
+                    resolve(Array.from(classMap.values()));
+                }).catch(() => {
+                    resolve(Array.from(classMap.values()));
+                });
+                return;
+            }
 
             resolve(Array.from(classMap.values()));
         };

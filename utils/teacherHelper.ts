@@ -30,14 +30,14 @@ export const DEFAULT_TEACHERS: TeacherProfile[] = [
 ];
 
 export const EDUCATIONAL_LEVELS = [
-  { key: 'all', label: 'جميع المستويات', shortLabel: 'الكل' },
-  { key: '1apic', label: 'الأولى إعدادي (1APIC)', shortLabel: '1APIC' },
-  { key: '2apic', label: 'الثانية إعدادي (2APIC)', shortLabel: '2APIC' },
-  { key: '3apic', label: 'الثالثة إعدادي (3APIC)', shortLabel: '3APIC' },
-  { key: 'tc', label: 'الجدع المشترك (TC)', shortLabel: 'TC' },
-  { key: '1bac', label: 'الأولى باكالوريا (1BAC)', shortLabel: '1BAC' },
-  { key: '2bac', label: 'الثانية باكالوريا (2BAC)', shortLabel: '2BAC' },
-  { key: 'other', label: 'مستويات أخرى', shortLabel: 'أخرى' },
+  { key: 'all', label: 'جميع المستويات', labelAr: 'جميع المستويات', shortLabel: 'الكل' },
+  { key: '1apic', label: 'الأولى إعدادي (1APIC)', labelAr: 'الأولى إعدادي (1APIC)', shortLabel: '1APIC' },
+  { key: '2apic', label: 'الثانية إعدادي (2APIC)', labelAr: 'الثانية إعدادي (2APIC)', shortLabel: '2APIC' },
+  { key: '3apic', label: 'الثالثة إعدادي (3APIC)', labelAr: 'الثالثة إعدادي (3APIC)', shortLabel: '3APIC' },
+  { key: 'tc', label: 'الجدع المشترك (TC)', labelAr: 'الجدع المشترك (TC)', shortLabel: 'TC' },
+  { key: '1bac', label: 'الأولى باكالوريا (1BAC)', labelAr: 'الأولى باكالوريا (1BAC)', shortLabel: '1BAC' },
+  { key: '2bac', label: 'الثانية باكالوريا (2BAC)', labelAr: 'الثانية باكالوريا (2BAC)', shortLabel: '2BAC' },
+  { key: 'other', label: 'مستويات أخرى', labelAr: 'مستويات أخرى', shortLabel: 'أخرى' },
 ] as const;
 
 export type LevelKey = typeof EDUCATIONAL_LEVELS[number]['key'];

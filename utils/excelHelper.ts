@@ -1985,13 +1985,174 @@ export const exportTransactionsToExcel = (
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${titleName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(link);
-    link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   }
 };
+
+/**
+ * Export 10-Session Daily Attendance Tracking Notebook ("دفتر التتبع اليومي في عشر حصص")
+ * Single class per sheet ("كل قسم في ورقة واحدة") with Date of Birth and 10 blank session columns.
+ */
+export interface TenSessionsExportOptions {
+  institution?: string;
+  teacherName?: string;
+  academicYear?: string;
+  sportActivity?: string;
+}
+
+export const exportTenSessionsNotebookToExcel = (
+  classesData: Array<{ className: string; students: StudentIdentity[] }>,
+  options: TenSessionsExportOptions = {}
+): boolean => {
+  const XLSX = (window as any).XLSX;
+  if (!XLSX) {
+    console.error("XLSX library not loaded");
+    return false;
+  }
+
+  const institution = options.institution || localStorage.getItem('eps_school_name') || 'المؤسسة التعليمية';
+  const teacherName = options.teacherName || localStorage.getItem('eps_teacher_name') || 'أستاذ التربية البدنية والرياضية';
+  const academicYear = options.academicYear || `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
+  const sportActivity = options.sportActivity || 'التربية البدنية والرياضية';
+
+  // Fallback if classesData is completely empty
+  const targetClasses = (classesData && classesData.length > 0)
+    ? classesData
+    : [{ className: 'القسم 1', students: [] }];
+
+  const wb = XLSX.utils.book_new();
+
+  targetClasses.forEach((cls, classIndex) => {
+    // Sanitize sheet name (max 31 chars, no invalid chars : \ / ? * [ ])
+    const rawName = (cls.className || `قسم_${classIndex + 1}`).trim();
+    const safeSheetName = rawName.replace(/[:\\/?*\[\]]/g, '_').slice(0, 31) || `قسم_${classIndex + 1}`;
+
+    const sheetData: any[][] = [
+      ['المملكة المغربية', '', '', '', '', '', '', '', '', '', '', '', '', '', 'وزارة التربية الوطنية والتعليم الأولي والرياضة'],
+      ['دفتر التتبع اليومي والمواظبة في التربية البدنية والرياضية (10 حصص)'],
+      [
+        `المؤسسة: ${institution}`,
+        '',
+        `الأستاذ: ${teacherName}`,
+        '',
+        `القسم: ${cls.className}`,
+        '',
+        `الموسم الدراسي: ${academicYear}`,
+        '',
+        `النشاط: ${sportActivity}`
+      ],
+      [],
+      [
+        'الرقم',
+        'رقم مسار',
+        'الاسم والنسب الكامل',
+        'تاريخ الازدياد',
+        'الحصة 1',
+        'الحصة 2',
+        'الحصة 3',
+        'الحصة 4',
+        'الحصة 5',
+        'الحصة 6',
+        'الحصة 7',
+        'الحصة 8',
+        'الحصة 9',
+        'الحصة 10',
+        'مجموع الغيابات',
+        'ملاحظات عامة'
+      ]
+    ];
+
+    const students = cls.students || [];
+    const minRows = Math.max(35, students.length);
+
+    // Populate rows (with students or blank template rows up to at least 35 rows)
+    for (let i = 0; i < minRows; i++) {
+      const s = students[i];
+      sheetData.push([
+        i + 1,
+        s ? (s.codeMassar || s.numeroEleve || '') : '',
+        s ? (s.nomEleve || '') : '',
+        s ? (s.dateNaissance || '') : '',
+        '', // Session 1
+        '', // Session 2
+        '', // Session 3
+        '', // Session 4
+        '', // Session 5
+        '', // Session 6
+        '', // Session 7
+        '', // Session 8
+        '', // Session 9
+        '', // Session 10
+        '', // Total Absences
+        ''  // Observations
+      ]);
+    }
+
+    // Add footer signature row
+    sheetData.push([]);
+    sheetData.push([
+      '',
+      'توقيع الأستاذ(ة):',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      'توقيع وتأشيرة الإدارة التربوية:'
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+    // Set column widths for optimal printing and single-sheet layout
+    ws['!cols'] = [
+      { wch: 6 },  // N°
+      { wch: 14 }, // Code Massar
+      { wch: 28 }, // Nom & Prénom
+      { wch: 14 }, // Date de Naissance
+      { wch: 7 },  // H1
+      { wch: 7 },  // H2
+      { wch: 7 },  // H3
+      { wch: 7 },  // H4
+      { wch: 7 },  // H5
+      { wch: 7 },  // H6
+      { wch: 7 },  // H7
+      { wch: 7 },  // H8
+      { wch: 7 },  // H9
+      { wch: 7 },  // H10
+      { wch: 12 }, // Total Absences
+      { wch: 20 }  // Observations
+    ];
+
+    // Right-to-Left sheet view
+    ws['!views'] = [{ RTL: true }];
+
+    // Page setup for printing (A4 Landscape, fit to 1 page wide)
+    ws['!pageSetup'] = {
+      orientation: 'landscape',
+      paperSize: 9, // A4
+      fitToWidth: 1,
+      fitToHeight: 1
+    };
+
+    XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+  });
+
+  const fileName = targetClasses.length === 1
+    ? `دفتر_التتبع_اليومي_10حصص_${targetClasses[0].className.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`
+    : `دفتر_التتبع_اليومي_10حصص_جميع_الأقسام_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+  XLSX.writeFile(wb, fileName);
+  return true;
+};
+
 
 
 

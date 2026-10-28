@@ -17,7 +17,9 @@ import {
   ScaleIcon,
   TableCellsIcon,
   ArrowRightIcon,
-  ArrowLeftIcon
+  ArrowLeftIcon,
+  ArrowsRightLeftIcon,
+  ClipboardDocumentCheckIcon
 } from '../components/Icons';
 import type { ActiveScreen } from '../components/Sidebar';
 import { useLanguage } from '../utils/i18n';
@@ -127,14 +129,47 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     },
     {
       id: 'attendance' as ActiveScreen,
-      title: language === 'ar' ? 'الغياب ودفتر النصوص' : 'Présence & Cahier de Textes',
-      subtitle: language === 'ar' ? 'تسجيل الحضور والغياب بالحصص، تخطيط الدروس وتوثيق السجلات' : 'Pointage absence par séance, cahier de textes',
+      title: language === 'ar' ? 'تتبع الغياب والمواظبة' : 'Suivi des Absences & Présence',
+      subtitle: language === 'ar' ? 'تسجيل الحضور والغياب اليومي، المناداة السريعة، إحصائيات المواظبة التراكمية وسجل الحصص' : 'Pointage absence par séance, appel rapide, statistiques',
       icon: <CalendarDaysIcon className="w-8 h-8 text-white" />,
       gradient: 'from-indigo-600 to-blue-700',
       shadowColor: 'shadow-indigo-500/20',
-      badge: language === 'ar' ? 'توثيق وتتبع' : 'Suivi',
+      badge: language === 'ar' ? 'غياب يومي' : 'Présence',
       badgeBg: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300',
       highlightTag: language === 'ar' ? 'يومي' : 'Quotidien'
+    },
+    {
+      id: 'textbook' as ActiveScreen,
+      title: language === 'ar' ? 'دفتر النصوص الرياضي' : 'Cahier de Textes EPS',
+      subtitle: language === 'ar' ? 'سجل الحصص اليومي، النموذج الرسمي (شبكة 4 أقسام - Paysage)، وتخصيص جداول الأساتذة' : 'Journal des séances, grille officielle 4 classes, emplois du temps',
+      icon: <DocumentTextIcon className="w-8 h-8 text-white" />,
+      gradient: 'from-blue-600 to-cyan-700',
+      shadowColor: 'shadow-blue-500/20',
+      badge: language === 'ar' ? 'النموذج الرسمي' : 'Officiel',
+      badgeBg: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
+      highlightTag: language === 'ar' ? 'شبكة 4 أقسام' : 'Paysage'
+    },
+    {
+      id: 'reports' as ActiveScreen,
+      title: language === 'ar' ? 'التقارير البيداغوجية والإدارية' : 'Rapports Pédagogiques',
+      subtitle: language === 'ar' ? 'الإعفاءات الطبية، تقارير السلوك والانضباط، الحالات الصحية، وتقارير الإدارة الجماعية' : 'Dispenses médicales, discipline, blessures, rapports collectifs',
+      icon: <ClipboardDocumentCheckIcon className="w-8 h-8 text-white" />,
+      gradient: 'from-teal-600 to-emerald-700',
+      shadowColor: 'shadow-teal-500/20',
+      badge: language === 'ar' ? 'إعفاءات وحالات' : 'Rapports',
+      badgeBg: 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300',
+      highlightTag: language === 'ar' ? 'حالات' : 'Cas'
+    },
+    {
+      id: 'import-export' as ActiveScreen,
+      title: language === 'ar' ? 'مركز الاستيراد والتصدير' : 'Centre Import / Export',
+      subtitle: language === 'ar' ? 'استيراد لوائح مسار، تصدير الفروض، وتصدير دفتر التتبع اليومي في 10 حصص (كل قسم بورقة)' : 'Import Massar, export devoirs, cahier 10 séances',
+      icon: <ArrowsRightLeftIcon className="w-8 h-8 text-white" />,
+      gradient: 'from-amber-500 to-orange-600',
+      shadowColor: 'shadow-amber-500/20',
+      badge: language === 'ar' ? 'دفتر 10 حصص' : '10 Séances',
+      badgeBg: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+      highlightTag: language === 'ar' ? 'مطلوب ✨' : 'Nouveau'
     },
     {
       id: 'talent' as ActiveScreen,

@@ -19,7 +19,8 @@ import {
     HomeIcon,
     TableCellsIcon,
     DocumentTextIcon,
-    BanknotesIcon
+    BanknotesIcon,
+    ClipboardDocumentCheckIcon
 } from './Icons';
 import { useLanguage } from '../utils/i18n';
 import { getAllClasses, ClassStats } from '../utils/db';
@@ -34,9 +35,11 @@ export type ActiveScreen =
   | 'athletics'
   | 'team-games'
   | 'massar'
-  | 'textbook'
-  | 'talent'
   | 'attendance'
+  | 'textbook'
+  | 'reports'
+  | 'import-export'
+  | 'talent'
   | 'measurements' 
   | 'championships'
   | 'sports-association'
@@ -117,16 +120,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: language === 'ar' ? 'مسار/طارل' : 'TaRL'
     },
     {
+      id: 'attendance' as ActiveScreen,
+      label: language === 'ar' ? 'تتبع الغياب والمواظبة' : 'Absences & Présence',
+      icon: <CalendarDaysIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />,
+      badge: language === 'ar' ? 'غياب' : 'Présence'
+    },
+    {
+      id: 'textbook' as ActiveScreen,
+      label: language === 'ar' ? 'دفتر النصوص الرياضي' : 'Cahier de Textes',
+      icon: <DocumentTextIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />,
+      badge: language === 'ar' ? 'نصوص' : 'Cahier'
+    },
+    {
+      id: 'reports' as ActiveScreen,
+      label: language === 'ar' ? 'التقارير البيداغوجية' : 'Rapports Pédagogiques',
+      icon: <ClipboardDocumentCheckIcon className="w-5 h-5 text-teal-600 dark:text-teal-400" />,
+      badge: language === 'ar' ? 'تقارير' : 'Rapports'
+    },
+    {
+      id: 'import-export' as ActiveScreen,
+      label: language === 'ar' ? 'مركز الاستيراد والتصدير' : 'Centre Import / Export',
+      icon: <ArrowsRightLeftIcon className="w-5 h-5 text-amber-500" />,
+      badge: language === 'ar' ? 'تبادل' : 'Sync'
+    },
+    {
       id: 'talent' as ActiveScreen,
       label: t.navTalent,
       icon: <SparklesIcon className="w-5 h-5 text-amber-500" />,
       badge: language === 'ar' ? 'موهبة' : 'Talents'
-    },
-    {
-      id: 'attendance' as ActiveScreen,
-      label: language === 'ar' ? 'الغياب ودفتر النصوص' : 'Présence & Cahier',
-      icon: <CalendarDaysIcon className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />,
-      badge: language === 'ar' ? 'توثيق' : 'Suivi'
     },
     {
       id: 'sports-association' as ActiveScreen,

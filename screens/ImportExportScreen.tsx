@@ -6,6 +6,7 @@ import {
     downloadStudentsTemplate,
     downloadSessionsTemplate,
     exportAllSessionsSportsActivityToExcel,
+    exportTenSessionsNotebookToExcel,
     ParsedPhysicalTestsData
 } from '../utils/excelHelper';
 import { 
@@ -16,10 +17,13 @@ import {
     getVmaResults, 
     saveVmaResults,
     getAttendanceSessions,
-    getAllAttendanceSessions
+    getAllAttendanceSessions,
+    getAllClasses
 } from '../utils/db';
+import { getTextbookSessions } from '../utils/textbookDb';
 import { ImportSessionsModal } from '../components/ImportSessionsModal';
-import { exportGroupsToWord } from '../utils/wordHelper';
+import { TenSessionsNotebookModal } from '../components/TenSessionsNotebookModal';
+import { exportGroupsToWord, exportTextbookToWord } from '../utils/wordHelper';
 import { generateAffinityGroups } from '../utils/groupHelper';
 import { LUC_LEGER_DATA } from '../constants';
 import type { StudentIdentity, PhysicalTests, StudentResult, ArchiveRecord } from '../types';
@@ -40,7 +44,8 @@ import {
     CloudArrowDownIcon,
     ArrowPathIcon,
     ArchiveBoxIcon,
-    TrashIcon
+    TrashIcon,
+    PrinterIcon
 } from '../components/Icons';
 import { 
     syncCloudToLocalDB, 
@@ -99,6 +104,7 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
 
     // 3. Sports Activity & Attendance sessions import state
     const [isImportSessionsModalOpen, setIsImportSessionsModalOpen] = useState(false);
+    const [isTenSessionsModalOpen, setIsTenSessionsModalOpen] = useState(false);
 
     // Backup restore input
     const backupInputRef = useRef<HTMLInputElement>(null);
@@ -645,6 +651,119 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
         }
     };
 
+    // Quick export 10-sessions notebook
+    const handleQuickExportTenSessionsExcel = async (mode: 'single' | 'all') => {
+        try {
+            if (mode === 'single') {
+                let targetClass = selectedClass?.trim();
+                if (!targetClass) {
+                    const clsList = await getAllClasses();
+                    if (clsList.length > 0) {
+                        targetClass = clsList[0].className;
+                        setSelectedClass(targetClass);
+                    } else {
+                        targetClass = 'القسم 1';
+                    }
+                }
+
+                const studs = await getStudentList(targetClass);
+                exportTenSessionsNotebookToExcel([{ className: targetClass, students: studs || [] }]);
+                setMessage({ 
+                    text: `تم تصدير دفتر تتبع 10 حصص للقسم «${targetClass}» (${(studs || []).length} تلميذ) بنجاح!`, 
+                    type: 'success' 
+                });
+            } else {
+                let clsList = await getAllClasses();
+                if (!clsList || clsList.length === 0) {
+                    const cloudList = await fetchAllClassesFromCloud();
+                    if (cloudList && cloudList.length > 0) {
+                        clsList = cloudList.map(c => ({
+                            className: c.className,
+                            studentCount: c.students?.length || 0,
+                            boysCount: 0,
+                            girlsCount: 0,
+                            testedCount: 0,
+                            vmaCount: 0,
+                            measurementsCount: 0
+                        }));
+                    }
+                }
+
+                if (!clsList || clsList.length === 0) {
+                    // Export at least a clean template
+                    exportTenSessionsNotebookToExcel([{ className: selectedClass || 'القسم 1', students: [] }]);
+                    setMessage({ text: 'تم تصدير نموذج دفتر التتبع اليومي الفارغ بنجاح!', type: 'success' });
+                    return;
+                }
+
+                const data: Array<{ className: string; students: StudentIdentity[] }> = [];
+                for (const c of clsList) {
+                    const st = await getStudentList(c.className);
+                    data.push({ className: c.className, students: st || [] });
+                }
+
+                exportTenSessionsNotebookToExcel(data);
+                setMessage({ 
+                    text: `تم تصدير دفاتر التتبع اليومي لجميع الأقسام (${data.length} قسماً) كل قسم في ورقة مستقلة بنجاح!`, 
+                    type: 'success' 
+                });
+            }
+        } catch (err: any) {
+            setMessage({ text: err.message || 'خطأ أثناء تصدير دفتر التتبع.', type: 'error' });
+        }
+    };
+
+    // Export textbook to Excel
+    const handleExportTextbookExcelFromCenter = async () => {
+        try {
+            const sessions = await getTextbookSessions();
+            if (!sessions || sessions.length === 0) {
+                setMessage({ text: 'لا توجد حصص مسجلة في دفتر النصوص حالياً لتصديرها.', type: 'error' });
+                return;
+            }
+            const XLSX = (window as any).XLSX;
+            if (!XLSX) {
+                setMessage({ text: 'تعذر تحميل مكتبة Excel.', type: 'error' });
+                return;
+            }
+            const headers = ["رقم الحصة", "الهدف البيداغوجي / المحتوى", "القسم", "التاريخ", "التوقيت", "تاريخ الإضافة"];
+            const rows = sessions.map(s => [
+                s.sessionNumber,
+                s.goal,
+                s.className,
+                s.date,
+                s.timeSlot,
+                new Date(s.createdAt).toLocaleDateString('ar-MA')
+            ]);
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "دفتر النصوص");
+            XLSX.writeFile(wb, `دفتر_النصوص_الرياضي_${new Date().toISOString().split('T')[0]}.xlsx`);
+            setMessage({ text: 'تم تصدير دفتر النصوص بنجاح بصيغة Excel!', type: 'success' });
+        } catch (err: any) {
+            setMessage({ text: 'خطأ أثناء تصدير دفتر النصوص.', type: 'error' });
+        }
+    };
+
+    // Export textbook to Word
+    const handleExportTextbookWordFromCenter = async () => {
+        try {
+            const sessions = await getTextbookSessions();
+            if (!sessions || sessions.length === 0) {
+                setMessage({ text: 'لا توجد حصص مسجلة في دفتر النصوص حالياً.', type: 'error' });
+                return;
+            }
+            const ok = exportTextbookToWord(sessions, 'أستاذ التربية البدنية والرياضية', selectedClass || 'جميع الأقسام');
+            if (ok) {
+                setMessage({ text: 'تم تصدير دفتر النصوص الرياضي بصيغة Word بنجاح!', type: 'success' });
+            } else {
+                setMessage({ text: 'تعذر تصدير دفتر النصوص إلى Word.', type: 'error' });
+            }
+        } catch (err: any) {
+            setMessage({ text: 'خطأ أثناء تصدير دفتر النصوص إلى Word.', type: 'error' });
+        }
+    };
+
     return (
         <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto flex flex-col gap-8">
             {/* Feedback notification */}
@@ -1179,7 +1298,99 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
                 </div>
             </div>
 
-            {/* 6. Backup & Restore */}
+            {/* 6. Daily 10-Sessions Attendance Tracking Notebook (كل قسم في ورقة واحدة) */}
+            <div className="bg-gradient-to-r from-indigo-900/90 via-indigo-800 to-violet-900 rounded-3xl shadow-xl p-6 sm:p-7 text-white border border-indigo-700/50">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+                    <div className="space-y-2 max-w-2xl">
+                        <div className="flex items-center gap-2.5">
+                            <span className="p-2.5 rounded-2xl bg-white/15 text-white backdrop-blur-xs text-xl shadow-xs">
+                                📋
+                            </span>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-lg font-black text-white">
+                                        دفتر التتبع اليومي في عشر حصص (10 حصص — كل قسم في ورقة واحدة)
+                                    </h2>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-gray-900">
+                                        جديد ومطلوب ✨
+                                    </span>
+                                </div>
+                                <p className="text-xs text-indigo-200 mt-1 leading-relaxed">
+                                    تصدير شبكة تتبع الحضور والغياب اليومي في 10 حصص مع أسماء التلاميذ، رقم مسار، تاريخ الازدياد، وعشرة أعمدة فارغة للتنقيط اليدوي ومجموع الغيابات — مهيأة بحيث يطبع أو يصدر كل قسم في صفحة A4 مستقلة.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2.5 shrink-0 w-full lg:w-auto">
+                        <button
+                            type="button"
+                            onClick={() => setIsTenSessionsModalOpen(true)}
+                            className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-white text-indigo-900 hover:bg-indigo-50 font-black text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                            <PrinterIcon className="w-4 h-4 text-indigo-700" />
+                            <span>فتح نافذة الطباعة والمعاينة PDF</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => handleQuickExportTenSessionsExcel('single')}
+                            className="flex-1 sm:flex-none px-3.5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 font-bold text-xs shadow-md transition active:scale-95 text-white flex items-center justify-center gap-1.5 cursor-pointer"
+                            title="تصدير دفتر تتبع الحصص للقسم المحدد حالياً"
+                        >
+                            <ExcelIcon className="w-4 h-4" />
+                            <span>تصدير Excel ({selectedClass || 'القسم'})</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => handleQuickExportTenSessionsExcel('all')}
+                            className="flex-1 sm:flex-none px-3.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 border border-indigo-400/40 font-bold text-xs shadow-md transition active:scale-95 text-white flex items-center justify-center gap-1.5 cursor-pointer"
+                            title="تصدير جميع الأقسام دفعة واحدة، كل قسم في ورقة مستقلة"
+                        >
+                            <ExcelIcon className="w-4 h-4 text-emerald-300" />
+                            <span>تصدير Excel (جميع الأقسام)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* 7. Textbook (Cahier de Textes) Export */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700/60">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <DocumentTextIcon className="text-indigo-600 dark:text-indigo-400" />
+                            <span>دفتر النصوص الرياضي (Cahier de Textes EPS)</span>
+                        </h2>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            تصدير سجل الحصص والمحتويات البيداغوجية المدونة في دفتر النصوص بصيغتي Excel و Word لتسليمها للإدارة أو التفتيش.
+                        </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2.5">
+                        <button
+                            type="button"
+                            onClick={handleExportTextbookExcelFromCenter}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition active:scale-95 cursor-pointer"
+                        >
+                            <ExcelIcon className="w-4 h-4" />
+                            <span>تصدير دفتر النصوص (Excel)</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleExportTextbookWordFromCenter}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition active:scale-95 cursor-pointer"
+                        >
+                            <DocumentTextIcon className="w-4 h-4" />
+                            <span>تصدير دفتر النصوص (Word)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* 8. Backup & Restore */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700/60">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div>
@@ -1500,6 +1711,15 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
                             type: 'success'
                         });
                     }}
+                />
+            )}
+
+            {/* MODAL: 10-Sessions Attendance Tracking Notebook */}
+            {isTenSessionsModalOpen && (
+                <TenSessionsNotebookModal
+                    isOpen={isTenSessionsModalOpen}
+                    onClose={() => setIsTenSessionsModalOpen(false)}
+                    defaultClassName={selectedClass}
                 />
             )}
         </div>

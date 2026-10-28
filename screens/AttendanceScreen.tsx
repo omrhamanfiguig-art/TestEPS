@@ -39,10 +39,12 @@ import { PedagogicalReportsView } from '../components/PedagogicalReportsView';
 import { StudentReportModal } from '../components/StudentReportModal';
 import { GroupReportModal } from '../components/GroupReportModal';
 import { ImportSessionsModal } from '../components/ImportSessionsModal';
+import { TenSessionsNotebookModal } from '../components/TenSessionsNotebookModal';
 import { 
   exportSessionAttendanceToExcel, 
   exportClassAttendanceCumulativeToExcel,
-  exportAllSessionsSportsActivityToExcel
+  exportAllSessionsSportsActivityToExcel,
+  exportTenSessionsNotebookToExcel
 } from '../utils/excelHelper';
 import { 
   getTeacherProfiles, 
@@ -163,6 +165,7 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
   
   // Import Sessions & Delete Session Modals
   const [isImportSessionsModalOpen, setIsImportSessionsModalOpen] = useState(false);
+  const [isTenSessionsModalOpen, setIsTenSessionsModalOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<AttendanceSession | null>(null);
   const [isDeletingSession, setIsDeletingSession] = useState(false);
   
@@ -836,6 +839,16 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
 
             <button
               type="button"
+              onClick={() => setIsTenSessionsModalOpen(true)}
+              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-xs active:scale-95 transition cursor-pointer"
+              title="تصدير وطباعة دفتر التتبع اليومي في 10 حصص (كل قسم في ورقة A4 واحدة)"
+            >
+              <span>📋</span>
+              <span>دفتر 10 حصص</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => handleSaveSession(false)}
               disabled={isSaving}
               className={`inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white shadow-xs active:scale-95 transition cursor-pointer ${
@@ -1079,7 +1092,13 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
 
           <button
             type="button"
-            onClick={() => setActiveTab('textbook')}
+            onClick={() => {
+              if (onNavigateToScreen) {
+                onNavigateToScreen('textbook');
+              } else {
+                setActiveTab('textbook');
+              }
+            }}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'textbook'
                 ? 'bg-indigo-600 text-white shadow-xs'
@@ -1091,14 +1110,31 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
 
           <button
             type="button"
-            onClick={() => setActiveTab('reports')}
+            onClick={() => {
+              if (onNavigateToScreen) {
+                onNavigateToScreen('reports');
+              } else {
+                setActiveTab('reports');
+              }
+            }}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'reports'
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
           >
-            <span>🏥 فضاء التقارير والحالات</span>
+            <span>🏥 فضاء التقارير</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsTenSessionsModalOpen(true)}
+            className="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-800"
+          >
+            <span>📋 دفتر 10 حصص (PDF/Excel)</span>
+            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100 font-black">
+              رسمي
+            </span>
           </button>
 
           <button
@@ -2537,6 +2573,15 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
           summaryBadge={`إجمالي التلاميذ: ${students.length} | الحصص المدرجة: ${filteredPreviousSessions.length} | النشاط المعين: ${reportSportFilter === 'all' ? 'جميع الأنشطة' : reportSportFilter}`}
           signature1Title="توقيع وختم الإدارة التربوية"
           signature2Title="توقيع الأستاذ(ة)"
+        />
+      )}
+
+      {/* Ten Sessions Notebook Modal */}
+      {isTenSessionsModalOpen && (
+        <TenSessionsNotebookModal
+          isOpen={isTenSessionsModalOpen}
+          onClose={() => setIsTenSessionsModalOpen(false)}
+          defaultClassName={selectedClass}
         />
       )}
     </div>
