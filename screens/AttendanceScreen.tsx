@@ -136,6 +136,10 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
   const [pedagogicalLevel, setPedagogicalLevel] = useState<MiddleSchoolLevel>('1ac');
   const [showDetailedGoals, setShowDetailedGoals] = useState(false);
 
+  // Collapse / Expand states for mobile & small screens
+  const [isHeaderCardCollapsed, setIsHeaderCardCollapsed] = useState<boolean>(false);
+  const [isSessionDetailsCollapsed, setIsSessionDetailsCollapsed] = useState<boolean>(false);
+
   // Auto-detect educational level when selectedClass changes
   useEffect(() => {
     if (!selectedClass) return;
@@ -745,421 +749,488 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
       )}
 
       {/* Main Header Card */}
-      <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/60 p-6 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-600/20 shrink-0">
-            <CalendarDaysIcon className="w-8 h-8" />
+      <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/60 p-4 sm:p-6 transition-all duration-300">
+        <div className="flex items-center justify-between gap-2 pb-2 border-b border-gray-100 dark:border-gray-700/60 mb-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs shrink-0">
+              <CalendarDaysIcon className="w-5 h-5" />
+            </div>
+            <h1 className="text-base sm:text-xl font-black text-gray-900 dark:text-white">
+              تتبع غياب وحضور التلاميذ
+            </h1>
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+              {selectedClass || "اختر القسم"}
+            </span>
           </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {onNavigateToScreen && (
+
+          <button
+            type="button"
+            onClick={() => setIsHeaderCardCollapsed(!isHeaderCardCollapsed)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 border border-indigo-200 dark:border-indigo-800/80 transition cursor-pointer active:scale-95 shadow-2xs shrink-0"
+            title={isHeaderCardCollapsed ? 'إظهار الواجهة الرئيسية والإعدادات' : 'إخفاء الواجهة الرئيسية والإعدادات'}
+          >
+            {isHeaderCardCollapsed ? (
+              <>
+                <span>إظهار الواجهة والخيارات</span>
+                <span className="text-sm">👁️ 🔽</span>
+              </>
+            ) : (
+              <>
+                <span>إخفاء الواجهة</span>
+                <span className="text-sm">🙈 🔼</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {!isHeaderCardCollapsed && (
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pt-2">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-600/20 shrink-0">
+                <CalendarDaysIcon className="w-7 h-7" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {onNavigateToScreen && (
+                    <button
+                      type="button"
+                      onClick={() => onNavigateToScreen('home')}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-800 transition active:scale-95 cursor-pointer shadow-2xs shrink-0"
+                      title="العودة إلى بطائق الصفحة الرئيسية"
+                    >
+                      <HomeIcon className="w-3.5 h-3.5" />
+                      <span>الرئيسية</span>
+                    </button>
+                  )}
+                  <h2 className="text-lg font-black text-gray-900 dark:text-white">
+                    تتبع غياب وحضور التلاميذ
+                  </h2>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  تسجيل الحضور والغياب في كل حصة مع إمكانية المناداة السريعة وحفظ السجل التراكمي
+                </p>
+              </div>
+            </div>
+
+            {/* Top Controls: Teacher, Level, Class Select & Side-by-Side Actions */}
+            <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center lg:justify-end gap-2.5 w-full lg:w-auto">
+              {/* Teacher Filter Dropdown */}
+              {teacherProfiles.length > 0 && (
+                <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600">
+                  <span className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 ps-1.5">الأستاذ:</span>
+                  <select
+                    value={teacherFilter}
+                    onChange={(e) => setTeacherFilter(e.target.value)}
+                    className="bg-white dark:bg-gray-800 border-none font-bold text-[11px] sm:text-xs text-gray-900 dark:text-white rounded-xl px-2 py-1 focus:ring-0 shadow-xs cursor-pointer max-w-[120px] sm:max-w-none truncate"
+                  >
+                    <option value="ALL">جميع الأساتذة</option>
+                    {teacherProfiles.map(tp => (
+                      <option key={tp.id} value={tp.name}>{tp.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Level Filter Dropdown */}
+              {academicLevels.length > 0 && (
+                <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600">
+                  <span className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 ps-1.5">المستوى:</span>
+                  <select
+                    value={levelFilter}
+                    onChange={(e) => {
+                      setLevelFilter(e.target.value);
+                      const matchingClasses = e.target.value === 'ALL' 
+                        ? classList 
+                        : classList.filter(c => c.className.toUpperCase().startsWith(e.target.value));
+                      if (matchingClasses.length > 0) {
+                        setSelectedClass(matchingClasses[0].className);
+                      }
+                    }}
+                    className="bg-white dark:bg-gray-800 border-none font-bold text-[11px] sm:text-xs text-gray-900 dark:text-white rounded-xl px-2 py-1 focus:ring-0 shadow-xs cursor-pointer max-w-[110px] sm:max-w-none truncate"
+                  >
+                    <option value="ALL">جميع المستويات</option>
+                    {academicLevels.map(lvl => (
+                      <option key={lvl} value={lvl}>{lvl}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Class Select Dropdown */}
+              <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600">
+                <span className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 ps-1.5">القسم:</span>
+                <select
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  className="bg-white dark:bg-gray-800 border-none font-bold text-[11px] sm:text-xs text-gray-900 dark:text-white rounded-xl px-2 py-1 focus:ring-0 shadow-xs cursor-pointer"
+                >
+                  {filteredClassList.map(cls => (
+                    <option key={cls.className} value={cls.className}>
+                      {cls.className} ({cls.studentCount} ت)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Centered Unified Action Dock on Mobile with Small Icons */}
+              <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 bg-gray-50/70 dark:bg-gray-900/40 p-1.5 rounded-2xl border border-gray-200/80 dark:border-gray-700/60 shadow-2xs w-full sm:w-auto">
                 <button
                   type="button"
-                  onClick={() => onNavigateToScreen('home')}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-800 transition active:scale-95 cursor-pointer shadow-2xs shrink-0"
-                  title="العودة إلى بطائق الصفحة الرئيسية"
+                  onClick={() => {
+                    setStudentToEdit(null);
+                    setIsAddEditStudentOpen(true);
+                  }}
+                  className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs active:scale-95 transition cursor-pointer"
+                  title="إضافة تلميذ جديد للقسم الحالية"
                 >
-                  <HomeIcon className="w-3.5 h-3.5" />
-                  <span>الرئيسية</span>
+                  <UserPlusIcon className="w-3.5 h-3.5 shrink-0" />
+                  <span>إضافة تلميذ</span>
                 </button>
-              )}
-              <h1 className="text-2xl font-black text-gray-900 dark:text-white">
-                تتبع غياب وحضور التلاميذ
-              </h1>
-              <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
-                {selectedClass || "اختر القسم"}
-              </span>
+
+                <button
+                  type="button"
+                  onClick={startRollCall}
+                  className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-xs active:scale-95 transition cursor-pointer"
+                  title="بدء المناداة السريعة تلميذاً تلو الآخر"
+                >
+                  <span className="text-xs">📢</span>
+                  <span>بدء المناداة</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPrintPreviewOpen(true)}
+                  className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 shadow-xs active:scale-95 transition cursor-pointer"
+                  title="معاينة وطباعة تقرير الحضور والغياب بصيغة PDF"
+                >
+                  <PrinterIcon className="w-3.5 h-3.5 shrink-0" />
+                  <span>معاينة PDF الغياب</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsGroupReportModalOpen(true)}
+                  className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 shadow-xs active:scale-95 transition cursor-pointer"
+                  title="إنشاء تقرير إداري جماعي وإرساله بالواتساب أو كصورة للإدارة"
+                >
+                  <UserGroupIcon className="w-3.5 h-3.5 shrink-0" />
+                  <span>تقرير الإدارة</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsTenSessionsModalOpen(true)}
+                  className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-xs active:scale-95 transition cursor-pointer"
+                  title="تصدير وطباعة دفتر التتبع اليومي في 10 حصص (كل قسم في ورقة A4 واحدة)"
+                >
+                  <span>📋</span>
+                  <span>دفتر 10 حصص</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSaveSession(false)}
+                  disabled={isSaving}
+                  className={`inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white shadow-xs active:scale-95 transition cursor-pointer ${
+                    isSaving ? 'bg-emerald-800 opacity-80 cursor-wait' : 'bg-emerald-700 hover:bg-emerald-800'
+                  }`}
+                  title="حفظ ورقة حضور الحصة يدوياً في السجل وقاعدة البيانات السحابية"
+                >
+                  <CheckCircleIcon className={`w-3.5 h-3.5 shrink-0 ${isSaving ? 'animate-spin' : ''}`} />
+                  <span>{isSaving ? 'حفظ...' : 'حفظ الورقة'}</span>
+                </button>
+              </div>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              تسجيل الحضور والغياب في كل حصة مع إمكانية المناداة السريعة وحفظ السجل التراكمي
-            </p>
           </div>
-        </div>
-
-        {/* Top Controls: Teacher, Level, Class Select & Side-by-Side Actions */}
-        <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center lg:justify-end gap-2.5 w-full lg:w-auto">
-          {/* Teacher Filter Dropdown */}
-          {teacherProfiles.length > 0 && (
-            <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600">
-              <span className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 ps-1.5">الأستاذ:</span>
-              <select
-                value={teacherFilter}
-                onChange={(e) => setTeacherFilter(e.target.value)}
-                className="bg-white dark:bg-gray-800 border-none font-bold text-[11px] sm:text-xs text-gray-900 dark:text-white rounded-xl px-2 py-1 focus:ring-0 shadow-xs cursor-pointer max-w-[120px] sm:max-w-none truncate"
-              >
-                <option value="ALL">جميع الأساتذة</option>
-                {teacherProfiles.map(tp => (
-                  <option key={tp.id} value={tp.name}>{tp.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Level Filter Dropdown */}
-          {academicLevels.length > 0 && (
-            <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600">
-              <span className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 ps-1.5">المستوى:</span>
-              <select
-                value={levelFilter}
-                onChange={(e) => {
-                  setLevelFilter(e.target.value);
-                  const matchingClasses = e.target.value === 'ALL' 
-                    ? classList 
-                    : classList.filter(c => c.className.toUpperCase().startsWith(e.target.value));
-                  if (matchingClasses.length > 0) {
-                    setSelectedClass(matchingClasses[0].className);
-                  }
-                }}
-                className="bg-white dark:bg-gray-800 border-none font-bold text-[11px] sm:text-xs text-gray-900 dark:text-white rounded-xl px-2 py-1 focus:ring-0 shadow-xs cursor-pointer max-w-[110px] sm:max-w-none truncate"
-              >
-                <option value="ALL">جميع المستويات</option>
-                {academicLevels.map(lvl => (
-                  <option key={lvl} value={lvl}>{lvl}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Class Select Dropdown */}
-          <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-700/60 p-1.5 rounded-2xl border border-gray-200 dark:border-gray-600">
-            <span className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 ps-1.5">القسم:</span>
-            <select
-              value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
-              className="bg-white dark:bg-gray-800 border-none font-bold text-[11px] sm:text-xs text-gray-900 dark:text-white rounded-xl px-2 py-1 focus:ring-0 shadow-xs cursor-pointer"
-            >
-              {filteredClassList.map(cls => (
-                <option key={cls.className} value={cls.className}>
-                  {cls.className} ({cls.studentCount} ت)
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Centered Unified Action Dock on Mobile with Small Icons */}
-          <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 bg-gray-50/70 dark:bg-gray-900/40 p-1.5 rounded-2xl border border-gray-200/80 dark:border-gray-700/60 shadow-2xs w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => {
-                setStudentToEdit(null);
-                setIsAddEditStudentOpen(true);
-              }}
-              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs active:scale-95 transition cursor-pointer"
-              title="إضافة تلميذ جديد للقسم الحالية"
-            >
-              <UserPlusIcon className="w-3.5 h-3.5 shrink-0" />
-              <span>إضافة تلميذ</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={startRollCall}
-              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-xs active:scale-95 transition cursor-pointer"
-              title="بدء المناداة السريعة تلميذاً تلو الآخر"
-            >
-              <span className="text-xs">📢</span>
-              <span>بدء المناداة</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsPrintPreviewOpen(true)}
-              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white bg-blue-700 hover:bg-blue-800 shadow-xs active:scale-95 transition cursor-pointer"
-              title="معاينة وطباعة تقرير الحضور والغياب بصيغة PDF"
-            >
-              <PrinterIcon className="w-3.5 h-3.5 shrink-0" />
-              <span>معاينة PDF الغياب</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsGroupReportModalOpen(true)}
-              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 shadow-xs active:scale-95 transition cursor-pointer"
-              title="إنشاء تقرير إداري جماعي وإرساله بالواتساب أو كصورة للإدارة"
-            >
-              <UserGroupIcon className="w-3.5 h-3.5 shrink-0" />
-              <span>تقرير الإدارة</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsTenSessionsModalOpen(true)}
-              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-xs active:scale-95 transition cursor-pointer"
-              title="تصدير وطباعة دفتر التتبع اليومي في 10 حصص (كل قسم في ورقة A4 واحدة)"
-            >
-              <span>📋</span>
-              <span>دفتر 10 حصص</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSaveSession(false)}
-              disabled={isSaving}
-              className={`inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-bold text-white shadow-xs active:scale-95 transition cursor-pointer ${
-                isSaving ? 'bg-emerald-800 opacity-80 cursor-wait' : 'bg-emerald-700 hover:bg-emerald-800'
-              }`}
-              title="حفظ ورقة حضور الحصة يدوياً في السجل وقاعدة البيانات السحابية"
-            >
-              <CheckCircleIcon className={`w-3.5 h-3.5 shrink-0 ${isSaving ? 'animate-spin' : ''}`} />
-              <span>{isSaving ? 'حفظ...' : 'حفظ الورقة'}</span>
-            </button>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Session Details Bar (Date, Time, Topic, Session Number) */}
-      <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/60 p-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-center">
-          {/* Session Number */}
-          <div>
-            <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1.5 flex items-center gap-1.5">
-              <span>🔢</span>
-              <span>رقم الحصة:</span>
-            </label>
-            <select
-              value={sessionNumber}
-              onChange={(e) => handleSessionNumberChange(e.target.value)}
-              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-            >
-              {SESSIONS_10.map(sNum => (
-                <option key={sNum} value={sNum}>
-                  {sNum}
-                </option>
-              ))}
-              {!SESSIONS_10.includes(sessionNumber) && sessionNumber && (
-                <option value={sessionNumber}>{sessionNumber}</option>
-              )}
-            </select>
+      <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700/60 p-4 sm:p-5 transition-all duration-300">
+        <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-gray-100 dark:border-gray-700/80">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-base">📅</span>
+            <h2 className="text-xs sm:text-sm font-black text-gray-900 dark:text-white">
+              إعدادات ورقة الحصة والأهداف البيداغوجية
+            </h2>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900">
+              {sessionNumber} • {topic || 'التربية البدنية'} • {date} • {timeSlot}
+            </span>
           </div>
 
-          {/* Date Picker */}
-          <div>
-            <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1.5 flex items-center gap-1.5">
-              <CalendarDaysIcon className="w-4 h-4 text-indigo-500" />
-              <span>تاريخ الحصة:</span>
-            </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => handleDateChange(e.target.value)}
-              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
-            />
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsSessionDetailsCollapsed(!isSessionDetailsCollapsed)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 border border-indigo-200 dark:border-indigo-800/80 transition cursor-pointer active:scale-95 shadow-2xs shrink-0"
+            title={isSessionDetailsCollapsed ? 'إظهار إعدادات ورقة الحصة والأهداف' : 'إخفاء إعدادات ورقة الحصة والأهداف'}
+          >
+            {isSessionDetailsCollapsed ? (
+              <>
+                <span>إظهار إعدادات الحصة</span>
+                <span className="text-sm">👁️ 🔽</span>
+              </>
+            ) : (
+              <>
+                <span>إخفاء إعدادات الحصة</span>
+                <span className="text-sm">🙈 🔼</span>
+              </>
+            )}
+          </button>
+        </div>
 
-          {/* Time Slot Picker */}
-          <div>
-            <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1.5 flex items-center gap-1.5">
-              <ClockIcon className="w-4 h-4 text-indigo-500" />
-              <span>توقيت الحصة:</span>
-            </label>
-            <select
-              value={timeSlot}
-              onChange={(e) => setTimeSlot(e.target.value)}
-              className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-            >
-              {COMMON_TIME_SLOTS.map(slot => (
-                <option key={slot} value={slot}>
-                  {slot}
-                </option>
-              ))}
-              {!COMMON_TIME_SLOTS.includes(timeSlot) && timeSlot && (
-                <option value={timeSlot}>{timeSlot}</option>
-              )}
-            </select>
-          </div>
-
-          {/* Session Topic / Sport activity with manage button */}
-          <div className="lg:col-span-2">
-            <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1.5 flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <span>⚽</span>
-                <span>النشاط / موضوع الحصة:</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsManageSportsOpen(true)}
-                className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
-              >
-                ⚙️ تسيير لائحة الرياضات
-              </button>
-            </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  placeholder="أدخل موضوع الحصة أو النشاط الرياضي..."
-                  className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
+        {!isSessionDetailsCollapsed && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-center pt-3">
+            {/* Session Number */}
+            <div>
+              <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1.5 flex items-center gap-1.5">
+                <span>🔢</span>
+                <span>رقم الحصة:</span>
+              </label>
               <select
-                onChange={(e) => {
-                  if (e.target.value) {
-                    setTopic(e.target.value);
-                  }
-                }}
-                className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-2.5 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 cursor-pointer max-w-[150px]"
-                value=""
+                value={sessionNumber}
+                onChange={(e) => handleSessionNumberChange(e.target.value)}
+                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
-                <option value="" disabled>اختر رياضة...</option>
-                {sports.map(sport => (
-                  <option key={sport.id} value={`${sport.icon} ${sport.labelAr}`}>
-                    {sport.icon} {sport.labelAr}
+                {SESSIONS_10.map(sNum => (
+                  <option key={sNum} value={sNum}>
+                    {sNum}
                   </option>
                 ))}
-                <option value="" disabled>-----------</option>
-                {COMMON_TOPICS.map(top => (
-                  <option key={top} value={top}>{top}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Session Goal Input (Auto-synced into Textbook) with 10 Dynamic Pedagogical Objectives */}
-          <div className="lg:col-span-5 pt-3 border-t border-gray-100 dark:border-gray-700/80 space-y-2">
-            {/* Header: Label + Level Selector Pills (1AC, 2AC, 3AC, Lycée) + Auto-sync Badge */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-base">🎯</span>
-                <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
-                  هدف الحصة البيداغوجي (10 أهداف حسب النشاط والمستوى):
-                </span>
-                <span className="text-[11px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/70 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800/60">
-                  {sportMeta.sportNameAr}
-                </span>
-              </div>
-
-              {/* Level Selector Pills: 1AC / 2AC / 3AC / Lycée */}
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">المستوى:</span>
-                {EPS_MIDDLE_SCHOOL_LEVELS.map(lvl => {
-                  const isActive = pedagogicalLevel === lvl.key;
-                  return (
-                    <button
-                      key={lvl.key}
-                      type="button"
-                      onClick={() => setPedagogicalLevel(lvl.key as MiddleSchoolLevel)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
-                        isActive
-                          ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-400/40'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                      title={lvl.label}
-                    >
-                      {lvl.shortLabel}
-                    </button>
-                  );
-                })}
-                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 font-black bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-300 dark:border-emerald-800">
-                  <span>📖</span>
-                  <span>تحديث دفتر النصوص</span>
-                </span>
-              </div>
-            </div>
-
-            {/* Input Row + 10-Goal Dropdown + Quick Suggestion Button */}
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="text"
-                value={sessionGoal}
-                onChange={(e) => setSessionGoal(e.target.value)}
-                placeholder={`أدخل هدف الحصة أو اختر من الأهداف الـ 10 المقترحة لـ ${sportMeta.sportNameAr}...`}
-                className="flex-1 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3.5 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
-              />
-
-              {/* Dynamic Dropdown showing the 10 Progressive Goals based strictly on Sport & Level */}
-              <select
-                onChange={(e) => {
-                  if (e.target.value) {
-                    setSessionGoal(e.target.value);
-                  }
-                }}
-                className="bg-indigo-50 dark:bg-gray-700 border border-indigo-200 dark:border-gray-600 rounded-xl px-3 py-2 text-xs font-bold text-indigo-950 dark:text-indigo-200 focus:ring-2 focus:ring-indigo-500 cursor-pointer sm:max-w-[280px]"
-                value=""
-              >
-                <option value="" disabled>
-                  🎯 10 أهداف لـ {sportMeta.sportNameAr} ({levelLabelAr})
-                </option>
-                {recommendedGoal && (
-                  <option value={recommendedGoal.titleAr}>
-                    ⚡ هدف {sessionNumber} الموصى به: {recommendedGoal.titleAr.replace(/^\[.*?\]\s*/, '')}
-                  </option>
+                {!SESSIONS_10.includes(sessionNumber) && sessionNumber && (
+                  <option value={sessionNumber}>{sessionNumber}</option>
                 )}
-                <option value="" disabled>──────── 10 حصص تدرجية ────────</option>
-                {tenGoals.map((g) => {
-                  const isCurrent = g.seanceNumber === currentSessionIndex;
-                  return (
-                    <option key={g.seanceNumber} value={g.titleAr}>
-                      {isCurrent ? '⭐ ' : ''}ح{g.seanceNumber} [{g.phaseLabelAr}]: {g.titleAr.replace(/^\[.*?\]\s*/, '')}
-                    </option>
-                  );
-                })}
               </select>
+            </div>
 
-              {/* 1-Click Apply Recommended Session Goal Button */}
-              {recommendedGoal && (
+            {/* Date Picker */}
+            <div>
+              <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1.5 flex items-center gap-1.5">
+                <CalendarDaysIcon className="w-4 h-4 text-indigo-500" />
+                <span>تاريخ الحصة:</span>
+              </label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => handleDateChange(e.target.value)}
+                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            {/* Time Slot Picker */}
+            <div>
+              <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1.5 flex items-center gap-1.5">
+                <ClockIcon className="w-4 h-4 text-indigo-500" />
+                <span>توقيت الحصة:</span>
+              </label>
+              <select
+                value={timeSlot}
+                onChange={(e) => setTimeSlot(e.target.value)}
+                className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+              >
+                {COMMON_TIME_SLOTS.map(slot => (
+                  <option key={slot} value={slot}>
+                    {slot}
+                  </option>
+                ))}
+                {!COMMON_TIME_SLOTS.includes(timeSlot) && timeSlot && (
+                  <option value={timeSlot}>{timeSlot}</option>
+                )}
+              </select>
+            </div>
+
+            {/* Session Topic / Sport activity with manage button */}
+            <div className="lg:col-span-2">
+              <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <span>⚽</span>
+                  <span>النشاط / موضوع الحصة:</span>
+                </span>
                 <button
                   type="button"
-                  onClick={() => setSessionGoal(recommendedGoal.titleAr)}
-                  className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shrink-0 transition-colors shadow-sm cursor-pointer"
-                  title={`تطبيق الهدف البيداغوجي الموصى به لـ ${sessionNumber}`}
+                  onClick={() => setIsManageSportsOpen(true)}
+                  className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
                 >
-                  <span>⚡</span>
-                  <span>هدف {sessionNumber}</span>
+                  ⚙️ تسيير لائحة الرياضات
                 </button>
-              )}
+              </label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    placeholder="أدخل موضوع الحصة أو النشاط الرياضي..."
+                    className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setTopic(e.target.value);
+                    }
+                  }}
+                  className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-2.5 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 cursor-pointer max-w-[150px]"
+                  value=""
+                >
+                  <option value="" disabled>اختر رياضة...</option>
+                  {sports.map(sport => (
+                    <option key={sport.id} value={`${sport.icon} ${sport.labelAr}`}>
+                      {sport.icon} {sport.labelAr}
+                    </option>
+                  ))}
+                  <option value="" disabled>-----------</option>
+                  {COMMON_TOPICS.map(top => (
+                    <option key={top} value={top}>{top}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            {/* Quick Pedagogical Objectives Card (Motor, Cognitive, Behavioral) */}
-            {recommendedGoal && (
-              <div className="bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 rounded-xl p-2.5 text-xs text-gray-700 dark:text-gray-300">
-                <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
-                  <div className="font-bold flex items-center gap-2">
-                    <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
-                    <span className="text-indigo-900 dark:text-indigo-300 font-black">
-                      توجيهات {sessionNumber} ({recommendedGoal.phaseLabelAr}) — {levelLabelAr}:
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowDetailedGoals(!showDetailedGoals)}
-                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-                  >
-                    {showDetailedGoals ? 'إخفاء التفاصيل ▲' : 'عرض التفاصيل البيداغوجية الثلاثية (حركي، معرفي، وجداني) ▼'}
-                  </button>
+            {/* Session Goal Input (Auto-synced into Textbook) with 10 Dynamic Pedagogical Objectives */}
+            <div className="lg:col-span-5 pt-3 border-t border-gray-100 dark:border-gray-700/80 space-y-2">
+              {/* Header: Label + Level Selector Pills (1AC, 2AC, 3AC, Lycée) + Auto-sync Badge */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-base">🎯</span>
+                  <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                    هدف الحصة البيداغوجي (10 أهداف حسب النشاط والمستوى):
+                  </span>
+                  <span className="text-[11px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/70 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800/60">
+                    {sportMeta.sportNameAr}
+                  </span>
                 </div>
 
-                {showDetailedGoals ? (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2 pt-2 border-t border-indigo-200/50 dark:border-indigo-800/40">
-                    <div className="bg-white/80 dark:bg-gray-800/80 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900/40">
-                      <div className="font-black text-emerald-700 dark:text-emerald-400 text-[11px] mb-0.5">
-                        🏃 الهدف الحركي (Moteur):
-                      </div>
-                      <div className="text-[11px] font-medium leading-relaxed">{recommendedGoal.motorObjective}</div>
-                    </div>
-                    <div className="bg-white/80 dark:bg-gray-800/80 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900/40">
-                      <div className="font-black text-blue-700 dark:text-blue-400 text-[11px] mb-0.5">
-                        🧠 الهدف المعرفي (Cognitif):
-                      </div>
-                      <div className="text-[11px] font-medium leading-relaxed">{recommendedGoal.cognitiveObjective}</div>
-                    </div>
-                    <div className="bg-white/80 dark:bg-gray-800/80 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900/40">
-                      <div className="font-black text-amber-700 dark:text-amber-400 text-[11px] mb-0.5">
-                        🤝 الهدف السلوكي (Socio-affectif):
-                      </div>
-                      <div className="text-[11px] font-medium leading-relaxed">{recommendedGoal.behavioralObjective}</div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-[11px] text-gray-600 dark:text-gray-400 line-clamp-1 font-medium">
-                    <span className="font-bold text-indigo-700 dark:text-indigo-400">المهاري:</span> {recommendedGoal.motorObjective} | <span className="font-bold text-indigo-700 dark:text-indigo-400">المعرفي:</span> {recommendedGoal.cognitiveObjective}
-                  </div>
+                {/* Level Selector Pills: 1AC / 2AC / 3AC / Lycée */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">المستوى:</span>
+                  {EPS_MIDDLE_SCHOOL_LEVELS.map(lvl => {
+                    const isActive = pedagogicalLevel === lvl.key;
+                    return (
+                      <button
+                        key={lvl.key}
+                        type="button"
+                        onClick={() => setPedagogicalLevel(lvl.key as MiddleSchoolLevel)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                          isActive
+                            ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-400/40'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                        }`}
+                        title={lvl.label}
+                      >
+                        {lvl.shortLabel}
+                      </button>
+                    );
+                  })}
+                  <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 font-black bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-300 dark:border-emerald-800">
+                    <span>📖</span>
+                    <span>تحديث دفتر النصوص</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Input Row + 10-Goal Dropdown + Quick Suggestion Button */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={sessionGoal}
+                  onChange={(e) => setSessionGoal(e.target.value)}
+                  placeholder={`أدخل هدف الحصة أو اختر من الأهداف الـ 10 المقترحة لـ ${sportMeta.sportNameAr}...`}
+                  className="flex-1 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3.5 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                />
+
+                {/* Dynamic Dropdown showing the 10 Progressive Goals based strictly on Sport & Level */}
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setSessionGoal(e.target.value);
+                    }
+                  }}
+                  className="bg-indigo-50 dark:bg-gray-700 border border-indigo-200 dark:border-gray-600 rounded-xl px-3 py-2 text-xs font-bold text-indigo-950 dark:text-indigo-200 focus:ring-2 focus:ring-indigo-500 cursor-pointer sm:max-w-[280px]"
+                  value=""
+                >
+                  <option value="" disabled>
+                    🎯 10 أهداف لـ {sportMeta.sportNameAr} ({levelLabelAr})
+                  </option>
+                  {recommendedGoal && (
+                    <option value={recommendedGoal.titleAr}>
+                      ⚡ هدف {sessionNumber} الموصى به: {recommendedGoal.titleAr.replace(/^\[.*?\]\s*/, '')}
+                    </option>
+                  )}
+                  <option value="" disabled>──────── 10 حصص تدرجية ────────</option>
+                  {tenGoals.map((g) => {
+                    const isCurrent = g.seanceNumber === currentSessionIndex;
+                    return (
+                      <option key={g.seanceNumber} value={g.titleAr}>
+                        {isCurrent ? '⭐ ' : ''}ح{g.seanceNumber} [{g.phaseLabelAr}]: {g.titleAr.replace(/^\[.*?\]\s*/, '')}
+                      </option>
+                    );
+                  })}
+                </select>
+
+                {/* 1-Click Apply Recommended Session Goal Button */}
+                {recommendedGoal && (
+                  <button
+                    type="button"
+                    onClick={() => setSessionGoal(recommendedGoal.titleAr)}
+                    className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shrink-0 transition-colors shadow-sm cursor-pointer"
+                    title={`تطبيق الهدف البيداغوجي الموصى به لـ ${sessionNumber}`}
+                  >
+                    <span>⚡</span>
+                    <span>هدف {sessionNumber}</span>
+                  </button>
                 )}
               </div>
-            )}
+
+              {/* Quick Pedagogical Objectives Card (Motor, Cognitive, Behavioral) */}
+              {recommendedGoal && (
+                <div className="bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 rounded-xl p-2.5 text-xs text-gray-700 dark:text-gray-300">
+                  <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                    <div className="font-bold flex items-center gap-2">
+                      <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
+                      <span className="text-indigo-900 dark:text-indigo-300 font-black">
+                        توجيهات {sessionNumber} ({recommendedGoal.phaseLabelAr}) — {levelLabelAr}:
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowDetailedGoals(!showDetailedGoals)}
+                      className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                    >
+                      {showDetailedGoals ? 'إخفاء التفاصيل ▲' : 'عرض التفاصيل البيداغوجية الثلاثية (حركي، معرفي، وجداني) ▼'}
+                    </button>
+                  </div>
+
+                  {showDetailedGoals ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2 pt-2 border-t border-indigo-200/50 dark:border-indigo-800/40">
+                      <div className="bg-white/80 dark:bg-gray-800/80 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900/40">
+                        <div className="font-black text-emerald-700 dark:text-emerald-400 text-[11px] mb-0.5">
+                          🏃 الهدف الحركي (Moteur):
+                        </div>
+                        <div className="text-[11px] font-medium leading-relaxed">{recommendedGoal.motorObjective}</div>
+                      </div>
+                      <div className="bg-white/80 dark:bg-gray-800/80 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900/40">
+                        <div className="font-black text-blue-700 dark:text-blue-400 text-[11px] mb-0.5">
+                          🧠 الهدف المعرفي (Cognitif):
+                        </div>
+                        <div className="text-[11px] font-medium leading-relaxed">{recommendedGoal.cognitiveObjective}</div>
+                      </div>
+                      <div className="bg-white/80 dark:bg-gray-800/80 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900/40">
+                        <div className="font-black text-amber-700 dark:text-amber-400 text-[11px] mb-0.5">
+                          🤝 الهدف السلوكي (Socio-affectif):
+                        </div>
+                        <div className="text-[11px] font-medium leading-relaxed">{recommendedGoal.behavioralObjective}</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-gray-600 dark:text-gray-400 line-clamp-1 font-medium">
+                      <span className="font-bold text-indigo-700 dark:text-indigo-400">المهاري:</span> {recommendedGoal.motorObjective} | <span className="font-bold text-indigo-700 dark:text-indigo-400">المعرفي:</span> {recommendedGoal.cognitiveObjective}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Session Quick Statistics Cards */}

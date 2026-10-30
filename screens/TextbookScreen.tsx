@@ -245,6 +245,9 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
   const [wordClassFilter, setWordClassFilter] = useState("all");
   const [wordLevelFilter, setWordLevelFilter] = useState("all");
 
+  // Collapse / Expand state for header card
+  const [isHeaderCardCollapsed, setIsHeaderCardCollapsed] = useState(false);
+
   // Active Teacher Profile Helper
   const activeTeacher = useMemo(() => {
     return teachers.find(t => t.id === activeTeacherId) || teachers[0];
@@ -737,43 +740,71 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
       )}
 
       {/* Header and Teacher Switcher */}
-      <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-600/20 shrink-0">
-            <DocumentTextIcon className="w-8 h-8" />
+      <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6 transition-all duration-300">
+        <div className="flex items-center justify-between gap-2 border-b border-gray-100 dark:border-gray-700 pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-600/20 shrink-0">
+              <DocumentTextIcon className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-black text-gray-900 dark:text-white">
+                دفتر النصوص الرياضي
+              </h1>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-black text-gray-900 dark:text-white">
-              دفتر النصوص الرياضي
-            </h1>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              إدارة صيرورة حصص التربية البدنية، تخصيص الأقسام، وجداول حصص الأساتذة المتزامنة
-            </p>
-          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsHeaderCardCollapsed(!isHeaderCardCollapsed)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 border border-indigo-200 dark:border-indigo-800/80 transition cursor-pointer active:scale-95 shadow-2xs"
+            title={isHeaderCardCollapsed ? 'إظهار بيانات الواجهة والأساتذة' : 'إخفاء بيانات الواجهة والأساتذة'}
+          >
+            {isHeaderCardCollapsed ? (
+              <>
+                <span>إظهار الواجهة</span>
+                <span className="text-sm">👁️ 🔽</span>
+              </>
+            ) : (
+              <>
+                <span>إخفاء الواجهة</span>
+                <span className="text-sm">🙈 🔼</span>
+              </>
+            )}
+          </button>
         </div>
 
-        {/* Active Teacher Selector */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-gray-50 dark:bg-gray-900/40 p-2.5 rounded-2xl border border-gray-100 dark:border-gray-700 w-full lg:w-auto">
-          <div className="flex items-center gap-1.5 shrink-0 text-xs font-black text-indigo-600 dark:text-indigo-400 px-1">
-            <UserCircleIcon className="w-4 h-4" />
-            <span>الأستاذ الحالي:</span>
+        {!isHeaderCardCollapsed && (
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pt-3">
+            <div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                إدارة صيرورة حصص التربية البدنية، تخصيص الأقسام، وجداول حصص الأساتذة المتزامنة
+              </p>
+            </div>
+
+            {/* Active Teacher Selector */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-gray-50 dark:bg-gray-900/40 p-2.5 rounded-2xl border border-gray-100 dark:border-gray-700 w-full lg:w-auto">
+              <div className="flex items-center gap-1.5 shrink-0 text-xs font-black text-indigo-600 dark:text-indigo-400 px-1">
+                <UserCircleIcon className="w-4 h-4" />
+                <span>الأستاذ الحالي:</span>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 w-full sm:w-auto">
+                {teachers.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => handleActiveTeacherChange(t.id)}
+                    className={`px-3 py-1.5 rounded-xl text-center text-xs font-black transition whitespace-nowrap active:scale-95 ${
+                      activeTeacherId === t.id
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                        : 'bg-white hover:bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {t.name || `أستاذ ${t.id === 'teacher_1' ? '1' : t.id === 'teacher_2' ? '2' : '3'}`}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-          <div className="grid grid-cols-3 gap-1.5 w-full sm:w-auto">
-            {teachers.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => handleActiveTeacherChange(t.id)}
-                className={`px-3 py-1.5 rounded-xl text-center text-xs font-black transition whitespace-nowrap active:scale-95 ${
-                  activeTeacherId === t.id
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
-                    : 'bg-white hover:bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
-                }`}
-              >
-                {t.name || `أستاذ ${t.id === 'teacher_1' ? '1' : t.id === 'teacher_2' ? '2' : '3'}`}
-              </button>
-            ))}
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Tabs Control */}

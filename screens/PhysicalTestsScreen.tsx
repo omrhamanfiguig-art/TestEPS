@@ -122,6 +122,7 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
     const [filterLevel, setFilterLevel] = useState<string>('ALL');
     const [teacherProfiles, setTeacherProfiles] = useState<TeacherProfile[]>(() => getTeacherProfiles());
     const [tableFilterTab, setTableFilterTab] = useState<'all' | 'completed' | 'pending'>('all');
+    const [isHeaderCardCollapsed, setIsHeaderCardCollapsed] = useState<boolean>(false);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -924,12 +925,12 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
 
             {/* Header Card - Hidden when in tests_hub (cards mode) */}
             {viewMode !== 'tests_hub' && (
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-5 sm:p-6 space-y-4">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4 sm:p-6 space-y-4 transition-all duration-300">
                 {/* Row 1: Title, Subtitle, Background Save Status Badge, and View Switcher */}
-                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-gray-100 dark:border-gray-700/60 pb-3">
                     <div className="flex items-center gap-3 text-indigo-600 dark:text-indigo-400">
-                        <div className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
-                            <RunningManIcon className="w-7 h-7" />
+                        <div className="p-2.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 shrink-0">
+                            <RunningManIcon className="w-6 h-6" />
                         </div>
                         <div>
                             <div className="flex items-center gap-2.5 flex-wrap">
@@ -944,14 +945,17 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                         <span>الرئيسية</span>
                                     </button>
                                 )}
-                                <h1 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white">{t.physicalTestsTitle}</h1>
+                                <h1 className="text-lg sm:text-xl font-black text-gray-900 dark:text-white">{t.physicalTestsTitle}</h1>
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">
+                                    {selectedClass || "اختر القسم"}
+                                </span>
                                 
                                 {/* Discreet Background Auto-Save Indicator */}
                                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold transition-all bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 shadow-2xs">
                                     {isSaving || saveStatus === 'saving' ? (
                                         <>
                                             <ArrowPathIcon className="w-3 h-3 animate-spin text-indigo-600 dark:text-indigo-400" />
-                                            <span className="text-indigo-600 dark:text-indigo-400 font-black">حفظ باطني في الخلفية...</span>
+                                            <span className="text-indigo-600 dark:text-indigo-400 font-black">حفظ باطني...</span>
                                         </>
                                     ) : saveStatus === 'saved' ? (
                                         <>
@@ -961,272 +965,297 @@ export const PhysicalTestsScreen: React.FC<PhysicalTestsScreenProps> = ({
                                     ) : (
                                         <>
                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                            <span>الحفظ التلقائي باطني ومفعّل</span>
+                                            <span>حفظ آلي مفعّل</span>
                                         </>
                                     )}
                                 </div>
                             </div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t.physicalTestsSubtitle}</p>
                         </div>
                     </div>
 
-                    {/* View mode toggle */}
-                    <div className="flex items-center bg-gray-100 dark:bg-gray-700/60 p-1 rounded-xl border border-gray-200 dark:border-gray-600 self-end lg:self-auto shrink-0">
+                    <div className="flex items-center gap-2 self-end lg:self-auto shrink-0 flex-wrap">
+                        {/* View mode toggle */}
+                        <div className="flex items-center bg-gray-100 dark:bg-gray-700/60 p-1 rounded-xl border border-gray-200 dark:border-gray-600">
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('tests_hub')}
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                    viewMode === 'tests_hub'
+                                        ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                                        : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
+                                }`}
+                                title="عرض أسماء الاختبارات على شكل شبكة بطاقات (3×3)"
+                            >
+                                <Squares2X2Icon className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">شبكة الروائز (3×3)</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('table')}
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                    viewMode === 'table'
+                                        ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                                        : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
+                                }`}
+                                title="عرض جدول شامل لجميع التلاميذ"
+                            >
+                                <TableCellsIcon className="w-3.5 h-3.5" />
+                                <span>جدول شامل</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setViewMode('cards')}
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                    viewMode === 'cards'
+                                        ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                                        : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
+                                }`}
+                                title="عرض بطاقة تفصيلية لكل تلميذ"
+                            >
+                                <span>👤</span>
+                                <span>بطاقات</span>
+                            </button>
+                        </div>
+
+                        {/* Collapse / Expand Toggle Button */}
                         <button
                             type="button"
-                            onClick={() => setViewMode('tests_hub')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                viewMode === 'tests_hub'
-                                    ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                                    : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
-                            }`}
-                            title="عرض أسماء الاختبارات على شكل شبكة بطاقات (3×3)"
+                            onClick={() => setIsHeaderCardCollapsed(!isHeaderCardCollapsed)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900 border border-indigo-200 dark:border-indigo-800/80 transition cursor-pointer active:scale-95 shadow-2xs"
+                            title={isHeaderCardCollapsed ? 'إظهار خيارات التصفية والروائز' : 'إخفاء خيارات التصفية والروائز'}
                         >
-                            <Squares2X2Icon className="w-4 h-4" />
-                            <span>شبكة الروائز (3×3)</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setViewMode('table')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                viewMode === 'table'
-                                    ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                                    : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
-                            }`}
-                            title="عرض جدول شامل لجميع التلاميذ"
-                        >
-                            <TableCellsIcon className="w-4 h-4" />
-                            <span>جدول شامل</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setViewMode('cards')}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                                viewMode === 'cards'
-                                    ? 'bg-white dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                                    : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
-                            }`}
-                            title="عرض بطاقة تفصيلية لكل تلميذ"
-                        >
-                            <span>👤</span>
-                            <span>بطاقات فردية</span>
+                            {isHeaderCardCollapsed ? (
+                                <>
+                                    <span>إظهار الضوابط</span>
+                                    <span className="text-sm">👁️ 🔽</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span>إخفاء الضوابط</span>
+                                    <span className="text-sm">🙈 🔼</span>
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>
 
-                {/* Row 2: Filtering Controls (Teacher & Level & Class) and Quick Launch Action Buttons */}
-                <div className="pt-3 border-t border-gray-100 dark:border-gray-700/60 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
-                    {/* Filters Bar - Centered on mobile */}
-                    <div className="flex flex-wrap items-center justify-center lg:justify-start gap-1.5 sm:gap-2">
-                        {/* 1. Filter by Teacher */}
-                        <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-900/60 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xs">
-                            <span className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 shrink-0">
-                                👨‍🏫 الأستاذ:
-                            </span>
-                            <select
-                                value={filterTeacher}
-                                onChange={(e) => setFilterTeacher(e.target.value)}
-                                className="text-[11px] sm:text-xs font-bold py-0.5 px-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer max-w-[130px] sm:max-w-none truncate"
-                            >
-                                <option value="ALL">جميع الأساتذة</option>
-                                {teacherProfiles.map(tp => {
-                                    const assignedCount = classList.filter(c => getTeacherForClass(c.className) === tp.name).length;
-                                    return (
-                                        <option key={tp.id} value={tp.name}>
-                                            {tp.name} ({assignedCount} ق)
-                                        </option>
-                                    );
-                                })}
-                            </select>
-                        </div>
+                {!isHeaderCardCollapsed && (
+                    <div className="space-y-4 pt-1">
+                        {/* Row 2: Filtering Controls (Teacher & Level & Class) and Quick Launch Action Buttons */}
+                        <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3">
+                            {/* Filters Bar - Centered on mobile */}
+                            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-1.5 sm:gap-2">
+                                {/* 1. Filter by Teacher */}
+                                <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-900/60 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xs">
+                                    <span className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 shrink-0">
+                                        👨‍🏫 الأستاذ:
+                                    </span>
+                                    <select
+                                        value={filterTeacher}
+                                        onChange={(e) => setFilterTeacher(e.target.value)}
+                                        className="text-[11px] sm:text-xs font-bold py-0.5 px-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer max-w-[130px] sm:max-w-none truncate"
+                                    >
+                                        <option value="ALL">جميع الأساتذة</option>
+                                        {teacherProfiles.map(tp => {
+                                            const assignedCount = classList.filter(c => getTeacherForClass(c.className) === tp.name).length;
+                                            return (
+                                                <option key={tp.id} value={tp.name}>
+                                                    {tp.name} ({assignedCount} ق)
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                </div>
 
-                        {/* 2. Filter by Level */}
-                        <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-900/60 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xs">
-                            <span className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 shrink-0">
-                                🎓 المستوى:
-                            </span>
-                            <select
-                                value={filterLevel}
-                                onChange={(e) => setFilterLevel(e.target.value)}
-                                className="text-[11px] sm:text-xs font-bold py-0.5 px-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer max-w-[120px] sm:max-w-none truncate"
-                            >
-                                <option value="ALL">جميع المستويات</option>
-                                {EDUCATIONAL_LEVELS.filter(l => l.key !== 'all').map(lvl => {
-                                    const levelCount = classList.filter(c => detectLevelFromClassName(c.className).key === lvl.key).length;
-                                    return (
-                                        <option key={lvl.key} value={lvl.key}>
-                                            {lvl.label} ({levelCount} ق)
-                                        </option>
-                                    );
-                                })}
-                            </select>
-                        </div>
+                                {/* 2. Filter by Level */}
+                                <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-900/60 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xs">
+                                    <span className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 shrink-0">
+                                        🎓 المستوى:
+                                    </span>
+                                    <select
+                                        value={filterLevel}
+                                        onChange={(e) => setFilterLevel(e.target.value)}
+                                        className="text-[11px] sm:text-xs font-bold py-0.5 px-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer max-w-[120px] sm:max-w-none truncate"
+                                    >
+                                        <option value="ALL">جميع المستويات</option>
+                                        {EDUCATIONAL_LEVELS.filter(l => l.key !== 'all').map(lvl => {
+                                            const levelCount = classList.filter(c => detectLevelFromClassName(c.className).key === lvl.key).length;
+                                            return (
+                                                <option key={lvl.key} value={lvl.key}>
+                                                    {lvl.label} ({levelCount} ق)
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                </div>
 
-                        {/* 3. Class Selector (Filtered) */}
-                        <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-900/60 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xs">
-                            <label htmlFor="class-select" className="text-[11px] sm:text-xs font-bold text-gray-700 dark:text-gray-300 shrink-0">
-                                🏫 القسم:
-                            </label>
-                            <div className="relative">
-                                <select
-                                    id="class-select"
-                                    value={selectedClass}
-                                    onChange={(e) => setSelectedClass(e.target.value)}
-                                    className="appearance-none text-[11px] sm:text-xs font-bold py-0.5 ps-2 pe-6 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                                >
-                                    {filteredClassList.length === 0 ? (
-                                        <option value="" disabled>لا يوجد أقسام مطابقة</option>
-                                    ) : (
-                                        filteredClassList.map(cls => (
-                                            <option key={cls.className} value={cls.className}>
-                                                {cls.className} ({cls.studentCount} {language === 'ar' ? 'ت' : 'él'})
-                                            </option>
-                                        ))
-                                    )}
-                                    {selectedClass && !filteredClassList.some(c => c.className === selectedClass) && (
-                                        <option value={selectedClass}>{selectedClass}</option>
-                                    )}
-                                </select>
-                                <div className="absolute end-1 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                                    <ChevronDownIcon className="w-3 h-3" />
+                                {/* 3. Class Selector (Filtered) */}
+                                <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-900/60 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-2xs">
+                                    <label htmlFor="class-select" className="text-[11px] sm:text-xs font-bold text-gray-700 dark:text-gray-300 shrink-0">
+                                        🏫 القسم:
+                                    </label>
+                                    <div className="relative">
+                                        <select
+                                            id="class-select"
+                                            value={selectedClass}
+                                            onChange={(e) => setSelectedClass(e.target.value)}
+                                            className="appearance-none text-[11px] sm:text-xs font-bold py-0.5 ps-2 pe-6 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                        >
+                                            {filteredClassList.length === 0 ? (
+                                                <option value="" disabled>لا يوجد أقسام مطابقة</option>
+                                            ) : (
+                                                filteredClassList.map(cls => (
+                                                    <option key={cls.className} value={cls.className}>
+                                                        {cls.className} ({cls.studentCount} {language === 'ar' ? 'ت' : 'él'})
+                                                    </option>
+                                                ))
+                                            )}
+                                            {selectedClass && !filteredClassList.some(c => c.className === selectedClass) && (
+                                                <option value={selectedClass}>{selectedClass}</option>
+                                            )}
+                                        </select>
+                                        <div className="absolute end-1 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                            <ChevronDownIcon className="w-3 h-3" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Reset filters pill if any filter active */}
+                                {(filterTeacher !== 'ALL' || filterLevel !== 'ALL') && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFilterTeacher('ALL');
+                                            setFilterLevel('ALL');
+                                        }}
+                                        className="text-[10px] sm:text-[11px] font-bold px-2 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition flex items-center gap-1 cursor-pointer"
+                                        title="إلغاء التصفية وعرض جميع الأقسام والأساتذة"
+                                    >
+                                        <XMarkIcon className="w-3 h-3" />
+                                        <span>إلغاء التصفية</span>
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Field Test & Export Action Buttons - Centered unified zone with small icons */}
+                            <div className="w-full xl:w-auto shrink-0 bg-gray-50/70 dark:bg-gray-900/40 p-1.5 sm:p-2.5 rounded-2xl border border-gray-200/80 dark:border-gray-700/60 shadow-2xs">
+                                <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
+                                    <button
+                                        onClick={() => setIsBalanceModalOpen(true)}
+                                        className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-teal-600 hover:bg-teal-700 transition active:scale-95 cursor-pointer"
+                                        title="اختبار التوازن الثابت"
+                                    >
+                                        <span className="text-xs">🧘</span>
+                                        <span>توازن</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => setIsLucLegerModalOpen(true)}
+                                        className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-amber-600 hover:bg-amber-700 transition active:scale-95 cursor-pointer"
+                                        title="إجراء اختبار Luc Léger المكوك 20م الميداني لتحديد السرعة القصوى الهوائية"
+                                    >
+                                        <RunningManIcon className="w-3.5 h-3.5 shrink-0" />
+                                        <span>Luc Léger</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            setSprintTestType('speed');
+                                            setIsSprintModalOpen(true);
+                                        }}
+                                        className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-orange-600 hover:bg-orange-700 transition active:scale-95 cursor-pointer"
+                                        title="تشغيل الميقاتي الميداني لسباق السرعة 30م"
+                                    >
+                                        <span className="text-xs">⏱️</span>
+                                        <span>30م سرعة</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            setSprintTestType('speed-100');
+                                            setIsSprintModalOpen(true);
+                                        }}
+                                        className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-rose-600 hover:bg-rose-700 transition active:scale-95 cursor-pointer"
+                                        title="تشغيل اختبار وسباق 100 متر الجري السريع"
+                                    >
+                                        <span className="text-xs">⚡</span>
+                                        <span>100م سرعة</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            setSprintTestType('endurance');
+                                            setIsSprintModalOpen(true);
+                                        }}
+                                        className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-red-600 hover:bg-red-700 transition active:scale-95 cursor-pointer"
+                                        title="تشغيل ميقاتي سباق السرعة المتوسطة (التحمل بالدقائق والثواني)"
+                                    >
+                                        <span className="text-xs">⏱️</span>
+                                        <span>التحمل</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            setAthleticsTestType('long-jump');
+                                            setIsAthleticsModalOpen(true);
+                                        }}
+                                        className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-indigo-600 hover:bg-indigo-700 transition active:scale-95 cursor-pointer"
+                                        title="اختبار القفز الطولي بنظام المحاولات (1 أو 2 أو 3 محاولات)"
+                                    >
+                                        <span className="text-xs">🎯</span>
+                                        <span>قفز طولي</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            setAthleticsTestType('shot-put');
+                                            setIsAthleticsModalOpen(true);
+                                        }}
+                                        className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-slate-700 hover:bg-slate-800 transition active:scale-95 cursor-pointer"
+                                        title="اختبار دفع الجلة بنظام المحاولات"
+                                    >
+                                        <span className="text-xs">☄️</span>
+                                        <span>دفع الجلة</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleFillFromTarl}
+                                        className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-indigo-600 hover:bg-indigo-700 transition active:scale-95 cursor-pointer"
+                                        title="ملء بيانات الاختبارات البدنية من لوائح طارل تلقائياً"
+                                    >
+                                        <span className="text-xs">⚡</span>
+                                        <span>ملء من طارل</span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsBaremeModalOpen(true)}
+                                        className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-black rounded-xl shadow-md shadow-amber-600/20 text-white bg-gradient-to-r from-amber-600 via-amber-700 to-yellow-600 hover:from-amber-700 hover:to-yellow-700 transition active:scale-95 cursor-pointer ring-1 ring-amber-400/40"
+                                        title="تعديل وتحديد سلم ومعايير التنقيط (الباريم) لكل رياضة"
+                                    >
+                                        <span className="text-xs">📊</span>
+                                        <span>الباريم</span>
+                                    </button>
+
+                                    <button
+                                        onClick={handleExport}
+                                        disabled={!hasEnteredValues}
+                                        className={`inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs transition active:scale-95 ${
+                                            hasEnteredValues
+                                                ? 'text-white bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20 cursor-pointer'
+                                                : 'text-gray-400 bg-gray-200 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed opacity-60'
+                                        }`}
+                                        title={hasEnteredValues ? "تصدير النتائج الكاملة إلى ملف Excel" : "يصبح التصدير متاحاً بمجرد إدخال أول قيمة في هذا القسم"}
+                                    >
+                                        <ArrowDownTrayIcon className="w-3.5 h-3.5 shrink-0" />
+                                        <span>Excel</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
-
-                        {/* Reset filters pill if any filter active */}
-                        {(filterTeacher !== 'ALL' || filterLevel !== 'ALL') && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setFilterTeacher('ALL');
-                                    setFilterLevel('ALL');
-                                }}
-                                className="text-[10px] sm:text-[11px] font-bold px-2 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition flex items-center gap-1 cursor-pointer"
-                                title="إلغاء التصفية وعرض جميع الأقسام والأساتذة"
-                            >
-                                <XMarkIcon className="w-3 h-3" />
-                                <span>إلغاء التصفية</span>
-                            </button>
-                        )}
                     </div>
-
-                    {/* Field Test & Export Action Buttons - Centered unified zone with small icons */}
-                    <div className="w-full xl:w-auto shrink-0 bg-gray-50/70 dark:bg-gray-900/40 p-1.5 sm:p-2.5 rounded-2xl border border-gray-200/80 dark:border-gray-700/60 shadow-2xs">
-                        <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
-                            <button
-                                onClick={() => setIsBalanceModalOpen(true)}
-                                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-teal-600 hover:bg-teal-700 transition active:scale-95 cursor-pointer"
-                                title="اختبار التوازن الثابت"
-                            >
-                                <span className="text-xs">🧘</span>
-                                <span>توازن</span>
-                            </button>
-
-                            <button
-                                onClick={() => setIsLucLegerModalOpen(true)}
-                                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-amber-600 hover:bg-amber-700 transition active:scale-95 cursor-pointer"
-                                title="إجراء اختبار Luc Léger المكوك 20م الميداني لتحديد السرعة القصوى الهوائية"
-                            >
-                                <RunningManIcon className="w-3.5 h-3.5 shrink-0" />
-                                <span>Luc Léger</span>
-                            </button>
-
-                            <button
-                                onClick={() => {
-                                    setSprintTestType('speed');
-                                    setIsSprintModalOpen(true);
-                                }}
-                                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-orange-600 hover:bg-orange-700 transition active:scale-95 cursor-pointer"
-                                title="تشغيل الميقاتي الميداني لسباق السرعة 30م"
-                            >
-                                <span className="text-xs">⏱️</span>
-                                <span>30م سرعة</span>
-                            </button>
-
-                            <button
-                                onClick={() => {
-                                    setSprintTestType('speed-100');
-                                    setIsSprintModalOpen(true);
-                                }}
-                                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-rose-600 hover:bg-rose-700 transition active:scale-95 cursor-pointer"
-                                title="تشغيل اختبار وسباق 100 متر الجري السريع"
-                            >
-                                <span className="text-xs">⚡</span>
-                                <span>100م سرعة</span>
-                            </button>
-
-                            <button
-                                onClick={() => {
-                                    setSprintTestType('endurance');
-                                    setIsSprintModalOpen(true);
-                                }}
-                                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-red-600 hover:bg-red-700 transition active:scale-95 cursor-pointer"
-                                title="تشغيل ميقاتي سباق السرعة المتوسطة (التحمل بالدقائق والثواني)"
-                            >
-                                <span className="text-xs">⏱️</span>
-                                <span>التحمل</span>
-                            </button>
-
-                            <button
-                                onClick={() => {
-                                    setAthleticsTestType('long-jump');
-                                    setIsAthleticsModalOpen(true);
-                                }}
-                                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-indigo-600 hover:bg-indigo-700 transition active:scale-95 cursor-pointer"
-                                title="اختبار القفز الطولي بنظام المحاولات (1 أو 2 أو 3 محاولات)"
-                            >
-                                <span className="text-xs">🎯</span>
-                                <span>قفز طولي</span>
-                            </button>
-
-                            <button
-                                onClick={() => {
-                                    setAthleticsTestType('shot-put');
-                                    setIsAthleticsModalOpen(true);
-                                }}
-                                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-slate-700 hover:bg-slate-800 transition active:scale-95 cursor-pointer"
-                                title="اختبار دفع الجلة بنظام المحاولات"
-                            >
-                                <span className="text-xs">☄️</span>
-                                <span>دفع الجلة</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={handleFillFromTarl}
-                                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs text-white bg-indigo-600 hover:bg-indigo-700 transition active:scale-95 cursor-pointer"
-                                title="ملء بيانات الاختبارات البدنية من لوائح طارل تلقائياً"
-                            >
-                                <span className="text-xs">⚡</span>
-                                <span>ملء من طارل</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setIsBaremeModalOpen(true)}
-                                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 text-[11px] sm:text-xs font-black rounded-xl shadow-md shadow-amber-600/20 text-white bg-gradient-to-r from-amber-600 via-amber-700 to-yellow-600 hover:from-amber-700 hover:to-yellow-700 transition active:scale-95 cursor-pointer ring-1 ring-amber-400/40"
-                                title="تعديل وتحديد سلم ومعايير التنقيط (الباريم) لكل رياضة"
-                            >
-                                <span className="text-xs">📊</span>
-                                <span>الباريم</span>
-                            </button>
-
-                            <button
-                                onClick={handleExport}
-                                disabled={!hasEnteredValues}
-                                className={`inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 text-[11px] sm:text-xs font-bold rounded-xl shadow-xs transition active:scale-95 ${
-                                    hasEnteredValues
-                                        ? 'text-white bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20 cursor-pointer'
-                                        : 'text-gray-400 bg-gray-200 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed opacity-60'
-                                }`}
-                                title={hasEnteredValues ? "تصدير النتائج الكاملة إلى ملف Excel" : "يصبح التصدير متاحاً بمجرد إدخال أول قيمة في هذا القسم"}
-                            >
-                                <ArrowDownTrayIcon className="w-3.5 h-3.5 shrink-0" />
-                                <span>Excel</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                )}
             </div>
             )}
 
