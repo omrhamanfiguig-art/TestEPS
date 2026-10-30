@@ -12,6 +12,7 @@ import {
 import { 
     getStudentList, 
     saveStudentList, 
+    updateRostersPreservingData,
     getPhysicalTests, 
     savePhysicalTests, 
     getVmaResults, 
@@ -94,6 +95,7 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
     // 1. Student list import state
     const [importingStudents, setImportingStudents] = useState(false);
     const [importedGroups, setImportedGroups] = useState<{ className: string; students: StudentIdentity[] }[]>([]);
+    const [studentImportMode, setStudentImportMode] = useState<'update' | 'replace'>('update');
     const studentFileInputRef = useRef<HTMLInputElement>(null);
 
     // 2. Physical tests & VMA import state
@@ -353,25 +355,33 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
     const confirmStudentImport = async () => {
         if (importedGroups.length === 0) return;
         try {
-            for (const group of importedGroups) {
-                await saveStudentList(group.className, group.students);
+            if (studentImportMode === 'update') {
+                const res = await updateRostersPreservingData(importedGroups);
+                setMessage({ 
+                    text: `تم تحيين وتحديث ${res.updatedClassCount} لوائح (${res.updatedStudentCount} تلميذ محين، ${res.newStudentCount} تلميذ جديد) بنجاح مع الحفاظ الكامل على كافة نتائجهم وبياناتهم المسجلة! ✨`, 
+                    type: 'success' 
+                });
+            } else {
+                for (const group of importedGroups) {
+                    await saveStudentList(group.className, group.students);
+                }
+                const total = importedGroups.reduce((acc, g) => acc + g.students.length, 0);
+                setMessage({ 
+                    text: `تم استبدال وحفظ ${importedGroups.length} لوائح (${total} تلميذ) بنجاح في قاعدة البيانات السحابية (Firestore)!`, 
+                    type: 'success' 
+                });
             }
 
             if (importedGroups.length === 1) {
                 setSelectedClass(importedGroups[0].className);
             }
 
-            const total = importedGroups.reduce((acc, g) => acc + g.students.length, 0);
-            setMessage({ 
-                text: `تم استيراد وحفظ ${importedGroups.length} لوائح (${total} تلميذ) بنجاح في قاعدة البيانات السحابية (Firestore)، وهي متاحة الآن لجميع الأساتذة!`, 
-                type: 'success' 
-            });
             window.dispatchEvent(new CustomEvent('dbUpdated'));
             setImportedGroups([]);
             if (studentFileInputRef.current) studentFileInputRef.current.value = '';
             loadCloudStatus();
         } catch (err) {
-            setMessage({ text: "خطأ أثناء حفظ لوائح التلاميذ في قاعدة البيانات.", type: 'error' });
+            setMessage({ text: "خطأ أثناء تحيين أو حفظ لوائح التلاميذ في قاعدة البيانات.", type: 'error' });
         }
     };
 
@@ -1044,9 +1054,63 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
                             {t.importStudentsDesc}
                         </p>
 
+                        {/* Mode Selector for Updating vs Replacing Rosters */}
+                        <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-900/40 rounded-xl border border-gray-200 dark:border-gray-700 text-xs space-y-2">
+                            <div className="font-bold text-gray-700 dark:text-gray-200 flex items-center justify-between">
+                                <span>خاصية تحيين ومعالجة اللائحة:</span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                    {studentImportMode === 'update' ? '🔄 تحيين مع الحفاظ على البيانات' : '📥 استبدال كامل'}
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <label className={`p-2.5 rounded-xl border cursor-pointer transition flex items-start gap-2 ${
+                                    studentImportMode === 'update'
+                                        ? 'bg-indigo-50/90 dark:bg-indigo-950/60 border-indigo-500 text-indigo-950 dark:text-indigo-200 shadow-xs'
+                                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
+                                }`}>
+                                    <input
+                                        type="radio"
+                                        name="studentImportMode"
+                                        checked={studentImportMode === 'update'}
+                                        onChange={() => setStudentImportMode('update')}
+                                        className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                                    />
+                                    <div>
+                                        <div className="font-bold text-xs flex items-center gap-1">
+                                            <span>🔄 تحيين وتحديث اللائحة</span>
+                                            <span className="text-[9px] bg-emerald-500 text-white px-1.5 py-0.2 rounded font-black">موصى به</span>
+                                        </div>
+                                        <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">
+                                            تحديث أسماء ونسب المعطيات مع **الحفاظ الكامل** على نتائج VMA والاختبارات والغيابات المسجلة.
+                                        </div>
+                                    </div>
+                                </label>
+
+                                <label className={`p-2.5 rounded-xl border cursor-pointer transition flex items-start gap-2 ${
+                                    studentImportMode === 'replace'
+                                        ? 'bg-indigo-50/90 dark:bg-indigo-950/60 border-indigo-500 text-indigo-950 dark:text-indigo-200 shadow-xs'
+                                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
+                                }`}>
+                                    <input
+                                        type="radio"
+                                        name="studentImportMode"
+                                        checked={studentImportMode === 'replace'}
+                                        onChange={() => setStudentImportMode('replace')}
+                                        className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                                    />
+                                    <div>
+                                        <div className="font-bold text-xs">📥 استبدال كامل للائحة</div>
+                                        <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">
+                                            إعادة كتابة لائحة التلاميذ بالكامل واستبدال السجلات السابقة للقسم.
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
                         {!importedGroups.length ? (
-                            <div className="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-6 text-center bg-gray-50/50 dark:bg-gray-900/20">
-                                <ArrowUpTrayIcon className="w-10 h-10 mx-auto text-gray-400 mb-3" />
+                            <div className="border-2 border-dashed border-indigo-200 dark:border-indigo-900 rounded-xl p-6 text-center bg-indigo-50/30 dark:bg-gray-900/20">
+                                <ArrowUpTrayIcon className="w-10 h-10 mx-auto text-indigo-500 mb-3" />
                                 <input
                                     type="file"
                                     ref={studentFileInputRef}
@@ -1058,16 +1122,19 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
                                 />
                                 <label
                                     htmlFor="student-excel-upload"
-                                    className={`cursor-pointer inline-flex items-center px-4 py-2 text-sm font-bold rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 transition ${importingStudents ? 'opacity-50' : ''}`}
+                                    className={`cursor-pointer inline-flex items-center gap-2 px-4 py-2.5 text-xs font-black rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 shadow-md transition ${importingStudents ? 'opacity-50' : ''}`}
                                 >
-                                    {importingStudents ? 'جاري التحليل...' : 'اختيار ملفات إكسيل (مسار)'}
+                                    <span>{importingStudents ? 'جاري التحليل...' : (studentImportMode === 'update' ? '🔄 اختيار ملف إكسيل للتحيين' : 'اختيار ملفات إكسيل (مسار)')}</span>
                                 </label>
-                                <p className="text-[10px] text-gray-500 mt-2">يمكنك اختيار عدة ملفات أو ملف واحد به عدة أوراق عمل</p>
+                                <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-2 font-medium">يمكنك اختيار ملف واحد أو عدة ملفات إكسيل مستخرجة من مسار</p>
                             </div>
                         ) : (
                             <div className="space-y-4 bg-indigo-50/50 dark:bg-indigo-950/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900">
-                                <div className="text-sm font-bold text-indigo-900 dark:text-indigo-200 border-b border-indigo-100 dark:border-indigo-800 pb-2 mb-2">
-                                    ✓ تم اكتشاف {importedGroups.length} لوائح تلاميذ:
+                                <div className="text-sm font-bold text-indigo-900 dark:text-indigo-200 border-b border-indigo-100 dark:border-indigo-800 pb-2 mb-2 flex items-center justify-between">
+                                    <span>✓ تم اكتشاف {importedGroups.length} لوائح تلاميذ:</span>
+                                    <span className="text-xs bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 px-2 py-0.5 rounded font-bold">
+                                        {studentImportMode === 'update' ? 'وضع التحيين' : 'وضع الاستبدال'}
+                                    </span>
                                 </div>
                                 <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
                                     {importedGroups.map((group, idx) => (
@@ -1082,14 +1149,14 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
                                 <div className="flex gap-2 pt-2">
                                     <button
                                         onClick={confirmStudentImport}
-                                        className="flex-1 py-2 text-xs font-bold rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 transition flex items-center justify-center gap-1"
+                                        className="flex-1 py-2 text-xs font-black rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 shadow-md transition flex items-center justify-center gap-1 cursor-pointer"
                                     >
                                         <SaveIcon className="w-4 h-4" />
-                                        {t.confirm} {importedGroups.length > 1 ? `(${importedGroups.length} لوائح)` : ''}
+                                        <span>{studentImportMode === 'update' ? 'تأكيد التحيين مع الحفاظ على النتائج' : `${t.confirm} ${importedGroups.length > 1 ? `(${importedGroups.length} لوائح)` : ''}`}</span>
                                     </button>
                                     <button
                                         onClick={() => { setImportedGroups([]); if (studentFileInputRef.current) studentFileInputRef.current.value = ''; }}
-                                        className="px-3 py-2 text-xs font-bold rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 transition"
+                                        className="px-3 py-2 text-xs font-bold rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition cursor-pointer"
                                     >
                                         {t.cancel}
                                     </button>

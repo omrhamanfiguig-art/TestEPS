@@ -48,6 +48,7 @@ import {
   getPhysicalTests, 
   getVmaResults, 
   saveStudentList, 
+  updateRostersPreservingData,
   deleteStudentFromClass, 
   searchStudentsGlobal, 
   GlobalStudentSearchResult, 
@@ -247,37 +248,10 @@ export const ClassesScreen: React.FC<ClassesScreenProps> = ({
         const buffer = await file.arrayBuffer();
         const parsedGroups = parseStudentExcel(buffer);
 
-        for (const group of parsedGroups) {
-          if (group.students.length > 0) {
-            // Merge with existing students or save new list
-            const existingList = await getStudentList(group.className);
-            const studentMap = new Map<string, StudentIdentity>();
-            existingList.forEach(s => studentMap.set(s.numeroEleve, s));
-            group.students.forEach(s => {
-              if (studentMap.has(s.numeroEleve)) {
-                const prev = studentMap.get(s.numeroEleve)!;
-                studentMap.set(s.numeroEleve, {
-                  ...prev,
-                  ...s,
-                  nomEleve: s.nomEleve || prev.nomEleve,
-                  sexe: s.sexe || prev.sexe,
-                  codeMassar: s.codeMassar || prev.codeMassar,
-                  dateNaissance: s.dateNaissance || prev.dateNaissance,
-                  tarlLevel: s.tarlLevel || prev.tarlLevel,
-                  tarlGroup: s.tarlGroup || prev.tarlGroup,
-                  tarlScore: s.tarlScore !== undefined ? s.tarlScore : prev.tarlScore,
-                  tarlRemediation: s.tarlRemediation || prev.tarlRemediation
-                });
-              } else {
-                studentMap.set(s.numeroEleve, s);
-              }
-            });
-
-            const mergedList = Array.from(studentMap.values());
-            await saveStudentList(group.className, mergedList);
-            importedTotal += group.students.length;
-            classesImportedSet.add(group.className);
-          }
+        if (parsedGroups.length > 0) {
+          const res = await updateRostersPreservingData(parsedGroups);
+          importedTotal += res.updatedStudentCount + res.newStudentCount;
+          parsedGroups.forEach(g => classesImportedSet.add(g.className));
         }
       }
 

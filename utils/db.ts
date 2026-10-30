@@ -1,7 +1,7 @@
 // utils/db.ts
 
 import type { StudentIdentity, StudentResult, EnduranceResult, PhysicalTests, AttendanceSession, ChampionshipRegistration } from '../types';
-import { isForbiddenStudentName } from './excelHelper';
+import { isForbiddenStudentName, normalizeArabic } from './excelHelper';
 import { 
   mergePhysicalTests,
   mergeStudentResults,
@@ -174,6 +174,142 @@ export const saveStudentList = async (
         console.warn('Background cloud sync notice:', err);
       });
     }
+};
+
+/**
+ * Smartly updates student roster(s) for one or more classes while strictly PRESERVING all existing student test data,
+ * VMA scores, physical results, biometric measurements, attendance sessions, championships, and TARL levels.
+ */
+export const updateRostersPreservingData = async (
+  groups: { className: string; students: StudentIdentity[] }[],
+  options?: { skipCloudSync?: boolean }
+): Promise<{ updatedClassCount: number; updatedStudentCount: number; newStudentCount: number }> => {
+  let updatedClassCount = 0;
+  let updatedStudentCount = 0;
+  let newStudentCount = 0;
+
+  for (const group of groups) {
+    const className = group.className;
+    const importedStudents = (group.students || []).filter(s => s && s.nomEleve && !isForbiddenStudentName(s.nomEleve));
+    if (importedStudents.length === 0) continue;
+
+    const existingStudents = await getStudentList(className);
+    
+    // Create lookup maps for fast matching
+    const massarMap = new Map<string, StudentIdentity>();
+    const numberMap = new Map<string, StudentIdentity>();
+    const nameMap = new Map<string, StudentIdentity>();
+
+    existingStudents.forEach(s => {
+      if (s.codeMassar && s.codeMassar.trim()) {
+        massarMap.set(s.codeMassar.trim().toLowerCase(), s);
+      }
+      if (s.numeroEleve && s.numeroEleve.trim()) {
+        numberMap.set(s.numeroEleve.trim().toLowerCase(), s);
+      }
+      if (s.nomEleve && s.nomEleve.trim()) {
+        nameMap.set(normalizeArabic(s.nomEleve), s);
+      }
+    });
+
+    const mergedList: StudentIdentity[] = [];
+    const matchedExistingSet = new Set<StudentIdentity>();
+
+    for (const imp of importedStudents) {
+      const impMassar = (imp.codeMassar || '').trim().toLowerCase();
+      const impNum = (imp.numeroEleve || '').trim().toLowerCase();
+      const impNormName = normalizeArabic(imp.nomEleve || '');
+
+      let matched: StudentIdentity | undefined;
+
+      if (impMassar && massarMap.has(impMassar)) {
+        matched = massarMap.get(impMassar);
+      } else if (impNum && numberMap.has(impNum)) {
+        matched = numberMap.get(impNum);
+      } else if (impNormName && nameMap.has(impNormName)) {
+        matched = nameMap.get(impNormName);
+      }
+
+      if (matched) {
+        matchedExistingSet.add(matched);
+        updatedStudentCount++;
+
+        // Merge student identity while preserving photo & TARL fields
+        const updatedStudent: StudentIdentity = {
+          ...matched,
+          nomEleve: imp.nomEleve || matched.nomEleve,
+          codeMassar: imp.codeMassar || matched.codeMassar,
+          numeroEleve: imp.numeroEleve || matched.numeroEleve,
+          sexe: imp.sexe || matched.sexe,
+          dateNaissance: imp.dateNaissance || matched.dateNaissance,
+          orderIndex: imp.orderIndex !== undefined ? imp.orderIndex : matched.orderIndex,
+          photoUrl: matched.photoUrl || imp.photoUrl,
+          tarlLevel: matched.tarlLevel || imp.tarlLevel,
+          tarlGroup: matched.tarlGroup || imp.tarlGroup,
+          tarlScore: matched.tarlScore !== undefined ? matched.tarlScore : imp.tarlScore,
+          tarlRemediation: matched.tarlRemediation || imp.tarlRemediation,
+        };
+
+        mergedList.push(updatedStudent);
+      } else {
+        // New student added
+        newStudentCount++;
+        mergedList.push({ ...imp });
+      }
+    }
+
+    // Preserve any existing students that were NOT in the new file so no data is lost
+    existingStudents.forEach(e => {
+      if (!matchedExistingSet.has(e)) {
+        mergedList.push(e);
+      }
+    });
+
+    // Save updated roster locally & sync to cloud
+    await saveStudentList(className, mergedList, { skipCloudSync: options?.skipCloudSync });
+    updatedClassCount++;
+
+    // Update names in physical tests & VMA results if student numbers or massar codes match
+    const existingPhysical = await getPhysicalTests(className);
+    if (existingPhysical.length > 0) {
+      let physicalModified = false;
+      const updatedPhysical = existingPhysical.map(p => {
+        const matchingImp = mergedList.find(m => 
+          (m.codeMassar && m.codeMassar.trim().toLowerCase() === p.numeroEleve.trim().toLowerCase()) ||
+          (m.numeroEleve && p.numeroEleve && m.numeroEleve.trim().toLowerCase() === p.numeroEleve.trim().toLowerCase())
+        );
+        if (matchingImp && matchingImp.nomEleve && matchingImp.nomEleve !== p.nomEleve) {
+          physicalModified = true;
+          return { ...p, nomEleve: matchingImp.nomEleve, sexe: matchingImp.sexe || p.sexe };
+        }
+        return p;
+      });
+      if (physicalModified) {
+        await savePhysicalTests(className, updatedPhysical, { skipCloudSync: options?.skipCloudSync });
+      }
+    }
+
+    const existingVma = await getVmaResults(className);
+    if (existingVma.length > 0) {
+      let vmaModified = false;
+      const updatedVma = existingVma.map(v => {
+        const matchingImp = mergedList.find(m => 
+          m.numeroEleve && v.numeroEleve && m.numeroEleve.trim().toLowerCase() === v.numeroEleve.trim().toLowerCase()
+        );
+        if (matchingImp && matchingImp.nomEleve && matchingImp.nomEleve !== v.nomEleve) {
+          vmaModified = true;
+          return { ...v, nomEleve: matchingImp.nomEleve, sexe: matchingImp.sexe || v.sexe };
+        }
+        return v;
+      });
+      if (vmaModified) {
+        await saveVmaResults(className, updatedVma, { skipCloudSync: options?.skipCloudSync });
+      }
+    }
+  }
+
+  window.dispatchEvent(new CustomEvent('dbUpdated'));
+  return { updatedClassCount, updatedStudentCount, newStudentCount };
 };
 
 export const getStudentList = async (className: string): Promise<StudentIdentity[]> => {

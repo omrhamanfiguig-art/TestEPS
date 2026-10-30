@@ -60,8 +60,8 @@ export const TenSessionsNotebookModal: React.FC<TenSessionsNotebookModalProps> =
   // Pedagogical Progression States (Moroccan OP 2009)
   const [selectedSportKey, setSelectedSportKey] = useState<string>('vitesse');
   const [selectedCycle, setSelectedCycle] = useState<'college' | 'lycee'>('college');
+  const [pageOrientation, setPageOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [isSyncingTextbook, setIsSyncingTextbook] = useState<boolean>(false);
-  const [printOption, setPrintOption] = useState<'current' | 'notebook' | 'progression' | 'both'>('current');
 
   // Loaded students for preview & export
   const [previewStudents, setPreviewStudents] = useState<StudentIdentity[]>([]);
@@ -433,10 +433,10 @@ export const TenSessionsNotebookModal: React.FC<TenSessionsNotebookModalProps> =
         <html dir="rtl" lang="ar">
         <head>
           <meta charset="utf-8">
-          <title>دفتر 10 حصص والأهداف البيداغوجية - توجيهات 2009 (A4 Portrait)</title>
+          <title>دفتر 10 حصص والأهداف البيداغوجية - توجيهات 2009 (A4 ${pageOrientation === 'landscape' ? 'Landscape' : 'Portrait'})</title>
           <style>
             @page {
-              size: A4 portrait;
+              size: A4 ${pageOrientation};
               margin: 4mm 4mm 4mm 4mm;
             }
             * {
@@ -458,8 +458,8 @@ export const TenSessionsNotebookModal: React.FC<TenSessionsNotebookModalProps> =
               page-break-inside: avoid;
               box-sizing: border-box;
               width: 100%;
-              height: 288mm;
-              max-height: 288mm;
+              height: ${pageOrientation === 'landscape' ? '195mm' : '288mm'};
+              max-height: ${pageOrientation === 'landscape' ? '195mm' : '288mm'};
               padding: 2.5mm 3.5mm;
               display: flex;
               flex-direction: column;
@@ -612,10 +612,10 @@ export const TenSessionsNotebookModal: React.FC<TenSessionsNotebookModalProps> =
           <meta charset="utf-8">
           <title>دفتر 10 حصص والبطاقة البيداغوجية - توجيهات 2009</title>
           <style>
-            @page { size: A4 portrait; margin: 4mm; }
+            @page { size: A4 ${pageOrientation}; margin: 4mm; }
             * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             body { margin: 0; padding: 0; background: #fff; font-family: system-ui, sans-serif; direction: rtl; }
-            .sheet { page-break-after: always; break-after: page; box-sizing: border-box; width: 100%; height: 288mm; padding: 2.5mm 3.5mm; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
+            .sheet { page-break-after: always; break-after: page; box-sizing: border-box; width: 100%; height: ${pageOrientation === 'landscape' ? '195mm' : '288mm'}; max-height: ${pageOrientation === 'landscape' ? '195mm' : '288mm'}; padding: 2.5mm 3.5mm; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
             .sheet:last-child { page-break-after: auto; break-after: auto; }
             .official-header { border-bottom: 1.5px solid #000; padding-bottom: 3px; margin-bottom: 3px; }
             .title-box { border: 1.5px solid #000; background-color: #f3f4f6 !important; font-weight: 900; font-size: 11px; padding: 2px 8px; border-radius: 4px; display: inline-block; }
@@ -910,7 +910,7 @@ export const TenSessionsNotebookModal: React.FC<TenSessionsNotebookModalProps> =
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5">
             {/* Scope / Mode */}
             <div>
               <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">
@@ -994,6 +994,37 @@ export const TenSessionsNotebookModal: React.FC<TenSessionsNotebookModalProps> =
                   }`}
                 >
                   🎓 تأهيلي
+                </button>
+              </div>
+            </div>
+
+            {/* Page Orientation Toggle */}
+            <div>
+              <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">
+                اتجاه الصفحة (A4):
+              </label>
+              <div className="grid grid-cols-2 gap-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl p-0.5 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setPageOrientation('portrait')}
+                  className={`py-1 px-1.5 rounded-lg text-center transition cursor-pointer ${
+                    pageOrientation === 'portrait'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  📄 بورتريه
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPageOrientation('landscape')}
+                  className={`py-1 px-1.5 rounded-lg text-center transition cursor-pointer ${
+                    pageOrientation === 'landscape'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  📑 أفقية
                 </button>
               </div>
             </div>
