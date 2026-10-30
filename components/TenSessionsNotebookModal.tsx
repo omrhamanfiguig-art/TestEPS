@@ -63,6 +63,11 @@ export const TenSessionsNotebookModal: React.FC<TenSessionsNotebookModalProps> =
   const [pageOrientation, setPageOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [isSyncingTextbook, setIsSyncingTextbook] = useState<boolean>(false);
 
+  // Modal View & Fullscreen controls
+  const [isFullScreen, setIsFullScreen] = useState<boolean>(false);
+  const [isControlsCollapsed, setIsControlsCollapsed] = useState<boolean>(false);
+  const [previewZoom, setPreviewZoom] = useState<number>(100);
+
   // Loaded students for preview & export
   const [previewStudents, setPreviewStudents] = useState<StudentIdentity[]>([]);
   const [allClassesData, setAllClassesData] = useState<ClassRoster[]>([]);
@@ -830,311 +835,405 @@ export const TenSessionsNotebookModal: React.FC<TenSessionsNotebookModalProps> =
     : (allClassesData.length > 0 ? allClassesData : [{ className: selectedClass || 'القسم', students: previewStudents }]);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/65 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="bg-white dark:bg-gray-850 rounded-t-3xl sm:rounded-3xl w-full max-w-6xl h-[95vh] sm:h-auto sm:max-h-[92vh] flex flex-col shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden text-gray-900 dark:text-gray-100">
+    <div className={`fixed inset-0 z-50 overflow-y-auto bg-black/65 backdrop-blur-xs flex items-end sm:items-center justify-center ${isFullScreen ? 'p-0' : 'p-0 sm:p-4'}`}>
+      <div className={`bg-white dark:bg-gray-850 w-full flex flex-col shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden text-gray-900 dark:text-gray-100 transition-all ${
+        isFullScreen 
+          ? 'fixed inset-0 z-50 w-screen h-screen rounded-none' 
+          : 'rounded-t-3xl sm:rounded-3xl max-w-6xl h-[95vh] sm:h-[92vh]'
+      }`}>
         
         {/* Top Header */}
-        <div className="p-4 sm:p-5 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gradient-to-r from-indigo-700 via-indigo-600 to-violet-700 text-white shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-xl shadow-xs">
+        <div className="p-3.5 sm:p-5 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gradient-to-r from-indigo-700 via-indigo-600 to-violet-700 text-white shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/15 flex items-center justify-center text-lg sm:text-xl shadow-xs shrink-0">
               📋
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-black">
-                  دفتر تتبع 10 حصص والأهداف البيداغوجية المقترحة
+                <h2 className="text-sm sm:text-lg font-black">
+                  دفتر تتبع 10 حصص والأهداف البيداغوجية
                 </h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-gray-900">
+                <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-gray-900">
                   توجيهات 2009 ✨ A4 بورتريه
                 </span>
               </div>
-              <p className="text-[11px] sm:text-xs text-indigo-100 mt-0.5">
-                تتبع الحصص والتقويم الثلاثي (حركي/معرفي/سلوكي) + 10 أهداف متدرجة مطابقة للتوجيهات الرسمية 2009
+              <p className="text-[10px] sm:text-xs text-indigo-100 mt-0.5 line-clamp-1">
+                تتبع الحصص والتقويم الثلاثي + 10 أهداف متدرجة مطابقة للتوجيهات الرسمية 2009
               </p>
             </div>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition active:scale-95 cursor-pointer"
-            aria-label="إغلاق"
-          >
-            <XMarkIcon className="w-5 h-5" />
-          </button>
+          
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setIsFullScreen(!isFullScreen)}
+              className="px-2.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 text-white transition font-bold text-xs flex items-center gap-1 cursor-pointer"
+              title={isFullScreen ? 'تصغير النافذة' : 'تكبير ملء الشاشة'}
+            >
+              <span>{isFullScreen ? '🗗 تصغير' : '⛶ ملء الشاشة'}</span>
+            </button>
+
+            <button 
+              onClick={onClose}
+              className="p-1.5 sm:p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition active:scale-95 cursor-pointer"
+              aria-label="إغلاق"
+            >
+              <XMarkIcon className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Tab Switcher: Notebook vs Progression */}
-        <div className="flex border-b border-gray-200 dark:border-gray-700 bg-gray-100/70 dark:bg-gray-800 px-4 pt-2 gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => setActiveModalTab('notebook')}
-            className={`pb-2.5 px-4 font-black text-xs transition relative flex items-center gap-2 cursor-pointer rounded-t-xl ${
-              activeModalTab === 'notebook'
-                ? 'bg-white dark:bg-gray-850 text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-600 shadow-xs'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-            }`}
-          >
-            <DocumentTextIcon className="w-4 h-4" />
-            <span>📋 شبكة التتبع والتقويم (10 حصص — A4 بورتريه)</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 font-bold">
-              3 مجالات
-            </span>
-          </button>
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 bg-gray-100/70 dark:bg-gray-800 px-3 sm:px-4 pt-2 shrink-0 overflow-x-auto">
+          <div className="flex gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveModalTab('notebook')}
+              className={`pb-2 px-3 sm:px-4 font-black text-xs transition relative flex items-center gap-1.5 cursor-pointer rounded-t-xl whitespace-nowrap ${
+                activeModalTab === 'notebook'
+                  ? 'bg-white dark:bg-gray-850 text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-600 shadow-xs'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <DocumentTextIcon className="w-4 h-4 shrink-0" />
+              <span>📋 شبكة التتبع والتقويم</span>
+              <span className="hidden sm:inline-block px-1.5 py-0.2 rounded-full text-[9px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 font-bold">
+                3 مجالات
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveModalTab('progression')}
+              className={`pb-2 px-3 sm:px-4 font-black text-xs transition relative flex items-center gap-1.5 cursor-pointer rounded-t-xl whitespace-nowrap ${
+                activeModalTab === 'progression'
+                  ? 'bg-white dark:bg-gray-850 text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-600 shadow-xs'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              <SparklesIcon className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>🎯 الأهداف الـ 10 المقترحة</span>
+              <span className="hidden sm:inline-block px-1.5 py-0.2 rounded-full text-[9px] bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 font-black animate-pulse">
+                جديد ✨
+              </span>
+            </button>
+          </div>
 
           <button
             type="button"
-            onClick={() => setActiveModalTab('progression')}
-            className={`pb-2.5 px-4 font-black text-xs transition relative flex items-center gap-2 cursor-pointer rounded-t-xl ${
-              activeModalTab === 'progression'
-                ? 'bg-white dark:bg-gray-850 text-indigo-600 dark:text-indigo-400 border-t-2 border-indigo-600 shadow-xs'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-            }`}
+            onClick={() => setIsControlsCollapsed(!isControlsCollapsed)}
+            className="mb-2 px-2.5 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer shrink-0 transition"
           >
-            <SparklesIcon className="w-4 h-4 text-amber-500" />
-            <span>🎯 الأهداف البيداغوجية المقترحة (10 حصص — توجيهات 2009)</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 font-black animate-pulse">
-              جديد ✨
-            </span>
+            <span>{isControlsCollapsed ? '⚙️ إظهار الخيارات' : '📊 إخفاء الخيارات لمعاينة أكثر'}</span>
           </button>
         </div>
 
-        {/* Options & Controls Bar */}
-        <div className="p-4 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 shrink-0 space-y-3">
-          {notification && (
-            <div className={`p-3 rounded-xl text-xs font-bold flex items-center justify-between ${
-              notification.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
-            }`}>
-              <span>{notification.message}</span>
-              <button onClick={() => setNotification(null)} className="p-1 cursor-pointer">
-                <XMarkIcon className="w-4 h-4" />
-              </button>
-            </div>
-          )}
+        {/* Options & Controls Bar (Collapsible) */}
+        {!isControlsCollapsed ? (
+          <div className="p-3 sm:p-4 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 shrink-0 space-y-3">
+            {notification && (
+              <div className={`p-3 rounded-xl text-xs font-bold flex items-center justify-between ${
+                notification.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+              }`}>
+                <span>{notification.message}</span>
+                <button onClick={() => setNotification(null)} className="p-1 cursor-pointer">
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5">
-            {/* Scope / Mode */}
-            <div>
-              <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">
-                نطاق التصدير والطباعة:
-              </label>
-              <select
-                value={exportMode}
-                onChange={(e) => setExportMode(e.target.value as 'single' | 'all')}
-                className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-2.5 py-1.5 text-xs font-bold"
-              >
-                <option value="single">قسم محدد فقط</option>
-                <option value="all">جميع الأقسام (كل قسم في ورقة مستقلة)</option>
-              </select>
-            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
+              {/* Scope / Mode */}
+              <div>
+                <label className="block text-[10px] sm:text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">
+                  نطاق التصدير والطباعة:
+                </label>
+                <select
+                  value={exportMode}
+                  onChange={(e) => setExportMode(e.target.value as 'single' | 'all')}
+                  className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-2.5 py-1.5 text-xs font-bold"
+                >
+                  <option value="single">قسم محدد فقط</option>
+                  <option value="all">جميع الأقسام (كل قسم ورقة)</option>
+                </select>
+              </div>
 
-            {/* Class Selector */}
-            <div>
-              <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">
-                القسم المستهدف:
-              </label>
-              <select
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-                disabled={exportMode === 'all'}
-                className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-2.5 py-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 disabled:opacity-50"
-              >
-                {classes.length === 0 ? (
-                  <option value={selectedClass || 'قسم 1'}>{selectedClass || 'قسم 1'}</option>
-                ) : (
-                  classes.map(c => (
-                    <option key={c.className} value={c.className}>
-                      {c.className} ({c.studentCount} تلميذ)
+              {/* Class Selector */}
+              <div>
+                <label className="block text-[10px] sm:text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">
+                  القسم المستهدف:
+                </label>
+                <select
+                  value={selectedClass}
+                  onChange={(e) => setSelectedClass(e.target.value)}
+                  disabled={exportMode === 'all'}
+                  className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-2.5 py-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 disabled:opacity-50"
+                >
+                  {classes.length === 0 ? (
+                    <option value={selectedClass || 'قسم 1'}>{selectedClass || 'قسم 1'}</option>
+                  ) : (
+                    classes.map(c => (
+                      <option key={c.className} value={c.className}>
+                        {c.className} ({c.studentCount} تلميذ)
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              {/* Sport Selector */}
+              <div>
+                <label className="block text-[10px] sm:text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">
+                  النشاط الرياضي (APSA):
+                </label>
+                <select
+                  value={selectedSportKey}
+                  onChange={(e) => handleSportChange(e.target.value)}
+                  className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-2.5 py-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400"
+                >
+                  {MOROCCAN_EPS_SPORTS.map(s => (
+                    <option key={s.sportKey} value={s.sportKey}>
+                      {s.sportNameAr} ({s.sportNameFr})
                     </option>
-                  ))
+                  ))}
+                </select>
+              </div>
+
+              {/* Cycle / Level Toggle */}
+              <div>
+                <label className="block text-[10px] sm:text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">
+                  السلك التعليمي (توجيهات 2009):
+                </label>
+                <div className="grid grid-cols-2 gap-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl p-0.5 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCycle('college')}
+                    className={`py-1 px-1 rounded-lg text-center transition cursor-pointer ${
+                      selectedCycle === 'college'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    🏫 إعدادي
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCycle('lycee')}
+                    className={`py-1 px-1 rounded-lg text-center transition cursor-pointer ${
+                      selectedCycle === 'lycee'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    🎓 تأهيلي
+                  </button>
+                </div>
+              </div>
+
+              {/* Page Orientation Toggle */}
+              <div>
+                <label className="block text-[10px] sm:text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">
+                  اتجاه الصفحة (A4):
+                </label>
+                <div className="grid grid-cols-2 gap-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl p-0.5 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setPageOrientation('portrait')}
+                    className={`py-1 px-1 rounded-lg text-center transition cursor-pointer ${
+                      pageOrientation === 'portrait'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    📄 بورتريه
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPageOrientation('landscape')}
+                    className={`py-1 px-1 rounded-lg text-center transition cursor-pointer ${
+                      pageOrientation === 'landscape'
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    📑 أفقية
+                  </button>
+                </div>
+              </div>
+
+              {/* Institution / Teacher quick field */}
+              <div className="col-span-2 sm:col-span-1">
+                <label className="block text-[10px] sm:text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">
+                  المؤسسة والأستاذ:
+                </label>
+                <div className="flex gap-1">
+                  <input
+                    type="text"
+                    value={institution}
+                    onChange={(e) => setInstitution(e.target.value)}
+                    placeholder="المؤسسة"
+                    className="w-1/2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-2 py-1.5 text-xs font-bold truncate"
+                    title="المؤسسة التعليمية"
+                  />
+                  <input
+                    type="text"
+                    value={teacherName}
+                    onChange={(e) => setTeacherName(e.target.value)}
+                    placeholder="الأستاذ"
+                    className="w-1/2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-2 py-1.5 text-xs font-bold truncate"
+                    title="اسم الأستاذ(ة)"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Action buttons bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-gray-200/60 dark:border-gray-700/60">
+              <div className="text-[10px] sm:text-[11px] font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                <InformationCircleIcon className="w-4 h-4 text-indigo-500 shrink-0" />
+                <span className="line-clamp-1">
+                  {activeModalTab === 'progression'
+                    ? `النشاط: «${currentSportMeta.sportNameAr}» (${cycleLabelAr}) — 10 أهداف متدرجة مطابقة للتوجيهات التربوية 2009`
+                    : (exportMode === 'single'
+                        ? `القسم «${selectedClass}» (${previewStudents.length} تلميذ مسجل — ورقة A4 واحدة)`
+                        : `جميع الأقسام (${previewRosters.length} قسماً) كل قسم في صفحة A4 مستقلة`)}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowStudentListModal(true)}
+                  className="px-2.5 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 active:scale-95 text-white font-bold text-xs shadow-xs transition flex items-center gap-1 cursor-pointer"
+                >
+                  <span>👁️ المعاينة</span>
+                  <span className="bg-white/20 px-1.5 py-0.2 rounded-full text-[10px]">{previewStudents.length}</span>
+                </button>
+
+                {activeModalTab === 'progression' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleCopyObjectives}
+                      className="px-2.5 py-1.5 rounded-xl bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold text-xs transition active:scale-95 cursor-pointer"
+                    >
+                      📋 النسخ
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleApplyToTextbook}
+                      disabled={isSyncingTextbook}
+                      className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs shadow-xs transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <SparklesIcon className="w-4 h-4 shrink-0" />
+                      <span>{isSyncingTextbook ? 'جاري الحفظ...' : 'تطبيق في دفتر النصوص'}</span>
+                    </button>
+                  </>
                 )}
-              </select>
-            </div>
 
-            {/* Sport Selector */}
-            <div>
-              <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">
-                النشاط الرياضي (APSA):
-              </label>
-              <select
-                value={selectedSportKey}
-                onChange={(e) => handleSportChange(e.target.value)}
-                className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-2.5 py-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400"
-              >
-                {MOROCCAN_EPS_SPORTS.map(s => (
-                  <option key={s.sportKey} value={s.sportKey}>
-                    {s.sportNameAr} ({s.sportNameFr})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Cycle / Level Toggle */}
-            <div>
-              <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">
-                السلك التعليمي (توجيهات 2009):
-              </label>
-              <div className="grid grid-cols-2 gap-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl p-0.5 text-xs font-bold">
                 <button
                   type="button"
-                  onClick={() => setSelectedCycle('college')}
-                  className={`py-1 px-1.5 rounded-lg text-center transition cursor-pointer ${
-                    selectedCycle === 'college'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
-                  }`}
+                  onClick={handleExcelExport}
+                  disabled={isExporting}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-xs transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
                 >
-                  🏫 إعدادي
+                  <ExcelIcon className="w-4 h-4 shrink-0" />
+                  <span>{isExporting ? 'جاري التصدير...' : (activeModalTab === 'progression' ? 'تصدير Excel' : 'شبكة Excel')}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedCycle('lycee')}
-                  className={`py-1 px-1.5 rounded-lg text-center transition cursor-pointer ${
-                    selectedCycle === 'lycee'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
-                  }`}
-                >
-                  🎓 تأهيلي
-                </button>
-              </div>
-            </div>
 
-            {/* Page Orientation Toggle */}
-            <div>
-              <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">
-                اتجاه الصفحة (A4):
-              </label>
-              <div className="grid grid-cols-2 gap-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl p-0.5 text-xs font-bold">
                 <button
                   type="button"
-                  onClick={() => setPageOrientation('portrait')}
-                  className={`py-1 px-1.5 rounded-lg text-center transition cursor-pointer ${
-                    pageOrientation === 'portrait'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
-                  }`}
+                  onClick={handlePrint}
+                  disabled={isPrinting}
+                  className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs shadow-md transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
                 >
-                  📄 بورتريه
+                  <PrinterIcon className="w-4 h-4 shrink-0" />
+                  <span>{isPrinting ? 'جاري التحضير...' : (activeModalTab === 'progression' ? 'طباعة الأهداف (A4)' : 'طباعة / PDF')}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setPageOrientation('landscape')}
-                  className={`py-1 px-1.5 rounded-lg text-center transition cursor-pointer ${
-                    pageOrientation === 'landscape'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
-                  }`}
-                >
-                  📑 أفقية
-                </button>
-              </div>
-            </div>
 
-            {/* Institution / Teacher quick field */}
-            <div>
-              <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-400 mb-1">
-                المؤسسة والأستاذ:
-              </label>
-              <div className="flex gap-1">
-                <input
-                  type="text"
-                  value={institution}
-                  onChange={(e) => setInstitution(e.target.value)}
-                  placeholder="المؤسسة"
-                  className="w-1/2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-2 py-1.5 text-xs font-bold truncate"
-                  title="المؤسسة التعليمية"
-                />
-                <input
-                  type="text"
-                  value={teacherName}
-                  onChange={(e) => setTeacherName(e.target.value)}
-                  placeholder="الأستاذ"
-                  className="w-1/2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-2 py-1.5 text-xs font-bold truncate"
-                  title="اسم الأستاذ(ة)"
-                />
+                <button
+                  type="button"
+                  onClick={handlePrintBoth}
+                  disabled={isPrinting}
+                  title="طباعة شبكة التتبع وبطاقة الأهداف البيداغوجية معاً"
+                  className="px-2.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold text-xs shadow-xs transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                >
+                  <span>🖨️ طباعة الوثيقتين معاً (2 صفحة)</span>
+                </button>
               </div>
             </div>
           </div>
-
-          {/* Action buttons bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-gray-200/60 dark:border-gray-700/60">
-            <div className="text-[11px] font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
-              <InformationCircleIcon className="w-4 h-4 text-indigo-500 shrink-0" />
-              <span>
-                {activeModalTab === 'progression'
-                  ? `النشاط: «${currentSportMeta.sportNameAr}» (${cycleLabelAr}) — 10 أهداف متدرجة مطابقة للتوجيهات التربوية الرسمية 2009`
-                  : (exportMode === 'single'
-                      ? `القسم «${selectedClass}» (${previewStudents.length} تلميذ مسجل — ورقة A4 بورتريه واحدة)`
-                      : `سيتم تصدير وطباعة جميع الأقسام (${previewRosters.length} قسماً) كل قسم في صفحة A4 بورتريه مستقلة`)}
-              </span>
+        ) : (
+          /* Compact Collapsed Controls Bar */
+          <div className="p-2.5 bg-indigo-50/80 dark:bg-gray-800/80 border-b border-indigo-200 dark:border-gray-700 shrink-0 flex items-center justify-between text-xs font-bold text-indigo-900 dark:text-indigo-200 px-4">
+            <div className="flex items-center gap-2 flex-wrap text-[11px]">
+              <span className="bg-indigo-600 text-white px-2 py-0.5 rounded-md">القسم: {selectedClass || 'الكل'}</span>
+              <span>• النشاط: <strong>{sportActivity}</strong></span>
+              <span>• السلك: <strong>{cycleLabelAr}</strong></span>
+              <span>• الاتجاه: <strong>{pageOrientation === 'portrait' ? 'بورتريه' : 'أفقية'}</strong></span>
             </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowStudentListModal(true)}
-                className="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 active:scale-95 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <span>👁️ معاينة لائحة التلاميذ</span>
-                <span className="bg-white/20 px-1.5 py-0.2 rounded-full text-[10px]">{previewStudents.length}</span>
-              </button>
-
-              {activeModalTab === 'progression' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleCopyObjectives}
-                    className="px-3 py-1.5 rounded-xl bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold text-xs transition active:scale-95 cursor-pointer"
-                  >
-                    📋 نسخ الأهداف
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleApplyToTextbook}
-                    disabled={isSyncingTextbook}
-                    className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                  >
-                    <SparklesIcon className="w-4 h-4" />
-                    <span>{isSyncingTextbook ? 'جاري الحفظ...' : 'تطبيق في دفتر النصوص للقسم'}</span>
-                  </button>
-                </>
-              )}
-
-              <button
-                type="button"
-                onClick={handleExcelExport}
-                disabled={isExporting}
-                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                <ExcelIcon className="w-4 h-4" />
-                <span>{isExporting ? 'جاري التصدير...' : (activeModalTab === 'progression' ? 'تصدير الأهداف إلى Excel' : 'تصدير شبكة Excel')}</span>
-              </button>
-
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={handlePrint}
                 disabled={isPrinting}
-                className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="px-3 py-1 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-[11px] font-bold flex items-center gap-1 cursor-pointer shadow-xs"
               >
-                <PrinterIcon className="w-4 h-4" />
-                <span>{isPrinting ? 'جاري التحضير...' : (activeModalTab === 'progression' ? 'طباعة بطاقة الأهداف (A4)' : 'طباعة / PDF (A4 بورتريه)')}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handlePrintBoth}
-                disabled={isPrinting}
-                title="طباعة شبكة التتبع وبطاقة الأهداف البيداغوجية معاً"
-                className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                <span>🖨️ طباعة الوثيقتين معاً (2 صفحة A4)</span>
+                <PrinterIcon className="w-3.5 h-3.5" />
+                <span>طباعة</span>
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Zoom & Table Inspection Controls Floating Bar */}
+        <div className="bg-gray-200 dark:bg-gray-800 px-4 py-1.5 flex items-center justify-between border-b border-gray-300 dark:border-gray-700 text-xs shrink-0">
+          <div className="flex items-center gap-2 font-bold text-gray-700 dark:text-gray-300">
+            <span>🔍 معاينة وتكبير الجدول:</span>
+            <div className="flex items-center bg-white dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+              <button 
+                onClick={() => setPreviewZoom(Math.max(50, previewZoom - 10))}
+                className="px-2 py-0.5 hover:bg-gray-100 dark:hover:bg-gray-600 font-black cursor-pointer border-l border-gray-200 dark:border-gray-600"
+                title="تصغير المعاينة"
+              >
+                -
+              </button>
+              <span className="px-2.5 text-[11px] font-mono font-bold text-indigo-600 dark:text-indigo-300">
+                {previewZoom}%
+              </span>
+              <button 
+                onClick={() => setPreviewZoom(Math.min(150, previewZoom + 10))}
+                className="px-2 py-0.5 hover:bg-gray-100 dark:hover:bg-gray-600 font-black cursor-pointer border-r border-gray-200 dark:border-gray-600"
+                title="تكبير المعاينة"
+              >
+                +
+              </button>
+            </div>
+            {previewZoom !== 100 && (
+              <button
+                onClick={() => setPreviewZoom(100)}
+                className="text-[10px] text-indigo-600 hover:underline cursor-pointer"
+              >
+                إعادة الضبط 100%
+              </button>
+            )}
+          </div>
+
+          <div className="text-[10px] text-gray-500 dark:text-gray-400 hidden sm:block">
+            💡 يمكنك التمرير أفقياً ورأسياً لمعاينة كافة أسرار وأعمدة الجدول بشكل كامل
           </div>
         </div>
 
         {/* Scrollable Document Area */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-6 bg-gray-100 dark:bg-gray-900 space-y-6">
+        <div className="flex-1 overflow-auto p-2 sm:p-6 bg-gray-100 dark:bg-gray-900 space-y-6">
+          <div 
+            style={{ 
+              transform: `scale(${previewZoom / 100})`, 
+              transformOrigin: 'top center',
+              transition: 'transform 0.15s ease-out'
+            }}
+          >
           
           {/* VIEW 1: PROGRESSION TAB (10 Progressive Sessions) */}
           {activeModalTab === 'progression' && (
@@ -1436,7 +1535,7 @@ export const TenSessionsNotebookModal: React.FC<TenSessionsNotebookModalProps> =
               })
             )
           )}
-
+          </div>
         </div>
 
         {/* Student List Preview Modal */}
