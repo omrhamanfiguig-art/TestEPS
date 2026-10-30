@@ -49,8 +49,14 @@ import {
 import { 
   getTeacherProfiles, 
   getTeacherForClass, 
-  TeacherProfile 
+  TeacherProfile,
+  detectLevelFromClassName
 } from '../utils/teacherHelper';
+import { 
+  getTenSessionsProgression, 
+  EPS_MIDDLE_SCHOOL_LEVELS, 
+  MiddleSchoolLevel 
+} from '../utils/pedagogicalObjectivesData';
 import { useSportsList } from '../utils/SportsConstants';
 import { useLanguage } from '../utils/i18n';
 import { PrintPreviewModal, PrintPreviewColumn } from '../components/PrintPreviewModal';
@@ -125,6 +131,44 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
   const [sessionGoal, setSessionGoal] = useState<string>("");
   const [sessionNumber, setSessionNumber] = useState<string>("الحصة 1");
   const [sessionId, setSessionId] = useState<string>(() => `${Date.now()}`);
+
+  // Dynamic 10-session pedagogical progression level (1AC, 2AC, 3AC, Lycée)
+  const [pedagogicalLevel, setPedagogicalLevel] = useState<MiddleSchoolLevel>('1ac');
+  const [showDetailedGoals, setShowDetailedGoals] = useState(false);
+
+  // Auto-detect educational level when selectedClass changes
+  useEffect(() => {
+    if (!selectedClass) return;
+    const detected = detectLevelFromClassName(selectedClass);
+    if (detected.key === '2apic') {
+      setPedagogicalLevel('2ac');
+    } else if (detected.key === '3apic') {
+      setPedagogicalLevel('3ac');
+    } else if (['tc', '1bac', '2bac'].includes(detected.key)) {
+      setPedagogicalLevel('lycee');
+    } else {
+      setPedagogicalLevel('1ac');
+    }
+  }, [selectedClass]);
+
+  // Derive 10 progressive sessions according to the sport/activity and grade level
+  const { progression: tenGoals, sportMeta, levelLabelAr } = useMemo(() => {
+    return getTenSessionsProgression(topic, pedagogicalLevel);
+  }, [topic, pedagogicalLevel]);
+
+  // Numerical session index (1 to 10)
+  const currentSessionIndex = useMemo(() => {
+    const match = (sessionNumber || '').match(/\d+/);
+    if (match) {
+      const num = parseInt(match[0], 10);
+      if (num >= 1 && num <= 10) return num;
+    }
+    return 1;
+  }, [sessionNumber]);
+
+  const recommendedGoal = useMemo(() => {
+    return tenGoals[currentSessionIndex - 1] || tenGoals[0];
+  }, [tenGoals, currentSessionIndex]);
 
   // Dynamic Sports list hook and states
   const { sports, addSport, editSport, deleteSport, resetSports } = useSportsList();
@@ -972,44 +1016,148 @@ export const AttendanceScreen: React.FC<AttendanceScreenProps> = ({
             </div>
           </div>
 
-          {/* Session Goal Input (Auto-synced into Textbook) */}
-          <div className="lg:col-span-5 pt-2 border-t border-gray-100 dark:border-gray-700/80">
-            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 flex items-center justify-between flex-wrap gap-2">
-              <span className="flex items-center gap-1.5">
+          {/* Session Goal Input (Auto-synced into Textbook) with 10 Dynamic Pedagogical Objectives */}
+          <div className="lg:col-span-5 pt-3 border-t border-gray-100 dark:border-gray-700/80 space-y-2">
+            {/* Header: Label + Level Selector Pills (1AC, 2AC, 3AC, Lycée) + Auto-sync Badge */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-base">🎯</span>
-                <span>هدف الحصة البيداغوجي (يُدمج تلقائياً في دفتر النصوص مع القسم والتاريخ والتوقيت):</span>
-              </span>
-              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 font-black bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-lg border border-emerald-300 dark:border-emerald-800">
-                <span>📖</span>
-                <span>دمج وتحديث تلقائي لدفتر النصوص</span>
-              </span>
-            </label>
+                <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                  هدف الحصة البيداغوجي (10 أهداف حسب النشاط والمستوى):
+                </span>
+                <span className="text-[11px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/70 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800/60">
+                  {sportMeta.sportNameAr}
+                </span>
+              </div>
+
+              {/* Level Selector Pills: 1AC / 2AC / 3AC / Lycée */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">المستوى:</span>
+                {EPS_MIDDLE_SCHOOL_LEVELS.map(lvl => {
+                  const isActive = pedagogicalLevel === lvl.key;
+                  return (
+                    <button
+                      key={lvl.key}
+                      type="button"
+                      onClick={() => setPedagogicalLevel(lvl.key as MiddleSchoolLevel)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-400/40'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                      title={lvl.label}
+                    >
+                      {lvl.shortLabel}
+                    </button>
+                  );
+                })}
+                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 font-black bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-lg border border-emerald-300 dark:border-emerald-800">
+                  <span>📖</span>
+                  <span>تحديث دفتر النصوص</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Input Row + 10-Goal Dropdown + Quick Suggestion Button */}
             <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
                 value={sessionGoal}
                 onChange={(e) => setSessionGoal(e.target.value)}
-                placeholder="أدخل هدف الحصة (مثال: التمرير والاستقبال الدقيق، الجري السريع، أو القدرة الهوائية...)"
+                placeholder={`أدخل هدف الحصة أو اختر من الأهداف الـ 10 المقترحة لـ ${sportMeta.sportNameAr}...`}
                 className="flex-1 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3.5 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
               />
+
+              {/* Dynamic Dropdown showing the 10 Progressive Goals based strictly on Sport & Level */}
               <select
                 onChange={(e) => {
                   if (e.target.value) {
                     setSessionGoal(e.target.value);
                   }
                 }}
-                className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-xs font-bold text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-indigo-500 cursor-pointer sm:max-w-[210px]"
+                className="bg-indigo-50 dark:bg-gray-700 border border-indigo-200 dark:border-gray-600 rounded-xl px-3 py-2 text-xs font-bold text-indigo-950 dark:text-indigo-200 focus:ring-2 focus:ring-indigo-500 cursor-pointer sm:max-w-[280px]"
                 value=""
               >
-                <option value="" disabled>أهداف بيداغوجية مقترحة...</option>
-                <option value="التحكم في الكرة والتمرير والاستقبال المتقن">⚽ التحكم في الكرة والتمرير المتقن</option>
-                <option value="تطوير السرعة والتوافق والانطلاق السريع">🏃 السرعة والتوافق والانطلاق السريع</option>
-                <option value="تطوير القدرة الهوائية والتحمل الدوري التنفسي">🫁 القدرة الهوائية والتحمل الدوري</option>
-                <option value="الالتزام بالقوانين والتنظيم والانسجام الجماعي">🤝 التنظيم والعمل والانسجام الجماعي</option>
-                <option value="الارتقاء والقفز والمهارات البدنية الأساسية">🤸 الارتقاء والقفز والمهارات البدنية</option>
-                <option value="إجراء التقويم التشخيصي والاختبارات البدنية الميدانية">📊 تقويم تشخيصي واختبارات بدنية</option>
+                <option value="" disabled>
+                  🎯 10 أهداف لـ {sportMeta.sportNameAr} ({levelLabelAr})
+                </option>
+                {recommendedGoal && (
+                  <option value={recommendedGoal.titleAr}>
+                    ⚡ هدف {sessionNumber} الموصى به: {recommendedGoal.titleAr.replace(/^\[.*?\]\s*/, '')}
+                  </option>
+                )}
+                <option value="" disabled>──────── 10 حصص تدرجية ────────</option>
+                {tenGoals.map((g) => {
+                  const isCurrent = g.seanceNumber === currentSessionIndex;
+                  return (
+                    <option key={g.seanceNumber} value={g.titleAr}>
+                      {isCurrent ? '⭐ ' : ''}ح{g.seanceNumber} [{g.phaseLabelAr}]: {g.titleAr.replace(/^\[.*?\]\s*/, '')}
+                    </option>
+                  );
+                })}
               </select>
+
+              {/* 1-Click Apply Recommended Session Goal Button */}
+              {recommendedGoal && (
+                <button
+                  type="button"
+                  onClick={() => setSessionGoal(recommendedGoal.titleAr)}
+                  className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shrink-0 transition-colors shadow-sm cursor-pointer"
+                  title={`تطبيق الهدف البيداغوجي الموصى به لـ ${sessionNumber}`}
+                >
+                  <span>⚡</span>
+                  <span>هدف {sessionNumber}</span>
+                </button>
+              )}
             </div>
+
+            {/* Quick Pedagogical Objectives Card (Motor, Cognitive, Behavioral) */}
+            {recommendedGoal && (
+              <div className="bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 rounded-xl p-2.5 text-xs text-gray-700 dark:text-gray-300">
+                <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                  <div className="font-bold flex items-center gap-2">
+                    <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
+                    <span className="text-indigo-900 dark:text-indigo-300 font-black">
+                      توجيهات {sessionNumber} ({recommendedGoal.phaseLabelAr}) — {levelLabelAr}:
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowDetailedGoals(!showDetailedGoals)}
+                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                  >
+                    {showDetailedGoals ? 'إخفاء التفاصيل ▲' : 'عرض التفاصيل البيداغوجية الثلاثية (حركي، معرفي، وجداني) ▼'}
+                  </button>
+                </div>
+
+                {showDetailedGoals ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2 pt-2 border-t border-indigo-200/50 dark:border-indigo-800/40">
+                    <div className="bg-white/80 dark:bg-gray-800/80 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900/40">
+                      <div className="font-black text-emerald-700 dark:text-emerald-400 text-[11px] mb-0.5">
+                        🏃 الهدف الحركي (Moteur):
+                      </div>
+                      <div className="text-[11px] font-medium leading-relaxed">{recommendedGoal.motorObjective}</div>
+                    </div>
+                    <div className="bg-white/80 dark:bg-gray-800/80 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900/40">
+                      <div className="font-black text-blue-700 dark:text-blue-400 text-[11px] mb-0.5">
+                        🧠 الهدف المعرفي (Cognitif):
+                      </div>
+                      <div className="text-[11px] font-medium leading-relaxed">{recommendedGoal.cognitiveObjective}</div>
+                    </div>
+                    <div className="bg-white/80 dark:bg-gray-800/80 p-2 rounded-lg border border-indigo-100 dark:border-indigo-900/40">
+                      <div className="font-black text-amber-700 dark:text-amber-400 text-[11px] mb-0.5">
+                        🤝 الهدف السلوكي (Socio-affectif):
+                      </div>
+                      <div className="text-[11px] font-medium leading-relaxed">{recommendedGoal.behavioralObjective}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-gray-600 dark:text-gray-400 line-clamp-1 font-medium">
+                    <span className="font-bold text-indigo-700 dark:text-indigo-400">المهاري:</span> {recommendedGoal.motorObjective} | <span className="font-bold text-indigo-700 dark:text-indigo-400">المعرفي:</span> {recommendedGoal.cognitiveObjective}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -15,10 +15,13 @@ import {
 import { StudentIdentity, PedagogicalReport, ReportCaseType } from '../types';
 import { getAllClasses, getStudentList, ClassStats } from '../utils/db';
 import { getPedagogicalReports } from '../utils/reportsDb';
+import { getSchoolAccidentReports } from '../utils/accidentReportsDb';
 import { PedagogicalReportsView } from '../components/PedagogicalReportsView';
 import { StudentReportModal } from '../components/StudentReportModal';
 import { GroupReportModal } from '../components/GroupReportModal';
+import { SchoolAccidentModal } from '../components/SchoolAccidentModal';
 import { useLanguage } from '../utils/i18n';
+import { SchoolAccidentReport } from '../types';
 
 interface ReportsScreenProps {
   selectedClass: string;
@@ -36,12 +39,25 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
   const [selectedStudentForReport, setSelectedStudentForReport] = useState<StudentIdentity | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isGroupReportModalOpen, setIsGroupReportModalOpen] = useState(false);
+  const [isAccidentModalOpen, setIsAccidentModalOpen] = useState(false);
+  const [accidentReports, setAccidentReports] = useState<SchoolAccidentReport[]>([]);
 
   // Level filter
   const [levelFilter, setLevelFilter] = useState<string>('ALL');
 
   useEffect(() => {
     loadClasses();
+    const handleUpdate = () => {
+      if (selectedClass) {
+        loadStudentsAndReports(selectedClass);
+      }
+    };
+    window.addEventListener('accidentReportsUpdated', handleUpdate);
+    window.addEventListener('reportsUpdated', handleUpdate);
+    return () => {
+      window.removeEventListener('accidentReportsUpdated', handleUpdate);
+      window.removeEventListener('reportsUpdated', handleUpdate);
+    };
   }, []);
 
   const loadClasses = async () => {
@@ -68,6 +84,8 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
       setStudents(st || []);
       const reps = await getPedagogicalReports(clsName);
       setAllClassReports(reps || []);
+      const accs = await getSchoolAccidentReports(clsName);
+      setAccidentReports(accs || []);
     } catch (e) {
       console.error(e);
     }
@@ -95,15 +113,17 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
     const injury = allClassReports.filter(r => r.caseType === 'injury').length;
     const talent = allClassReports.filter(r => r.caseType === 'outstanding_talent').length;
     const warning = allClassReports.filter(r => r.caseType === 'absence_warning').length;
+    const accidents = accidentReports.length;
     return {
       total: allClassReports.length,
       medical,
       behavior,
       injury,
       talent,
-      warning
+      warning,
+      accidents
     };
-  }, [allClassReports]);
+  }, [allClassReports, accidentReports]);
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6 animate-fadeIn">
@@ -118,7 +138,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
               فضاء التقارير والحالات البيداغوجية
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              توثيق الإعفاءات الطبية، تقارير الانضباط والسلوك، الحالات الصحية والإصابات، والتقارير الإدارية الجماعية
+              توثيق الإعفاءات الطبية، تقارير الانضباط والسلوك، الحوادث المدرسية الرياضية، والتقارير الإدارية الجماعية
             </p>
           </div>
         </div>
@@ -164,6 +184,21 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
 
           <button
             type="button"
+            onClick={() => setIsAccidentModalOpen(true)}
+            className="px-3.5 py-2 rounded-xl text-xs font-black text-white bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 shadow-sm active:scale-95 transition flex items-center gap-1.5 cursor-pointer"
+            title="تصريح وتقرير حول حادثة مدرسية"
+          >
+            <span>🚑</span>
+            <span>تقرير حادثة مدرسية</span>
+            {accidentReports.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white text-rose-700 font-bold">
+                {accidentReports.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
             onClick={() => {
               if (students.length > 0) {
                 setSelectedStudentForReport(students[0]);
@@ -188,7 +223,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
       </div>
 
       {/* Cards Statistics Overview */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 text-center shadow-2xs">
           <div className="text-2xl font-black text-gray-900 dark:text-white">{stats.total}</div>
           <div className="text-[11px] font-bold text-gray-500 dark:text-gray-400 mt-1 flex items-center justify-center gap-1">
@@ -202,6 +237,14 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
           <div className="text-[11px] font-bold text-rose-700 dark:text-rose-300 mt-1 flex items-center justify-center gap-1">
             <span>🏥</span>
             <span>إعفاءات طبية</span>
+          </div>
+        </div>
+
+        <div className="bg-red-50/60 dark:bg-red-950/20 p-4 rounded-2xl border border-red-200 dark:border-red-900/40 text-center shadow-2xs cursor-pointer hover:border-red-400 transition" onClick={() => setIsAccidentModalOpen(true)}>
+          <div className="text-2xl font-black text-red-600 dark:text-red-400">{stats.accidents}</div>
+          <div className="text-[11px] font-bold text-red-700 dark:text-red-300 mt-1 flex items-center justify-center gap-1">
+            <span>🚑</span>
+            <span>حوادث مدرسية</span>
           </div>
         </div>
 
@@ -221,7 +264,7 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
           </div>
         </div>
 
-        <div className="bg-emerald-50/60 dark:bg-emerald-950/20 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-900/40 text-center shadow-2xs col-span-2 sm:col-span-1">
+        <div className="bg-emerald-50/60 dark:bg-emerald-950/20 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-900/40 text-center shadow-2xs">
           <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{stats.talent}</div>
           <div className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 mt-1 flex items-center justify-center gap-1">
             <span>🌟</span>
@@ -258,6 +301,21 @@ export const ReportsScreen: React.FC<ReportsScreenProps> = ({
           onClose={() => setIsGroupReportModalOpen(false)}
           className={selectedClass}
           students={students}
+        />
+      )}
+
+      {/* School Accident Report Modal (حادثة مدرسية) */}
+      {isAccidentModalOpen && (
+        <SchoolAccidentModal
+          isOpen={isAccidentModalOpen}
+          onClose={() => {
+            setIsAccidentModalOpen(false);
+            if (selectedClass) {
+              loadStudentsAndReports(selectedClass);
+            }
+          }}
+          defaultClassName={selectedClass}
+          defaultStudent={selectedStudentForReport}
         />
       )}
     </div>

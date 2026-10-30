@@ -11,12 +11,16 @@ import {
 import { StudentIdentity, PedagogicalReport, ReportCaseType } from '../types';
 import { getStudentReports, savePedagogicalReport, deletePedagogicalReport } from '../utils/reportsDb';
 import { StudentAvatar } from './StudentAvatar';
+import { SchoolAccidentModal } from './SchoolAccidentModal';
 
 interface StudentReportModalProps {
   isOpen: boolean;
   onClose: () => void;
   student: StudentIdentity | null;
   className: string;
+  allStudents?: StudentIdentity[];
+  onSelectStudent?: (s: StudentIdentity) => void;
+  onSave?: () => void;
 }
 
 const CASE_TYPES: { id: ReportCaseType; label: string; icon: string; color: string }[] = [
@@ -36,6 +40,7 @@ export const StudentReportModal: React.FC<StudentReportModalProps> = ({
 }) => {
   const [reports, setReports] = useState<PedagogicalReport[]>([]);
   const [activeTab, setActiveTab] = useState<'new' | 'list'>('new');
+  const [isAccidentModalOpen, setIsAccidentModalOpen] = useState(false);
   
   // Form State
   const [caseType, setCaseType] = useState<ReportCaseType>('medical_exemption');
@@ -140,8 +145,8 @@ export const StudentReportModal: React.FC<StudentReportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[92vh] overflow-hidden border border-gray-100 dark:border-gray-700">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/65 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white dark:bg-gray-800 rounded-t-3xl sm:rounded-3xl shadow-2xl max-w-2xl w-full h-[95vh] sm:h-auto sm:max-h-[92vh] flex flex-col overflow-hidden border border-gray-100 dark:border-gray-700">
         
         {/* Header */}
         <div className="px-6 py-4 bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-700 text-white flex items-center justify-between shrink-0">
@@ -195,6 +200,16 @@ export const StudentReportModal: React.FC<StudentReportModalProps> = ({
               </span>
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setIsAccidentModalOpen(true)}
+            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white shadow-xs flex items-center gap-1 cursor-pointer transition active:scale-95"
+            title="تصريح رسمي بحادثة مدرسية لهذا التلميذ"
+          >
+            <span>🚑</span>
+            <span>تصريح بحادثة مدرسية</span>
+          </button>
         </div>
 
         {/* Body */}
@@ -440,6 +455,17 @@ export const StudentReportModal: React.FC<StudentReportModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* School Accident Report Modal */}
+      {isAccidentModalOpen && (
+        <SchoolAccidentModal
+          isOpen={isAccidentModalOpen}
+          onClose={() => setIsAccidentModalOpen(false)}
+          defaultClassName={className}
+          defaultStudent={student}
+        />
+      )}
     </div>
   );
 };
+

@@ -616,11 +616,11 @@ export const QuickEvaluationModal: React.FC<QuickEvaluationModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/60 backdrop-blur-xs overflow-y-auto animate-fade-in"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6 bg-black/65 backdrop-blur-xs overflow-y-auto animate-fade-in"
       dir="rtl"
     >
       <div 
-        className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-700 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden text-right"
+        className="bg-white dark:bg-gray-800 rounded-t-3xl sm:rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-700 w-full max-w-4xl h-[95vh] sm:h-auto sm:max-h-[92vh] flex flex-col overflow-hidden text-right"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header: Student Identity & Carousel Controls */}

@@ -40,6 +40,8 @@ import {
   fetchTeacherProfilesFromCloud 
 } from '../utils/firebase';
 import { PrintPreviewModal, PrintPreviewColumn } from '../components/PrintPreviewModal';
+import { MOROCCAN_EPS_SPORTS, getTenSessionsProgression } from '../utils/pedagogicalObjectivesData';
+import { TenSessionsNotebookModal } from '../components/TenSessionsNotebookModal';
 
 const SAUT_LONGUEUR_ROWS: CahierGridRow[] = [
   { seanceNumber: 1, title: "Évaluer le niveau initial et prendre des repères de course d'élan", situation: "Situation: Test de performance et prise de marques", classDates: {} },
@@ -227,6 +229,8 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
   const [formClassName, setFormClassName] = useState(selectedClass || '');
   const [formDate, setFormDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [formTimeSlot, setFormTimeSlot] = useState('08:30 - 10:30');
+  const [formSuggestedSport, setFormSuggestedSport] = useState('vitesse');
+  const [isPedagogicalModalOpen, setIsPedagogicalModalOpen] = useState(false);
 
   // Filter state
   const [classFilter, setClassFilter] = useState<'all' | 'my' | string>('all');
@@ -845,6 +849,17 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
               </button>
 
               <button
+                type="button"
+                onClick={() => setIsPedagogicalModalOpen(true)}
+                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white text-[11px] sm:text-xs font-bold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
+                title="تصفح وتطبيق الأهداف البيداغوجية الـ 10 المقترحة وفق التوجيهات التربوية 2009"
+              >
+                <SparklesIcon className="w-3.5 h-3.5 shrink-0 text-amber-200" />
+                <span>أهداف 10 حصص (توجيهات 2009)</span>
+              </button>
+
+
+              <button
                 onClick={handleExportExcel}
                 className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] sm:text-xs font-bold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
               >
@@ -1007,6 +1022,49 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
                       </div>
                     </div>
                   )}
+                </div>
+
+                {/* OP 2009 Smart Suggestion Quick Fill */}
+                <div className="p-3 bg-amber-50/80 dark:bg-amber-950/20 rounded-2xl border border-amber-200 dark:border-amber-800/40 text-xs space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <span className="font-black text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                      <SparklesIcon className="w-4 h-4 text-amber-600" />
+                      <span>اقتراح أهداف الحصة (التوجيهات التربوية 2009):</span>
+                    </span>
+                    <select
+                      value={formSuggestedSport}
+                      onChange={(e) => setFormSuggestedSport(e.target.value)}
+                      className="bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-700 rounded-xl px-2.5 py-1 text-xs font-bold text-gray-800 dark:text-gray-200"
+                    >
+                      {MOROCCAN_EPS_SPORTS.map(s => (
+                        <option key={s.sportKey} value={s.sportKey}>{s.sportNameAr} ({s.sportNameFr})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const matchNum = formSessionNumber.match(/\d+/);
+                      const sNum = matchNum ? parseInt(matchNum[0], 10) : 1;
+                      const { progression, sportMeta } = getTenSessionsProgression(formSuggestedSport, formClassName);
+                      const targetSession = progression.find(p => p.seanceNumber === sNum) || progression[0];
+                      if (targetSession) {
+                        setFormGoal(
+                          `[التوجيهات التربوية 2009] النشاط: ${sportMeta.sportNameAr} (${sportMeta.sportNameFr})\n` +
+                          `الموضوع: ${targetSession.titleAr} (${targetSession.titleFr})\n` +
+                          `• المرحلة: ${targetSession.phaseLabelAr}\n` +
+                          `• الهدف الحركي (Moteur): ${targetSession.motorObjective}\n` +
+                          `• الهدف المعرفي (Cognitif): ${targetSession.cognitiveObjective}\n` +
+                          `• الهدف السلوكي (Affectif): ${targetSession.behavioralObjective}\n` +
+                          `• وضعية التعلم والإنجاز: ${targetSession.situation}\n` +
+                          `• معايير التقويم: ${targetSession.criteria}`
+                        );
+                      }
+                    }}
+                    className="w-full py-1.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                  >
+                    <span>⚡ ملء تلقائي بالهدف المقترح لـ «{formSessionNumber}» من التوجيهات الرسمية</span>
+                  </button>
                 </div>
 
                 {/* Goal / Description */}
@@ -2098,6 +2156,19 @@ export const TextbookScreen: React.FC<TextbookScreenProps> = ({
           signature2Title="توقيع الأستاذ(ة)"
         />
       )}
+
+      {/* 10 Progressive Sessions & Notebook Modal (Moroccan OP 2009) */}
+      {isPedagogicalModalOpen && (
+        <TenSessionsNotebookModal
+          isOpen={isPedagogicalModalOpen}
+          onClose={() => {
+            setIsPedagogicalModalOpen(false);
+            loadSessions();
+          }}
+          defaultClassName={selectedClass || (classList.length > 0 ? classList[0].className : '')}
+        />
+      )}
     </div>
   );
+
 };

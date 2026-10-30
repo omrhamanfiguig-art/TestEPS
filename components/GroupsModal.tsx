@@ -146,14 +146,14 @@ export const GroupsModal: React.FC<GroupsModalProps> = ({
 
   return (
     <div 
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-3 sm:p-4"
+        className="fixed inset-0 bg-black/65 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
         onClick={onClose}
         role="dialog"
         aria-modal="true"
         aria-labelledby="groups-modal-title"
     >
       <div 
-        className="bg-gray-100 dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col border border-gray-200 dark:border-gray-700 overflow-hidden"
+        className="bg-gray-100 dark:bg-gray-900 rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-5xl h-[95vh] sm:h-auto sm:max-h-[92vh] flex flex-col border border-gray-200 dark:border-gray-700 overflow-hidden"
         onClick={e => e.stopPropagation()}
       >
         {/* Modal Header */}

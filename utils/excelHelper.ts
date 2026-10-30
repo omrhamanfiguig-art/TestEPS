@@ -2029,8 +2029,8 @@ export const exportTenSessionsNotebookToExcel = (
     const safeSheetName = rawName.replace(/[:\\/?*\[\]]/g, '_').slice(0, 31) || `قسم_${classIndex + 1}`;
 
     const sheetData: any[][] = [
-      ['المملكة المغربية', '', '', '', '', '', '', '', '', '', '', '', '', '', 'وزارة التربية الوطنية والتعليم الأولي والرياضة'],
-      ['دفتر التتبع اليومي والمواظبة في التربية البدنية والرياضية (10 حصص)'],
+      ['المملكة المغربية', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'وزارة التربية الوطنية والتعليم الأولي والرياضة'],
+      ['دفتر التتبع اليومي والمواظبة والتقويم المستمر في التربية البدنية والرياضية (10 حصص)'],
       [
         `المؤسسة: ${institution}`,
         '',
@@ -2048,17 +2048,21 @@ export const exportTenSessionsNotebookToExcel = (
         'رقم مسار',
         'الاسم والنسب الكامل',
         'تاريخ الازدياد',
-        'الحصة 1',
-        'الحصة 2',
-        'الحصة 3',
-        'الحصة 4',
-        'الحصة 5',
-        'الحصة 6',
-        'الحصة 7',
-        'الحصة 8',
-        'الحصة 9',
-        'الحصة 10',
-        'مجموع الغيابات',
+        'ح 1',
+        'ح 2',
+        'ح 3',
+        'ح 4',
+        'ح 5',
+        'ح 6',
+        'ح 7',
+        'ح 8',
+        'ح 9',
+        'ح 10',
+        'م.الغياب',
+        'تقويم حركي',
+        'تقويم معرفي',
+        'تقويم سلوكي',
+        'النقطة /20',
         'ملاحظات عامة'
       ]
     ];
@@ -2085,7 +2089,11 @@ export const exportTenSessionsNotebookToExcel = (
         '', // Session 9
         '', // Session 10
         '', // Total Absences
-        ''  // Observations
+        '', // Motor / حركي
+        '', // Cognitive / معرفي
+        '', // Behavioral / سلوكي
+        '', // Final score / النقطة /20
+        ''  // Observations / ملاحظات
       ]);
     }
 
@@ -2093,7 +2101,10 @@ export const exportTenSessionsNotebookToExcel = (
     sheetData.push([]);
     sheetData.push([
       '',
-      'توقيع الأستاذ(ة):',
+      'توقيع وتأشيرة الأستاذ(ة):',
+      '',
+      '',
+      '',
       '',
       '',
       '',
@@ -2111,32 +2122,36 @@ export const exportTenSessionsNotebookToExcel = (
 
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
 
-    // Set column widths for optimal printing and single-sheet layout
+    // Set column widths for optimal printing and single-sheet portrait layout
     ws['!cols'] = [
-      { wch: 6 },  // N°
-      { wch: 14 }, // Code Massar
-      { wch: 28 }, // Nom & Prénom
-      { wch: 14 }, // Date de Naissance
-      { wch: 7 },  // H1
-      { wch: 7 },  // H2
-      { wch: 7 },  // H3
-      { wch: 7 },  // H4
-      { wch: 7 },  // H5
-      { wch: 7 },  // H6
-      { wch: 7 },  // H7
-      { wch: 7 },  // H8
-      { wch: 7 },  // H9
-      { wch: 7 },  // H10
-      { wch: 12 }, // Total Absences
-      { wch: 20 }  // Observations
+      { wch: 5 },  // N°
+      { wch: 13 }, // Code Massar
+      { wch: 22 }, // Nom & Prénom
+      { wch: 11 }, // Date de Naissance
+      { wch: 4.5 },  // H1
+      { wch: 4.5 },  // H2
+      { wch: 4.5 },  // H3
+      { wch: 4.5 },  // H4
+      { wch: 4.5 },  // H5
+      { wch: 4.5 },  // H6
+      { wch: 4.5 },  // H7
+      { wch: 4.5 },  // H8
+      { wch: 4.5 },  // H9
+      { wch: 4.5 },  // H10
+      { wch: 7 },  // Total Absences
+      { wch: 9 },  // تقويم حركي
+      { wch: 9 },  // تقويم معرفي
+      { wch: 9 },  // تقويم سلوكي
+      { wch: 9 },  // النقطة /20
+      { wch: 15 }  // Observations
     ];
 
     // Right-to-Left sheet view
     ws['!views'] = [{ RTL: true }];
 
-    // Page setup for printing (A4 Landscape, fit to 1 page wide)
+    // Page setup for printing (A4 Portrait, fit to 1 page wide and high)
     ws['!pageSetup'] = {
-      orientation: 'landscape',
+      orientation: 'portrait',
       paperSize: 9, // A4
       fitToWidth: 1,
       fitToHeight: 1
@@ -2152,6 +2167,116 @@ export const exportTenSessionsNotebookToExcel = (
   XLSX.writeFile(wb, fileName);
   return true;
 };
+
+/**
+ * Export the 10 Pedagogical Sessions Progression (Moroccan OP 2009) to Excel
+ */
+export const exportTenSessionsProgressionToExcel = (
+  sportName: string,
+  levelLabel: string,
+  otcText: string,
+  progression: Array<{
+    seanceNumber: number;
+    phaseLabelAr: string;
+    titleAr: string;
+    titleFr: string;
+    motorObjective: string;
+    cognitiveObjective: string;
+    behavioralObjective: string;
+    situation: string;
+    criteria: string;
+  }>,
+  meta: {
+    institution: string;
+    teacherName: string;
+    academicYear: string;
+    className: string;
+  }
+): boolean => {
+  const XLSX = (window as any).XLSX;
+  if (!XLSX) {
+    throw new Error('مكتبة XLSX غير متوفرة في الصفحة');
+  }
+
+  const wb = XLSX.utils.book_new();
+  const sheetData: any[][] = [];
+
+  // Header rows
+  sheetData.push(['المملكة المغربية', '', '', '', '', '', '', '']);
+  sheetData.push(['وزارة التربية الوطنية والتعليم الأولي والرياضة', '', '', '', '', '', '', '']);
+  sheetData.push([`المؤسسة: ${meta.institution}`, '', '', `الموسم الدراسي: ${meta.academicYear}`, '', '', `الأستاذ(ة): ${meta.teacherName}`, '']);
+  sheetData.push([`القسم: ${meta.className}`, '', `السلك: ${levelLabel}`, '', `النشاط الرياضي: ${sportName}`, '', '', '']);
+  sheetData.push([]);
+  sheetData.push(['بطاقة التدرج البيداغوجي لـ 10 حصص وفق التوجيهات التربوية لمادة التربية البدنية والرياضية 2009', '', '', '', '', '', '', '']);
+  sheetData.push([`الهدف الختامي للإدماج (OTC): ${otcText}`, '', '', '', '', '', '', '']);
+  sheetData.push([]);
+
+  // Table Headers
+  sheetData.push([
+    'رقم الحصة',
+    'المرحلة البيداغوجية',
+    'موضوع الحصة (العربية / الفرنسية)',
+    'الهدف الحركي / المهاري (Moteur)',
+    'الهدف المعرفي / المفاهيمي (Cognitif)',
+    'الهدف السلوكي / الوجداني (Affectif)',
+    'وضعية التعلم والإنجاز (Situation)',
+    'معايير النجاح والتقويم (Critères)'
+  ]);
+
+  // Rows
+  progression.forEach(s => {
+    sheetData.push([
+      `الحصة ${s.seanceNumber}`,
+      s.phaseLabelAr,
+      `${s.titleAr}\n(${s.titleFr})`,
+      s.motorObjective,
+      s.cognitiveObjective,
+      s.behavioralObjective,
+      s.situation,
+      s.criteria
+    ]);
+  });
+
+  sheetData.push([]);
+  sheetData.push([
+    '',
+    'توقيع وتأشيرة الأستاذ(ة):',
+    '',
+    '',
+    '',
+    '',
+    'توقيع وتأشيرة الإدارة التربوية:',
+    ''
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+  ws['!cols'] = [
+    { wch: 10 }, // Session
+    { wch: 16 }, // Phase
+    { wch: 32 }, // Title
+    { wch: 35 }, // Moteur
+    { wch: 30 }, // Cognitif
+    { wch: 30 }, // Affectif
+    { wch: 38 }, // Situation
+    { wch: 30 }  // Criteres
+  ];
+
+  ws['!views'] = [{ RTL: true }];
+  ws['!pageSetup'] = {
+    orientation: 'portrait',
+    paperSize: 9, // A4
+    fitToWidth: 1,
+    fitToHeight: 1
+  };
+
+  XLSX.utils.book_append_sheet(wb, ws, 'الأهداف البيداغوجية');
+  const safeName = sportName.replace(/\s+/g, '_');
+  XLSX.writeFile(wb, `الأهداف_البيداغوجية_10حصص_${safeName}_${meta.className}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+
+  return true;
+};
+
 
 
 

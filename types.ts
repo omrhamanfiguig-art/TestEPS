@@ -254,6 +254,33 @@ export interface PedagogicalReport {
   updatedAt: string;
 }
 
+export interface SchoolAccidentReport {
+  id: string;
+  institution: string;
+  teacherName: string;
+  className: string;
+  studentNumber: string;
+  studentName: string;
+  studentGender?: 'M' | 'F';
+  studentDob?: string;
+  sportActivity: string; // النشاط الرياضي
+  accidentDate: string; // YYYY-MM-DD
+  accidentTime: string; // HH:mm
+  accidentLocation: string; // مكان الحادثة (الملعب، قاعة، حلبة...)
+  description: string; // وصف الحادثة
+  injuryNature: string; // طبيعة الإصابة (كسر، التواء، جرح...)
+  injuryLocation?: string; // موضع الإصابة (الركبة، الكاحل، اليد...)
+  firstAidMeasures: string; // الإسعافات الأولية المتخذة
+  evacuationHospital?: string; // نقل إلى المستعجلات / المركز الصحي
+  parentNotified?: boolean; // هل تم إشعار ولي الأمر
+  parentNotificationTime?: string; // وقت إشعار ولي الأمر
+  witnesses?: string; // الشهود الحاضرون
+  insurancePolicyNumber?: string; // رقم عقد التأمين المدرسي
+  status?: 'draft' | 'submitted' | 'archived';
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AssociationTransaction {
   id: string;
   type: 'revenue' | 'expense';

@@ -143,8 +143,8 @@ export const BaremeSettingsModal: React.FC<BaremeSettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-3xl w-full flex flex-col max-h-[92vh] overflow-hidden border border-gray-100 dark:border-gray-700">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/65 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white dark:bg-gray-800 rounded-t-3xl sm:rounded-3xl shadow-2xl max-w-3xl w-full h-[95vh] sm:h-auto sm:max-h-[92vh] flex flex-col overflow-hidden border border-gray-100 dark:border-gray-700">
         {/* Header */}
         <div className="px-6 py-4 bg-gradient-to-r from-indigo-600 via-indigo-700 to-violet-700 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">

@@ -1309,14 +1309,14 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
                             <div>
                                 <div className="flex items-center gap-2">
                                     <h2 className="text-lg font-black text-white">
-                                        دفتر التتبع اليومي في عشر حصص (10 حصص — كل قسم في ورقة واحدة)
+                                        دفتر التتبع اليومي والتقويم والأهداف البيداغوجية (10 حصص)
                                     </h2>
                                     <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-gray-900">
-                                        جديد ومطلوب ✨
+                                        توجيهات 2009 ✨ A4 بورتريه
                                     </span>
                                 </div>
                                 <p className="text-xs text-indigo-200 mt-1 leading-relaxed">
-                                    تصدير شبكة تتبع الحضور والغياب اليومي في 10 حصص مع أسماء التلاميذ، رقم مسار، تاريخ الازدياد، وعشرة أعمدة فارغة للتنقيط اليدوي ومجموع الغيابات — مهيأة بحيث يطبع أو يصدر كل قسم في صفحة A4 مستقلة.
+                                    تتبع الحضور في 10 حصص مع أعمدة التقويم (حركي - معرفي - سلوكي والنقطة /20) في ورقة A4 بورتريه واحدة لكل قسم، مع إمكانية عرض وطباعة واستيراد 10 أهداف بيداغوجية مقترحة متدرجة خاصة بكل نشاط وحسب السلك انطلاقاً من التوجيهات التربوية الرسمية 2009.
                                 </p>
                             </div>
                         </div>
@@ -1329,7 +1329,7 @@ export const ImportExportScreen: React.FC<ImportExportScreenProps> = ({
                             className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-white text-indigo-900 hover:bg-indigo-50 font-black text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                             <PrinterIcon className="w-4 h-4 text-indigo-700" />
-                            <span>فتح نافذة الطباعة والمعاينة PDF</span>
+                            <span>المعاينة والطباعة والأهداف البيداغوجية (PDF)</span>
                         </button>
 
                         <button
